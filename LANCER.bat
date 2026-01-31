@@ -1,9 +1,8 @@
 @echo off
-chcp 65001 >nul 2>&1
 setlocal
 
 echo ============================================================
-echo   compta-ecom — Automatisation comptable e-commerce
+echo   compta-ecom - Automatisation comptable e-commerce
 echo ============================================================
 echo.
 
