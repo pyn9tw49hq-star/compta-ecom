@@ -1,0 +1,5 @@
+Order,Type,Payment Method Name,Amount,Fee,Net,Payout Date,Payout ID
+#R001,charge,card,132.00,3.84,128.16,2026-01-25,RP001
+#R002,charge,card,60.00,2.10,57.90,2026-01-25,RP001
+#R001,refund,card,-132.00,-3.84,-128.16,2026-01-26,RP002
+#R002,refund,card,-60.00,2.10,-62.10,2026-01-26,RP002

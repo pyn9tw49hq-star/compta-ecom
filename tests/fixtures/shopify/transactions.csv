@@ -1,0 +1,5 @@
+Order,Type,Payment Method Name,Amount,Fee,Net,Payout Date,Payout ID
+#TEST001,charge,card,132.00,3.84,128.16,2026-01-23,P001
+#TEST002,charge,card,60.00,2.10,57.90,2026-01-23,P001
+#TEST002,refund,card,-60.00,-2.10,-57.90,2026-01-24,P002
+#TEST003,charge,card,150.00,4.35,145.65,2026-01-24,P002

@@ -1,0 +1,6 @@
+Numéro de commande;Type;Date de commande;Date du cycle de paiement;Montant
+LM001;Montant;2026-01-12;2026-01-28;80.00
+LM001;Frais de port;2026-01-12;2026-01-28;5.00
+LM001;Commission;2026-01-12;2026-01-28;-12.00
+LM001;Taxe sur la commission;2026-01-12;2026-01-28;-2.40
+LM001;Paiement;2026-01-12;2026-01-28;70.60

@@ -1,0 +1,29 @@
+channels:
+  shopify:
+    files:
+      sales: "ventes.csv"
+      transactions: "transactions.csv"
+      payouts: "versements.csv"
+    encoding: utf-8
+    separator: ","
+  manomano:
+    files:
+      ca: "ca.csv"
+      payouts: "versements_manomano.csv"
+    encoding: utf-8
+    separator: ";"
+    default_country_code: "250"
+  decathlon:
+    files:
+      data: "decathlon_data.csv"
+    encoding: utf-8
+    separator: ";"
+    default_country_code: "250"
+    commission_vat_rate: 0.0
+  leroy_merlin:
+    files:
+      data: "leroy_merlin_data.csv"
+    encoding: utf-8
+    separator: ";"
+    default_country_code: "250"
+    commission_vat_rate: 20.0

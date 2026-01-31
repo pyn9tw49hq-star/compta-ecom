@@ -1,0 +1,118 @@
+# Taux TVA standard par pays — codes ISO 3166-1 numérique
+# Source : https://europa.eu/youreurope/business/taxation/vat/vat-rules-rates/index_fr.htm
+# Dernière mise à jour : 2026-01-31
+countries:
+  # --- Union Européenne (27 pays) ---
+  "040":
+    name: "Autriche"
+    rate: 20.0
+    alpha2: "AT"
+  "056":
+    name: "Belgique"
+    rate: 21.0
+    alpha2: "BE"
+  "100":
+    name: "Bulgarie"
+    rate: 20.0
+    alpha2: "BG"
+  "191":
+    name: "Croatie"
+    rate: 25.0
+    alpha2: "HR"
+  "196":
+    name: "Chypre"
+    rate: 19.0
+    alpha2: "CY"
+  "203":
+    name: "Tchéquie"
+    rate: 21.0
+    alpha2: "CZ"
+  "208":
+    name: "Danemark"
+    rate: 25.0
+    alpha2: "DK"
+  "233":
+    name: "Estonie"
+    rate: 24.0
+    alpha2: "EE"
+  "246":
+    name: "Finlande"
+    rate: 25.5
+    alpha2: "FI"
+  "250":
+    name: "France"
+    rate: 20.0
+    alpha2: "FR"
+  "276":
+    name: "Allemagne"
+    rate: 19.0
+    alpha2: "DE"
+  "300":
+    name: "Grèce"
+    rate: 24.0
+    alpha2: "GR"
+  "348":
+    name: "Hongrie"
+    rate: 27.0
+    alpha2: "HU"
+  "372":
+    name: "Irlande"
+    rate: 23.0
+    alpha2: "IE"
+  "380":
+    name: "Italie"
+    rate: 22.0
+    alpha2: "IT"
+  "428":
+    name: "Lettonie"
+    rate: 21.0
+    alpha2: "LV"
+  "440":
+    name: "Lituanie"
+    rate: 21.0
+    alpha2: "LT"
+  "442":
+    name: "Luxembourg"
+    rate: 17.0
+    alpha2: "LU"
+  "470":
+    name: "Malte"
+    rate: 18.0
+    alpha2: "MT"
+  "528":
+    name: "Pays-Bas"
+    rate: 21.0
+    alpha2: "NL"
+  "616":
+    name: "Pologne"
+    rate: 23.0
+    alpha2: "PL"
+  "620":
+    name: "Portugal"
+    rate: 23.0
+    alpha2: "PT"
+  "642":
+    name: "Roumanie"
+    rate: 21.0
+    alpha2: "RO"
+  "703":
+    name: "Slovaquie"
+    rate: 23.0
+    alpha2: "SK"
+  "705":
+    name: "Slovénie"
+    rate: 22.0
+    alpha2: "SI"
+  "724":
+    name: "Espagne"
+    rate: 21.0
+    alpha2: "ES"
+  "752":
+    name: "Suède"
+    rate: 25.0
+    alpha2: "SE"
+  # --- Territoires à taux spécifique ---
+  "974":
+    name: "DOM-TOM (Réunion)"
+    rate: 0.0
+    alpha2: "RE"

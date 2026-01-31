@@ -1,0 +1,5 @@
+countries:
+  "250":
+    name: France
+    rate: 20.0
+    alpha2: FR

@@ -1,0 +1,35 @@
+clients:
+  shopify: "411SHOPIFY"
+  manomano: "411MANO"
+  decathlon: "411DECA"
+  leroy_merlin: "411LM"
+
+fournisseurs:
+  manomano: "FMANO"
+  decathlon: "FDECATHLON"
+  leroy_merlin: "FADEO"
+
+psp:
+  card:
+    compte: "51150007"
+    commission: "62700002"
+  paypal:
+    compte: "51150004"
+    commission: "62700001"
+
+transit: "58000000"
+banque: "51200000"
+
+comptes_speciaux:
+  ADJUSTMENT: "51150002"
+
+comptes_vente:
+  prefix: "707"
+  canal_codes:
+    shopify: "01"
+    manomano: "02"
+    decathlon: "03"
+    leroy_merlin: "04"
+
+comptes_tva:
+  prefix: "4457"

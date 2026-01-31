@@ -1,0 +1,3 @@
+reference;type;createdAt;amountVatIncl;commissionVatIncl;commissionVatExcl;vatOnCommission;netAmount;productPriceVatExcl;vatOnProduct;shippingPriceVatExcl;vatOnShipping
+MR001;ORDER;2026-01-18;120.00;-18.00;-15.00;-3.00;102.00;100.00;20.00;0.00;0.00
+MR001;REFUND;2026-01-19;-120.00;18.00;15.00;3.00;-102.00;-100.00;-20.00;0.00;0.00

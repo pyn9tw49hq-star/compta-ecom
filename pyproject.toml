@@ -1,6 +1,6 @@
 [build-system]
 requires = ["setuptools>=68.0", "wheel"]
-build-backend = "setuptools.backends._legacy:_Backend"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "compta-ecom"
@@ -20,6 +20,7 @@ dev = [
     "ruff>=0.4",
     "mypy>=1.10",
     "pandas-stubs>=2.0",
+    "types-PyYAML>=6.0",
 ]
 
 [project.scripts]
