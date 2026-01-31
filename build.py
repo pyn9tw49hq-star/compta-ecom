@@ -2,9 +2,12 @@
 
 Produit :
     dist/
-    ├── compta-ecom.exe
-    ├── config/          (modifiable par l'utilisateur)
-    └── guide-utilisateur.md
+    ├── 1_DEPOSER_CSV_ICI/   (dossier vide pour les CSV d'entrée)
+    ├── 2_RESULTATS/         (dossier vide pour les fichiers Excel)
+    ├── config/              (configuration YAML modifiable)
+    ├── compta-ecom.exe      (exécutable autonome)
+    ├── guide-utilisateur.md
+    └── LANCER.bat           (script de lancement pour l'utilisateur)
 
 Usage :
     python build.py
@@ -22,6 +25,7 @@ SRC_MAIN = ROOT / "src" / "compta_ecom" / "main.py"
 DIST_DIR = ROOT / "dist"
 CONFIG_SRC = ROOT / "config"
 GUIDE_SRC = ROOT / "docs" / "guide-utilisateur.md"
+LANCER_SRC = ROOT / "LANCER.bat"
 
 
 def _run_pyinstaller() -> None:
@@ -60,21 +64,38 @@ def _copy_guide() -> None:
     print(f"[build] guide-utilisateur.md copié dans {dest}")
 
 
+def _copy_lancer_bat() -> None:
+    """Copie LANCER.bat dans dist/."""
+    dest = DIST_DIR / "LANCER.bat"
+    shutil.copy2(LANCER_SRC, dest)
+    print(f"[build] LANCER.bat copié dans {dest}")
+
+
+def _create_user_dirs() -> None:
+    """Crée les dossiers utilisateur vides dans dist/."""
+    for name in ("1_DEPOSER_CSV_ICI", "2_RESULTATS"):
+        d = DIST_DIR / name
+        d.mkdir(exist_ok=True)
+        print(f"[build] dossier {name}/ créé dans {d}")
+
+
 def main() -> None:
     """Point d'entrée du script de build."""
-    if not SRC_MAIN.exists():
-        print(f"ERREUR : {SRC_MAIN} introuvable", file=sys.stderr)
-        sys.exit(1)
-    if not CONFIG_SRC.is_dir():
-        print(f"ERREUR : dossier {CONFIG_SRC} introuvable", file=sys.stderr)
-        sys.exit(1)
-    if not GUIDE_SRC.exists():
-        print(f"ERREUR : {GUIDE_SRC} introuvable", file=sys.stderr)
-        sys.exit(1)
+    for label, path in [
+        ("entry point", SRC_MAIN),
+        ("config", CONFIG_SRC),
+        ("guide", GUIDE_SRC),
+        ("LANCER.bat", LANCER_SRC),
+    ]:
+        if not path.exists():
+            print(f"ERREUR : {label} introuvable ({path})", file=sys.stderr)
+            sys.exit(1)
 
     _run_pyinstaller()
     _copy_config()
     _copy_guide()
+    _copy_lancer_bat()
+    _create_user_dirs()
 
     print()
     print("Build terminé. Contenu de dist/ :")
