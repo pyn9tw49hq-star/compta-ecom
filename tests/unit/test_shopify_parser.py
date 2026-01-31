@@ -190,17 +190,18 @@ class TestShopifyParserShippingVat:
         assert tx.amount_tva == 20.0  # round(21.47 - 1.47, 2)
 
 
-class TestShopifyParserNegativeVat:
-    def test_negative_amount_tva(self, tmp_path: Path, shopify_config: AppConfig) -> None:
-        """amount_tva < 0 -> Anomaly + forcé à 0.0."""
+class TestShopifyParserZeroVat:
+    def test_zero_taxes_no_anomaly(self, tmp_path: Path, shopify_config: AppConfig) -> None:
+        """Taxes=0 et Shipping>0 → amount_tva=0, pas d'anomalie TVA négative."""
         csv_path = _make_csv(tmp_path, [_base_row(Taxes=0.0, Shipping=10.0)])
         parser = ShopifyParser()
         result = parser.parse({"sales": csv_path}, shopify_config)
 
         tx = result.transactions[0]
         assert tx.amount_tva == 0.0
+        assert tx.shipping_tva == 0.0
         anomalies = [a for a in result.anomalies if a.detail == "TVA produit négative après ventilation port"]
-        assert len(anomalies) == 1
+        assert len(anomalies) == 0
 
 
 class TestShopifyParserNonParsable:

@@ -41,8 +41,22 @@ PAYOUT_REQUIRED_COLUMNS = [
 DATE_FORMAT_CA = "%Y-%m-%d"
 DATE_FORMAT_PAYOUT = "%Y-%m-%d"
 
-KNOWN_PAYOUT_TYPES = {"ORDER", "REFUND", "ADJUSTMENT", "ECO_CONTRIBUTION", "SUBSCRIPTION", "REFUND_PENALTY"}
-SPECIAL_TYPES = {"ADJUSTMENT", "ECO_CONTRIBUTION", "SUBSCRIPTION", "REFUND_PENALTY"}
+KNOWN_PAYOUT_TYPES = {
+    "ORDER", "REFUND", "ADJUSTMENT", "ECO_CONTRIBUTION",
+    "ECO_CONTRIBUTION_SERVICE", "SUBSCRIPTION", "REFUND_PENALTY",
+}
+SPECIAL_TYPES = {
+    "ADJUSTMENT", "ECO_CONTRIBUTION", "ECO_CONTRIBUTION_SERVICE",
+    "SUBSCRIPTION", "REFUND_PENALTY",
+}
+
+# Aliases : colonne attendue → alternatives acceptées dans les exports réels
+CA_COLUMN_ALIASES: dict[str, list[str]] = {
+    "createdAt": ["operationDate"],
+}
+PAYOUT_COLUMN_ALIASES: dict[str, list[str]] = {
+    "AMOUNT": ["NET_AMOUNT"],
+}
 
 CA_AMOUNT_COLUMNS = [
     "amountVatIncl",
@@ -85,6 +99,7 @@ class ManoManoParser(BaseParser):
         """
         channel_config = config.channels["manomano"]
         df = pd.read_csv(ca_path, sep=channel_config.separator, encoding=channel_config.encoding)
+        df = self.apply_column_aliases(df, CA_COLUMN_ALIASES)
         self.validate_columns(df, CA_REQUIRED_COLUMNS)
 
         country_code = channel_config.default_country_code
@@ -97,7 +112,7 @@ class ManoManoParser(BaseParser):
         for col in CA_AMOUNT_COLUMNS:
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
-        df["createdAt"] = pd.to_datetime(df["createdAt"], format=DATE_FORMAT_CA, errors="coerce")
+        df["createdAt"] = pd.to_datetime(df["createdAt"], format="mixed", errors="coerce", utc=True)
 
         rows: list[dict[str, Any]] = []
         anomalies: list[Anomaly] = []
@@ -313,6 +328,7 @@ class ManoManoParser(BaseParser):
 
         # Parse Versements
         payout_df = pd.read_csv(payouts_path, sep=channel_config.separator, encoding=channel_config.encoding)
+        payout_df = self.apply_column_aliases(payout_df, PAYOUT_COLUMN_ALIASES)
         self.validate_columns(payout_df, PAYOUT_REQUIRED_COLUMNS)
 
         special_rows, lookup_dict, payout_anomalies = self._parse_payout_lines(payout_df, config)

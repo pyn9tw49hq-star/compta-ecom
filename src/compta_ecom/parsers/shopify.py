@@ -214,13 +214,27 @@ class ShopifyParser(BaseParser):
         tax_name = tax_raw if _is_notna(tax_raw) else None
         tva_rate = _extract_vat_rate(tax_name)
 
-        # Ventilation frais de port
-        shipping_ht = round(shipping, 2)
-        shipping_tva = round(shipping_ht * tva_rate / 100, 2)
+        # Montants — dérivés depuis Total et Taxes pour garantir HT + TVA = TTC.
+        # Shopify peut exporter en prix TTC (Total = Subtotal + Shipping, taxes
+        # incluses) ou HT (Total = Subtotal + Shipping + Taxes).  En dérivant
+        # le HT total depuis Total − Taxes, les deux cas sont couverts.
+        amount_ttc = round(total, 2)
+        total_tva = round(taxes, 2)
+        total_ht = round(amount_ttc - total_tva, 2)
 
-        # Montants
-        amount_ht = round(subtotal, 2)
-        amount_tva = round(taxes - shipping_tva, 2)
+        # Ventilation produit / frais de port (proportionnelle)
+        raw_sum = subtotal + shipping
+        if raw_sum > 0 and shipping > 0:
+            shipping_ratio = shipping / raw_sum
+            shipping_ht = round(total_ht * shipping_ratio, 2)
+            shipping_tva = round(total_tva * shipping_ratio, 2)
+        else:
+            shipping_ht = 0.0
+            shipping_tva = 0.0
+
+        amount_ht = round(total_ht - shipping_ht, 2)
+        amount_tva = round(total_tva - shipping_tva, 2)
+
         if amount_tva < 0:
             anomalies.append(
                 Anomaly(
@@ -234,7 +248,6 @@ class ShopifyParser(BaseParser):
                 )
             )
             amount_tva = 0.0
-        amount_ttc = round(total, 2)
 
         # Date
         date_str = str(row["Created at"])

@@ -18,6 +18,24 @@ class BaseParser(ABC):
     def parse(self, files: dict[str, Path], config: AppConfig) -> ParseResult:
         """Parse les fichiers CSV et retourne un ParseResult normalisé."""
 
+    @staticmethod
+    def apply_column_aliases(df: pd.DataFrame, aliases: dict[str, list[str]]) -> pd.DataFrame:
+        """Renomme les colonnes du DataFrame selon les alias définis.
+
+        Pour chaque colonne attendue, si elle est absente mais qu'un alias
+        est présent, la colonne est renommée.
+        """
+        rename_map: dict[str, str] = {}
+        for expected, alternatives in aliases.items():
+            if expected not in df.columns:
+                for alt in alternatives:
+                    if alt in df.columns:
+                        rename_map[alt] = expected
+                        break
+        if rename_map:
+            df = df.rename(columns=rename_map)
+        return df
+
     def validate_columns(self, df: pd.DataFrame, required: list[str]) -> None:
         """Vérifie que toutes les colonnes requises sont présentes dans le DataFrame.
 

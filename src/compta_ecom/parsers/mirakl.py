@@ -28,6 +28,30 @@ ORDER_LINE_TYPES = {"Montant", "Frais de port", "Commission", "Taxe sur la commi
 
 DATE_FORMAT = "%Y-%m-%d"
 
+# Aliases : colonne attendue → alternatives dans les exports réels
+COLUMN_ALIASES: dict[str, list[str]] = {
+    "Date de commande": ["Date de création", "Date de transaction"],
+}
+
+# Normalisation des Type : valeur réelle → valeur attendue par le parser
+TYPE_ALIASES: dict[str, str] = {
+    "Montant de commande": "Montant",
+    "Taxe sur commission": "Taxe sur la commission",
+    "Frais d'abonnement": "Abonnement",
+    # Remboursements — traités comme leurs équivalents avec montants négatifs
+    "Remboursement de montant de commande": "Montant",
+    "Remboursement de frais de port": "Frais de port",
+    "Remboursement de commission": "Commission",
+    "Remboursement de taxe sur commission": "Taxe sur la commission",
+    # Lignes de taxe Leroy Merlin — ignorées car la TVA est recalculée
+    "Taxe sur commande": "Taxe sur commande",
+    "Taxe sur frais de port": "Taxe sur frais de port",
+    "Taxe sur abonnement": "Taxe sur abonnement",
+}
+
+# Types de taxe explicite (Leroy Merlin) — ignorées si le parser calcule la TVA
+TAX_LINE_TYPES = {"Taxe sur commande", "Taxe sur frais de port", "Taxe sur abonnement"}
+
 
 class MiraklParser(BaseParser):
     """Parser mutualisé pour les CSV Mirakl (Décathlon, Leroy Merlin)."""
@@ -41,9 +65,22 @@ class MiraklParser(BaseParser):
         """Lit le CSV, valide les colonnes, convertit les numériques, parse les dates."""
         channel_config = config.channels[self.channel]
         df = pd.read_csv(data_path, sep=channel_config.separator, encoding=channel_config.encoding)
+        df = self.apply_column_aliases(df, COLUMN_ALIASES)
+
+        # Normaliser les valeurs Type via les alias (seulement si la colonne existe)
+        if "Type" in df.columns:
+            df["Type"] = df["Type"].map(lambda t: TYPE_ALIASES.get(str(t).strip(), str(t).strip()))
+
         self.validate_columns(df, REQUIRED_COLUMNS)
 
         anomalies: list[Anomaly] = []
+
+        # Filtrer les lignes de taxe explicite (Leroy Merlin) — la TVA est
+        # recalculée par le parser, ces lignes ne doivent pas être agrégées.
+        tax_mask = df["Type"].isin(TAX_LINE_TYPES)
+        if tax_mask.any():
+            logger.info("Canal %s : %d lignes de taxe explicite ignorées", self.channel, int(tax_mask.sum()))
+        df = df[~tax_mask].copy()
 
         # Convert Montant to numeric
         original_montant = df["Montant"].copy()
@@ -65,10 +102,10 @@ class MiraklParser(BaseParser):
         # Drop rows with NaN Montant
         df = df[df["Montant"].notna()].copy()
 
-        # Parse dates
-        df["Date de commande"] = pd.to_datetime(df["Date de commande"], format=DATE_FORMAT, errors="coerce")
+        # Parse dates — accepter à la fois %Y-%m-%d et %d/%m/%Y - %H:%M:%S
+        df["Date de commande"] = pd.to_datetime(df["Date de commande"], format="mixed", dayfirst=True, errors="coerce")
         df["Date du cycle de paiement"] = pd.to_datetime(
-            df["Date du cycle de paiement"], format=DATE_FORMAT, errors="coerce"
+            df["Date du cycle de paiement"], format="mixed", dayfirst=True, errors="coerce"
         )
 
         return df, anomalies

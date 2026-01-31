@@ -8,7 +8,7 @@ from compta_ecom.engine.marketplace_payout_entries import generate_marketplace_p
 from compta_ecom.engine.payout_entries import generate_payout_entries
 from compta_ecom.engine.sale_entries import generate_sale_entries
 from compta_ecom.engine.settlement_entries import generate_settlement_entries
-from compta_ecom.models import AccountingEntry, Anomaly, NormalizedTransaction, PayoutSummary
+from compta_ecom.models import AccountingEntry, Anomaly, BalanceError, NormalizedTransaction, PayoutSummary
 
 
 def generate_all_payout_entries(
@@ -38,7 +38,21 @@ def generate_entries(
             if transaction.channel in config.fournisseurs:
                 entries.extend(generate_marketplace_payout(transaction, config))
             continue
-        entries.extend(generate_sale_entries(transaction, config))
+        try:
+            entries.extend(generate_sale_entries(transaction, config))
+        except BalanceError as exc:
+            anomalies.append(
+                Anomaly(
+                    type="balance_error",
+                    severity="error",
+                    reference=transaction.reference,
+                    channel=transaction.channel,
+                    detail=str(exc),
+                    expected_value=None,
+                    actual_value=None,
+                )
+            )
+            continue
         if transaction.channel in config.fournisseurs:
             entries.extend(
                 marketplace_entries.generate_marketplace_commission(transaction, config)
