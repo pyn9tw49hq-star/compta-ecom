@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 
 from compta_ecom.config.loader import AppConfig
-from compta_ecom.engine.accounts import JOURNAL_BANQUE, verify_balance
+from compta_ecom.engine.accounts import JOURNAL_REGLEMENT, verify_balance
 from compta_ecom.models import AccountingEntry, NormalizedTransaction
 
 logger = logging.getLogger(__name__)
@@ -72,7 +72,7 @@ def generate_marketplace_payout(
     entries = [
         AccountingEntry(
             date=transaction.payout_date,
-            journal=JOURNAL_BANQUE,
+            journal=JOURNAL_REGLEMENT,
             account=debit_account,
             label=label,
             debit=amount,
@@ -84,7 +84,7 @@ def generate_marketplace_payout(
         ),
         AccountingEntry(
             date=transaction.payout_date,
-            journal=JOURNAL_BANQUE,
+            journal=JOURNAL_REGLEMENT,
             account=credit_account,
             label=label,
             debit=0.0,

@@ -50,12 +50,12 @@ class TestGeneratePayoutEntriesNominal:
         assert psp_entry.debit == 0.0
         assert psp_entry.credit == 186.06
 
-    def test_journal_banque(self, sample_config: AppConfig) -> None:
-        """Journal = BQ pour les deux lignes."""
+    def test_journal_reglement(self, sample_config: AppConfig) -> None:
+        """Journal = RG pour les deux lignes."""
         payout = _make_payout()
         entries, _ = generate_payout_entries(payout, sample_config)
 
-        assert all(e.journal == "BQ" for e in entries)
+        assert all(e.journal == "RG" for e in entries)
 
     def test_entry_type_payout(self, sample_config: AppConfig) -> None:
         """entry_type = payout pour les deux lignes."""

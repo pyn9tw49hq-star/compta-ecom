@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from compta_ecom.config.loader import AppConfig
-from compta_ecom.engine.accounts import JOURNAL_VENTE, verify_balance
+from compta_ecom.engine.accounts import JOURNAL_REGLEMENT, verify_balance
 from compta_ecom.models import AccountingEntry, NormalizedTransaction
 
 # commission_ht non utilisée — commission marketplace comptabilisée en TTC uniquement
@@ -41,7 +41,7 @@ def generate_marketplace_commission(
     entries = [
         AccountingEntry(
             date=transaction.date,
-            journal=JOURNAL_VENTE,
+            journal=JOURNAL_REGLEMENT,
             account=debit_account,
             label=label,
             debit=amount,
@@ -53,7 +53,7 @@ def generate_marketplace_commission(
         ),
         AccountingEntry(
             date=transaction.date,
-            journal=JOURNAL_VENTE,
+            journal=JOURNAL_REGLEMENT,
             account=credit_account,
             label=label,
             debit=0.0,

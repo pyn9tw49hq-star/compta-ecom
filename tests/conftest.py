@@ -28,6 +28,8 @@ def sample_config() -> AppConfig:
         comptes_vente_prefix="707",
         canal_codes={"shopify": "01", "manomano": "02"},
         comptes_tva_prefix="4457",
+        comptes_port_prefix="7085",
+        zones_port={"france": "00", "hors_ue": "01", "ue": "02"},
         vat_table={
             "250": {"name": "France", "rate": 20.0, "alpha2": "FR"},
         },

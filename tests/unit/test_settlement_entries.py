@@ -290,11 +290,11 @@ class TestSettlementMetadata:
             assert e.date == datetime.date(2024, 3, 1)
 
     def test_journal(self, sample_config: AppConfig) -> None:
-        """Journal = 'VE'."""
+        """Journal = 'RG'."""
         tx = _make_transaction()
         entries = generate_settlement_entries(tx, sample_config)
         for e in entries:
-            assert e.journal == "VE"
+            assert e.journal == "RG"
 
     def test_piece_number_and_lettrage(self, sample_config: AppConfig) -> None:
         """piece_number et lettrage = reference."""

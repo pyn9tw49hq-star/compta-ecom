@@ -33,3 +33,10 @@ comptes_vente:
 
 comptes_tva:
   prefix: "4457"
+
+comptes_port:
+  prefix: "7085"
+  zones:
+    france: "00"
+    hors_ue: "01"
+    ue: "02"

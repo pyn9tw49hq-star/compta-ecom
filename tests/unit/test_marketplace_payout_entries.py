@@ -273,11 +273,11 @@ class TestEntryMetadata:
         entries = generate_marketplace_payout(tx, sample_config)
         assert all(e.entry_type == "payout" for e in entries)
 
-    def test_journal_bq(self, sample_config: AppConfig) -> None:
-        """journal = 'BQ'."""
+    def test_journal_reglement(self, sample_config: AppConfig) -> None:
+        """journal = 'RG'."""
         tx = _make_transaction()
         entries = generate_marketplace_payout(tx, sample_config)
-        assert all(e.journal == "BQ" for e in entries)
+        assert all(e.journal == "RG" for e in entries)
 
     def test_date_is_payout_date(self, sample_config: AppConfig) -> None:
         """Date de l'écriture = payout_date."""

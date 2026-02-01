@@ -4,8 +4,14 @@ from __future__ import annotations
 
 from compta_ecom.models import AccountingEntry, BalanceError
 
-JOURNAL_VENTE = "VE"
-JOURNAL_BANQUE = "BQ"
+JOURNAL_REGLEMENT = "RG"
+
+JOURNAUX_VENTE: dict[str, str] = {
+    "shopify": "VE",
+    "manomano": "MM",
+    "decathlon": "DEC",
+    "leroy_merlin": "LM",
+}
 
 
 def build_account(
@@ -25,6 +31,35 @@ def build_account(
     if channel_code:
         return f"{prefix}{channel_code}{country_code}"
     return f"{prefix}{country_code}"
+
+
+FRANCE_CODE = "250"
+DOM_TOM_CODES = {"974"}
+
+
+def resolve_shipping_zone(country_code: str, vat_table: dict[str, object]) -> str:
+    """Détermine la zone géographique pour le compte de frais de port.
+
+    Returns:
+        ``"france"`` | ``"ue"`` | ``"hors_ue"``
+    """
+    if country_code == FRANCE_CODE:
+        return "france"
+    if country_code in DOM_TOM_CODES or country_code not in vat_table:
+        return "hors_ue"
+    return "ue"
+
+
+def build_shipping_account(prefix: str, channel_code: str, zone_code: str) -> str:
+    """Construit un numéro de compte de frais de port (8 chiffres).
+
+    Format : ``prefix + channel_code + zone_code``
+
+    Examples:
+        >>> build_shipping_account("7085", "02", "00")
+        '70850200'
+    """
+    return f"{prefix}{channel_code}{zone_code}"
 
 
 def verify_balance(entries: list[AccountingEntry]) -> None:

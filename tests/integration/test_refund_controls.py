@@ -250,11 +250,12 @@ class TestMultiChannelRefundOrchestration:
                     all_entries.extend(commission_entries)
 
         # Hardcoded expected entry counts — catches silent regressions (QA-003)
-        assert len(all_entries) == 47
+        # Shipping isolation adds 1 extra 7085 line per transaction with shipping_ht > 0
+        assert len(all_entries) == 51
 
-        # 4 refund transactions × 3 sale entries each = 12 refund-type entries
+        # Refund-type entries include 7085 lines for refunds with shipping
         refund_entries = [e for e in all_entries if e.entry_type == "refund"]
-        assert len(refund_entries) == 12
+        assert len(refund_entries) == 13
 
     def test_no_unexpected_anomalies_on_coherent_refunds(
         self,

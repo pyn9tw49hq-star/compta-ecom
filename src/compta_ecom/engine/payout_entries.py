@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from compta_ecom.config.loader import AppConfig
-from compta_ecom.engine.accounts import JOURNAL_BANQUE, verify_balance
+from compta_ecom.engine.accounts import JOURNAL_REGLEMENT, verify_balance
 from compta_ecom.models import AccountingEntry, Anomaly, PayoutSummary
 
 
@@ -36,7 +36,7 @@ def generate_payout_entries(
     entries = [
         AccountingEntry(
             date=payout.payout_date,
-            journal=JOURNAL_BANQUE,
+            journal=JOURNAL_REGLEMENT,
             account=transit_account,
             label=label,
             debit=total if total > 0 else 0.0,
@@ -48,7 +48,7 @@ def generate_payout_entries(
         ),
         AccountingEntry(
             date=payout.payout_date,
-            journal=JOURNAL_BANQUE,
+            journal=JOURNAL_REGLEMENT,
             account=psp_account,
             label=label,
             debit=abs(total) if total < 0 else 0.0,

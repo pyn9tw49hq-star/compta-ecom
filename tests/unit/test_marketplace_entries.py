@@ -217,12 +217,12 @@ class TestMarketplaceCommissionMetadata:
         for e in entries:
             assert e.entry_type == "commission"
 
-    def test_journal_vente(self, sample_config: AppConfig) -> None:
-        """Journal = 'VE'."""
+    def test_journal_reglement(self, sample_config: AppConfig) -> None:
+        """Journal = 'RG'."""
         tx = _make_transaction(commission_ttc=18.00)
         entries = generate_marketplace_commission(tx, sample_config)
         for e in entries:
-            assert e.journal == "VE"
+            assert e.journal == "RG"
 
     def test_date(self, sample_config: AppConfig) -> None:
         """Date = date de la transaction."""
