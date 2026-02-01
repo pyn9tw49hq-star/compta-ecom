@@ -127,7 +127,7 @@ class TestManoManoRefundEntries:
         manomano_refund: NormalizedTransaction,
         sample_config: AppConfig,
     ) -> None:
-        """Écritures commission marketplace refund : 401 D, 411 C (commission_ttc > 0)."""
+        """Écritures commission marketplace refund : 411 D, 401 C (commission_ttc > 0, restituée)."""
         entries = generate_marketplace_commission(manomano_refund, sample_config)
 
         assert len(entries) == 2
@@ -139,13 +139,13 @@ class TestManoManoRefundEntries:
         assert len(entry_411) == 1
 
         # commission_ttc = 18 (positive → marketplace rembourse la commission)
-        # 401 au débit (fournisseur débité)
-        assert entry_401[0].debit == 18.00
-        assert entry_401[0].credit == 0.0
+        # 411 au débit (client débité)
+        assert entry_411[0].debit == 18.00
+        assert entry_411[0].credit == 0.0
 
-        # 411 au crédit (client crédité)
-        assert entry_411[0].credit == 18.00
-        assert entry_411[0].debit == 0.0
+        # 401 au crédit (fournisseur crédité)
+        assert entry_401[0].credit == 18.00
+        assert entry_401[0].debit == 0.0
 
     def test_commission_balance(
         self,

@@ -125,9 +125,9 @@ class TestMiraklRefundEntries:
         assert len(entry_401) == 1
         assert len(entry_411) == 1
 
-        # 401 au débit, 411 au crédit (commission_ttc > 0)
-        assert entry_401[0].debit == 15.00
-        assert entry_411[0].credit == 15.00
+        # 411 au débit, 401 au crédit (commission_ttc > 0, restituée)
+        assert entry_411[0].debit == 15.00
+        assert entry_401[0].credit == 15.00
 
     def test_commission_balance(
         self,

@@ -14,7 +14,9 @@ def generate_marketplace_commission(
 ) -> list[AccountingEntry]:
     """Génère les écritures de commission marketplace (401 ↔ 411).
 
-    Utilise la convention signée : positif → débit, négatif → crédit (abs).
+    Convention signée :
+    - commission_ttc < 0 (vente) → Débit 401 Fournisseur, Crédit 411 Client
+    - commission_ttc > 0 (retour/restituée) → Débit 411 Client, Crédit 401 Fournisseur
     Retourne [] si commission_ttc == 0.0.
     """
     commission = round(transaction.commission_ttc, 2)
@@ -30,11 +32,13 @@ def generate_marketplace_commission(
     label = f"{label_prefix} {transaction.reference} {canal_display}"
 
     if commission > 0:
-        debit_account = fournisseur_account
-        credit_account = client_account
-    else:
+        # Remboursement commission (retour) : 411 Client au débit, 401 Fournisseur au crédit
         debit_account = client_account
         credit_account = fournisseur_account
+    else:
+        # Commission vente normale : 401 Fournisseur au débit, 411 Client au crédit
+        debit_account = fournisseur_account
+        credit_account = client_account
 
     amount = round(abs(commission), 2)
 
