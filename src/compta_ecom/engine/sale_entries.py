@@ -98,7 +98,7 @@ def _build_entries(
             debit=0.0 if is_sale else ht,
             credit=ht if is_sale else 0.0,
             piece_number=transaction.reference,
-            lettrage=transaction.reference,
+            lettrage="",
             channel=transaction.channel,
             entry_type=entry_type,
         )
@@ -115,7 +115,7 @@ def _build_entries(
                 debit=0.0 if is_sale else shipping_ht,
                 credit=shipping_ht if is_sale else 0.0,
                 piece_number=transaction.reference,
-                lettrage=transaction.reference,
+                lettrage="",
                 channel=transaction.channel,
                 entry_type=entry_type,
             )
@@ -132,7 +132,7 @@ def _build_entries(
                 debit=0.0 if is_sale else tva,
                 credit=tva if is_sale else 0.0,
                 piece_number=transaction.reference,
-                lettrage=transaction.reference,
+                lettrage="",
                 channel=transaction.channel,
                 entry_type=entry_type,
             )

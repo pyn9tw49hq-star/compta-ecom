@@ -189,7 +189,8 @@ class TestShopifyRefundCommissionRestituee:
 
         for e in sale_entries + settlement_entries:
             assert e.piece_number == "#R001"
-            assert e.lettrage == "#R001"
+            if e.account.startswith("411") or e.account.startswith("511"):
+                assert e.lettrage == "#R001"
 
 
 class TestShopifyRefundCommissionNonRestituee:
@@ -292,4 +293,5 @@ class TestShopifyRefundCommissionNonRestituee:
 
         for e in sale_entries + settlement_entries:
             assert e.piece_number == "#R002"
-            assert e.lettrage == "#R002"
+            if e.account.startswith("411") or e.account.startswith("511"):
+                assert e.lettrage == "#R002"

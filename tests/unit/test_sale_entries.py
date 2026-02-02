@@ -386,12 +386,15 @@ class TestEntryMetadata:
             assert e.journal == expected_journal
 
     def test_piece_number_and_lettrage(self, sample_config: AppConfig) -> None:
-        """piece_number et lettrage = reference."""
+        """piece_number = reference pour tous ; lettrage = reference uniquement pour 411."""
         tx = _make_transaction(reference="#9999")
         entries = generate_sale_entries(tx, sample_config)
         for e in entries:
             assert e.piece_number == "#9999"
-            assert e.lettrage == "#9999"
+            if e.account.startswith("411"):
+                assert e.lettrage == "#9999"
+            else:
+                assert e.lettrage == ""
 
     def test_date(self, sample_config: AppConfig) -> None:
         """Date = date de la transaction."""

@@ -123,7 +123,7 @@ class TestPipelineFinalWithAnomalies:
         wb.close()
 
     def test_entries_have_lettrage(self, tmp_path: Path) -> None:
-        """Toutes les écritures ont un lettrage non vide."""
+        """Les écritures sur comptes 411/511 ont un lettrage non vide, les autres non."""
         input_dir = tmp_path / "input"
         input_dir.mkdir()
         _write_shopify_nominal(input_dir)
@@ -137,12 +137,15 @@ class TestPipelineFinalWithAnomalies:
 
         wb = openpyxl.load_workbook(output)
         ws = wb["Écritures"]
-        lettrage_col = 8  # column H = lettrage (index 8 in 1-based)
+        account_col = 3  # column C = account (1-based)
+        lettrage_col = 8  # column H = lettrage (1-based)
         for row in ws.iter_rows(min_row=2, values_only=False):
+            account = str(row[account_col - 1].value or "")
             lettrage = row[lettrage_col - 1].value
-            assert lettrage is not None and str(lettrage).strip() != "", (
-                f"Lettrage vide pour la ligne {row[0].row}"
-            )
+            if account.startswith("411") or account.startswith("511"):
+                assert lettrage is not None and str(lettrage).strip() != "", (
+                    f"Lettrage vide pour le compte {account} ligne {row[0].row}"
+                )
         wb.close()
 
     def test_balance_debit_equals_credit(self, tmp_path: Path) -> None:

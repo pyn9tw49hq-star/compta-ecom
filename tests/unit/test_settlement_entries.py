@@ -297,12 +297,15 @@ class TestSettlementMetadata:
             assert e.journal == "RG"
 
     def test_piece_number_and_lettrage(self, sample_config: AppConfig) -> None:
-        """piece_number et lettrage = reference."""
+        """piece_number = reference pour tous ; lettrage uniquement pour 411/511."""
         tx = _make_transaction(reference="#9999")
         entries = generate_settlement_entries(tx, sample_config)
         for e in entries:
             assert e.piece_number == "#9999"
-            assert e.lettrage == "#9999"
+            if e.account.startswith("411") or e.account.startswith("511"):
+                assert e.lettrage == "#9999"
+            else:
+                assert e.lettrage == ""
 
     def test_balance_on_every_case(self, sample_config: AppConfig) -> None:
         """Équilibre systématique sur tous les cas."""

@@ -167,4 +167,5 @@ class TestManoManoRefundEntries:
 
         for e in sale_entries + commission_entries:
             assert e.piece_number == "MR001"
-            assert e.lettrage == "MR001"
+            if e.account.startswith("411") or e.account.startswith("511"):
+                assert e.lettrage == "MR001"

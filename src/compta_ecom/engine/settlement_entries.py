@@ -63,7 +63,7 @@ def generate_settlement_entries(
                 debit=commission if commission > 0 else 0.0,
                 credit=abs(commission) if commission < 0 else 0.0,
                 piece_number=transaction.reference,
-                lettrage=transaction.reference,
+                lettrage="",
                 channel=transaction.channel,
                 entry_type="commission",
             )

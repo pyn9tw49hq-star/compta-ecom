@@ -78,7 +78,12 @@ class TestGeneratePayoutEntriesNominal:
         entries, _ = generate_payout_entries(payout, sample_config)
 
         assert all(e.piece_number == "P999" for e in entries)
-        assert all(e.lettrage == "P999" for e in entries)
+        # Lettrage uniquement sur le compte 511 (PSP), pas sur 580 (transit)
+        for e in entries:
+            if e.account.startswith("511"):
+                assert e.lettrage == "P999"
+            else:
+                assert e.lettrage == ""
 
     def test_date_is_payout_date(self, sample_config: AppConfig) -> None:
         """La date de l'écriture est payout_date."""
@@ -214,7 +219,7 @@ class TestDetailedPayoutNominal:
         # Pair 1 : #1186 — 400.30
         assert entries[0].account == "58000000"
         assert entries[0].debit == 400.30
-        assert entries[0].lettrage == "#1186"
+        assert entries[0].lettrage == ""
         assert entries[0].piece_number == "#1186"
         assert entries[1].account == "51150007"
         assert entries[1].credit == 400.30
@@ -223,7 +228,7 @@ class TestDetailedPayoutNominal:
         # Pair 2 : #1185 — 46.14
         assert entries[2].account == "58000000"
         assert entries[2].debit == 46.14
-        assert entries[2].lettrage == "#1185"
+        assert entries[2].lettrage == ""
         assert entries[3].account == "51150007"
         assert entries[3].credit == 46.14
         assert entries[3].lettrage == "#1185"
@@ -279,7 +284,7 @@ class TestDetailedPayoutRefund:
         assert psp.debit == 29.00
         assert psp.credit == 0.0
 
-        assert transit.lettrage == "#1099"
+        assert transit.lettrage == ""
 
 
 class TestDetailedPayoutNetZero:
@@ -305,7 +310,8 @@ class TestDetailedPayoutNetZero:
         assert len(anomalies) == 0
         # Only 1 pair for #1186, the zero-net detail is skipped
         assert len(entries) == 2
-        assert entries[0].lettrage == "#1186"
+        assert entries[0].lettrage == ""  # transit 580 : pas de lettrage
+        assert entries[1].lettrage == "#1186"  # PSP 511 : lettrage
 
 
 class TestDetailedPayoutPaypal:
@@ -387,9 +393,9 @@ class TestDetailedPayoutAggregatedUnchanged:
 
         assert len(entries) == 2
         assert len(anomalies) == 0
-        # Lettrage = payout_reference (mode agrégé)
-        assert entries[0].lettrage == "P001"
-        assert entries[1].lettrage == "P001"
+        # Lettrage = payout_reference uniquement sur 511 (mode agrégé)
+        assert entries[0].lettrage == ""  # transit 580 : pas de lettrage
+        assert entries[1].lettrage == "P001"  # PSP 511 : lettrage
 
 
 class TestDetailedPayoutBalance:
