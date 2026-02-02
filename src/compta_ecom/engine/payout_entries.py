@@ -136,7 +136,7 @@ def _generate_detailed_payout_entries(
                 debit=abs(net) if net < 0 else 0.0,
                 credit=net if net > 0 else 0.0,
                 piece_number=detail.order_reference,
-                lettrage=detail.order_reference,
+                lettrage=payout.payout_reference or "",
                 channel=payout.channel,
                 entry_type="payout",
             ),

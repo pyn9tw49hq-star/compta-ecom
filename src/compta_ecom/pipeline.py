@@ -7,6 +7,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from compta_ecom.config.loader import AppConfig
+from compta_ecom.controls.lettrage_checker import LettrageChecker
 from compta_ecom.controls.matching_checker import MatchingChecker
 from compta_ecom.controls.vat_checker import VatChecker
 from compta_ecom.engine import generate_entries
@@ -75,8 +76,12 @@ class PipelineOrchestrator:
         matching_anomalies = MatchingChecker.check(all_transactions, config)
         logger.info("MatchingChecker: %d anomalies détectées", len(matching_anomalies))
 
+        lettrage_anomalies = LettrageChecker.check(entries)
+        logger.info("LettrageChecker: %d anomalies détectées", len(lettrage_anomalies))
+
         all_anomalies.extend(vat_anomalies)
         all_anomalies.extend(matching_anomalies)
+        all_anomalies.extend(lettrage_anomalies)
 
         export(entries, all_anomalies, output_path, config)
         print_summary(entries, all_anomalies, channel_errors)

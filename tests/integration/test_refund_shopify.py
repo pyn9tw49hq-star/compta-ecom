@@ -183,14 +183,16 @@ class TestShopifyRefundCommissionRestituee:
         refund_commission_restituee: NormalizedTransaction,
         sample_config: AppConfig,
     ) -> None:
-        """piece_number et lettrage = référence commande d'origine."""
+        """piece_number = reference ; lettrage 411 = reference, 511 = payout_reference."""
         sale_entries = generate_sale_entries(refund_commission_restituee, sample_config)
         settlement_entries = generate_settlement_entries(refund_commission_restituee, sample_config)
 
         for e in sale_entries + settlement_entries:
             assert e.piece_number == "#R001"
-            if e.account.startswith("411") or e.account.startswith("511"):
+            if e.account.startswith("411"):
                 assert e.lettrage == "#R001"
+            elif e.account.startswith("511"):
+                assert e.lettrage == (refund_commission_restituee.payout_reference or "")
 
 
 class TestShopifyRefundCommissionNonRestituee:
@@ -287,11 +289,13 @@ class TestShopifyRefundCommissionNonRestituee:
         refund_commission_non_restituee: NormalizedTransaction,
         sample_config: AppConfig,
     ) -> None:
-        """piece_number et lettrage = référence commande d'origine."""
+        """piece_number = reference ; lettrage 411 = reference, 511 = payout_reference."""
         sale_entries = generate_sale_entries(refund_commission_non_restituee, sample_config)
         settlement_entries = generate_settlement_entries(refund_commission_non_restituee, sample_config)
 
         for e in sale_entries + settlement_entries:
             assert e.piece_number == "#R002"
-            if e.account.startswith("411") or e.account.startswith("511"):
+            if e.account.startswith("411"):
                 assert e.lettrage == "#R002"
+            elif e.account.startswith("511"):
+                assert e.lettrage == (refund_commission_non_restituee.payout_reference or "")

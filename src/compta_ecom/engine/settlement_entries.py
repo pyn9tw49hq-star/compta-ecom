@@ -46,7 +46,7 @@ def generate_settlement_entries(
                 debit=net if net > 0 else 0.0,
                 credit=abs(net) if net < 0 else 0.0,
                 piece_number=transaction.reference,
-                lettrage=transaction.reference,
+                lettrage=transaction.payout_reference or "",
                 channel=transaction.channel,
                 entry_type="settlement",
             )

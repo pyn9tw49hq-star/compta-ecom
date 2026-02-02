@@ -209,7 +209,7 @@ class TestDetailedPayoutNominal:
     """AC11 : Mode détaillé nominal — 2 PayoutDetail card → 4 écritures."""
 
     def test_two_details_four_entries(self, sample_config: AppConfig) -> None:
-        """2 PayoutDetail → 4 écritures (2 paires), lettrage = order_reference."""
+        """2 PayoutDetail → 4 écritures (2 paires), lettrage 511 = payout_reference."""
         payout = _make_detailed_payout()
         entries, anomalies = generate_payout_entries(payout, sample_config)
 
@@ -223,7 +223,7 @@ class TestDetailedPayoutNominal:
         assert entries[0].piece_number == "#1186"
         assert entries[1].account == "51150007"
         assert entries[1].credit == 400.30
-        assert entries[1].lettrage == "#1186"
+        assert entries[1].lettrage == "144387047761"  # payout_reference
 
         # Pair 2 : #1185 — 46.14
         assert entries[2].account == "58000000"
@@ -231,7 +231,7 @@ class TestDetailedPayoutNominal:
         assert entries[2].lettrage == ""
         assert entries[3].account == "51150007"
         assert entries[3].credit == 46.14
-        assert entries[3].lettrage == "#1185"
+        assert entries[3].lettrage == "144387047761"  # payout_reference (même payout)
 
     def test_detailed_label_format(self, sample_config: AppConfig) -> None:
         """Label contient psp_type et order_reference."""
@@ -311,7 +311,7 @@ class TestDetailedPayoutNetZero:
         # Only 1 pair for #1186, the zero-net detail is skipped
         assert len(entries) == 2
         assert entries[0].lettrage == ""  # transit 580 : pas de lettrage
-        assert entries[1].lettrage == "#1186"  # PSP 511 : lettrage
+        assert entries[1].lettrage == "144387047761"  # PSP 511 : payout_reference
 
 
 class TestDetailedPayoutPaypal:

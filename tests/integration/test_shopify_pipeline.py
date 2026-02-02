@@ -213,35 +213,32 @@ class TestPipelineDetailedLettrage:
         # Build column index map
         col = {name: idx for idx, name in enumerate(headers)}
 
-        # Collect entries on 511 accounts (settlement + payout) by order reference (lettrage)
-        settlement_511: dict[str, list[tuple]] = {}
-        payout_511: dict[str, list[tuple]] = {}
+        # Collect entries on 511 accounts by lettrage (now = payout_reference)
+        entries_511_by_lettrage: dict[str, list[tuple]] = {}
 
         for row in data_rows:
             account = row[col["account"]]
-            entry_type = row[col["entry_type"]]
             lettrage = row[col["lettrage"]]
 
             if account is None or not str(account).startswith("511"):
                 continue
+            if not lettrage:
+                continue
 
-            if entry_type == "settlement":
-                settlement_511.setdefault(lettrage, []).append(row)
-            elif entry_type == "payout":
-                payout_511.setdefault(lettrage, []).append(row)
+            entries_511_by_lettrage.setdefault(lettrage, []).append(row)
 
-        # Verify: for order #TEST001, both settlement and payout entries exist with same lettrage
-        assert "#TEST001" in settlement_511, "Settlement entry for #TEST001 not found on 511"
-        assert "#TEST001" in payout_511, "Payout entry for #TEST001 not found on 511"
+        # Verify: at least one lettrage group exists with both settlement and payout entries
+        assert len(entries_511_by_lettrage) > 0, "No 511 entries with lettrage found"
 
-        # The settlement credits 511 and the payout debits 511 — they cancel out
-        for ref in ["#TEST001", "#TEST002", "#TEST003"]:
-            if ref in settlement_511 and ref in payout_511:
-                # Same account for both
-                s_account = settlement_511[ref][0][col["account"]]
-                p_account = payout_511[ref][0][col["account"]]
-                assert s_account == p_account, f"Account mismatch for {ref}: settlement={s_account}, payout={p_account}"
+        for lettrage, rows in entries_511_by_lettrage.items():
+            entry_types = {r[col["entry_type"]] for r in rows}
+            # Each lettrage group should have settlement AND payout entries (same payout_reference)
+            assert "settlement" in entry_types, f"Lettrage {lettrage}: missing settlement entries"
+            assert "payout" in entry_types, f"Lettrage {lettrage}: missing payout entries"
 
-        # Verify payout entries use order references as lettrage (not payout reference)
-        for lettrage in payout_511:
-            assert lettrage.startswith("#"), f"Payout lettrage should be order reference, got: {lettrage}"
+            # Each group must be balanced (sum debits == sum credits)
+            total_debit = sum(r[col["debit"]] or 0 for r in rows)
+            total_credit = sum(r[col["credit"]] or 0 for r in rows)
+            assert round(total_debit, 2) == round(total_credit, 2), (
+                f"Lettrage {lettrage}: déséquilibre D={total_debit} C={total_credit}"
+            )
