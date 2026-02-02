@@ -213,7 +213,7 @@ class TestPipelineDetailedLettrage:
         # Build column index map
         col = {name: idx for idx, name in enumerate(headers)}
 
-        # Collect entries on 511 accounts by lettrage (now = payout_reference)
+        # Collect entries on 511 accounts by lettrage (alphabetical letters)
         entries_511_by_lettrage: dict[str, list[tuple]] = {}
 
         for row in data_rows:
@@ -231,8 +231,8 @@ class TestPipelineDetailedLettrage:
         assert len(entries_511_by_lettrage) > 0, "No 511 entries with lettrage found"
 
         for lettrage, rows in entries_511_by_lettrage.items():
+            assert lettrage.isalpha(), f"Lettrage '{lettrage}' n'est pas alphabétique"
             entry_types = {r[col["entry_type"]] for r in rows}
-            # Each lettrage group should have settlement AND payout entries (same payout_reference)
             assert "settlement" in entry_types, f"Lettrage {lettrage}: missing settlement entries"
             assert "payout" in entry_types, f"Lettrage {lettrage}: missing payout entries"
 

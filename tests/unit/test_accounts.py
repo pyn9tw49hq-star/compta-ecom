@@ -1,4 +1,4 @@
-"""Tests pour engine/accounts.py — build_account() et verify_balance()."""
+"""Tests pour engine/accounts.py — build_account(), verify_balance() et normalize_lettrage()."""
 
 from __future__ import annotations
 
@@ -6,7 +6,12 @@ import datetime
 
 import pytest
 
-from compta_ecom.engine.accounts import build_account, verify_balance
+from compta_ecom.engine.accounts import (
+    _index_to_letter,
+    build_account,
+    normalize_lettrage,
+    verify_balance,
+)
 from compta_ecom.models import AccountingEntry, BalanceError
 
 
@@ -105,3 +110,123 @@ class TestVerifyBalance:
         ]
         with pytest.raises(BalanceError):
             verify_balance(entries)
+
+
+class TestIndexToLetter:
+    """Tests de _index_to_letter()."""
+
+    def test_first_letter(self) -> None:
+        assert _index_to_letter(0) == "A"
+
+    def test_last_single_letter(self) -> None:
+        assert _index_to_letter(25) == "Z"
+
+    def test_first_double_letter(self) -> None:
+        assert _index_to_letter(26) == "AA"
+
+    def test_second_double_letter(self) -> None:
+        assert _index_to_letter(27) == "BB"
+
+    def test_last_double_letter(self) -> None:
+        assert _index_to_letter(51) == "ZZ"
+
+    def test_first_triple_letter(self) -> None:
+        assert _index_to_letter(52) == "AAA"
+
+    def test_middle_letter(self) -> None:
+        assert _index_to_letter(2) == "C"
+
+    def test_sequence_first_26(self) -> None:
+        """Les 26 premières valeurs sont A..Z."""
+        result = [_index_to_letter(i) for i in range(26)]
+        expected = [chr(ord("A") + i) for i in range(26)]
+        assert result == expected
+
+
+def _make_entry(account: str, lettrage: str) -> AccountingEntry:
+    """Helper pour créer une entrée avec compte et lettrage."""
+    return AccountingEntry(
+        date=datetime.date(2024, 1, 1),
+        journal="RG",
+        account=account,
+        label="test",
+        debit=100.0,
+        credit=0.0,
+        piece_number="X",
+        lettrage=lettrage,
+        channel="shopify",
+        entry_type="settlement",
+    )
+
+
+class TestNormalizeLettrage:
+    """Tests de normalize_lettrage()."""
+
+    def test_empty_lettrage_unchanged(self) -> None:
+        """Les entrées avec lettrage vide restent vides."""
+        entries = [_make_entry("627000", "")]
+        result = normalize_lettrage(entries)
+        assert result[0].lettrage == ""
+
+    def test_single_group_gets_letter_a(self) -> None:
+        """Un seul groupe de lettrage → A."""
+        entries = [
+            _make_entry("41100250", "#1118"),
+            _make_entry("41100250", "#1118"),
+        ]
+        result = normalize_lettrage(entries)
+        assert all(e.lettrage == "A" for e in result)
+
+    def test_two_groups_get_a_and_b(self) -> None:
+        """Deux groupes de lettrage → A et B."""
+        entries = [
+            _make_entry("41100250", "#1118"),
+            _make_entry("41100250", "#1119"),
+        ]
+        result = normalize_lettrage(entries)
+        assert result[0].lettrage == "A"
+        assert result[1].lettrage == "B"
+
+    def test_independent_counters_per_account_prefix(self) -> None:
+        """Compteurs indépendants : 411 et 511 ont chacun leur A."""
+        entries = [
+            _make_entry("41100250", "#1118"),
+            _make_entry("51100001", "PAYOUT-123"),
+        ]
+        result = normalize_lettrage(entries)
+        assert result[0].lettrage == "A"
+        assert result[1].lettrage == "A"
+
+    def test_same_lettrage_same_letter(self) -> None:
+        """Deux entrées avec le même lettrage original → même lettre."""
+        entries = [
+            _make_entry("51100001", "PAYOUT-123"),
+            _make_entry("51100001", "PAYOUT-123"),
+            _make_entry("51100001", "PAYOUT-456"),
+        ]
+        result = normalize_lettrage(entries)
+        assert result[0].lettrage == "A"
+        assert result[1].lettrage == "A"
+        assert result[2].lettrage == "B"
+
+    def test_mixed_empty_and_non_empty(self) -> None:
+        """Mix d'entrées avec et sans lettrage."""
+        entries = [
+            _make_entry("41100250", "#1118"),
+            _make_entry("627000", ""),
+            _make_entry("41100250", "#1119"),
+        ]
+        result = normalize_lettrage(entries)
+        assert result[0].lettrage == "A"
+        assert result[1].lettrage == ""
+        assert result[2].lettrage == "B"
+
+    def test_more_than_26_groups(self) -> None:
+        """Plus de 26 groupes → passage aux lettres doublées."""
+        refs = [f"REF-{i}" for i in range(28)]
+        entries = [_make_entry("41100250", ref) for ref in refs]
+        result = normalize_lettrage(entries)
+        assert result[0].lettrage == "A"
+        assert result[25].lettrage == "Z"
+        assert result[26].lettrage == "AA"
+        assert result[27].lettrage == "BB"

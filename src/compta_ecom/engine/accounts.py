@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import dataclasses
+from collections import defaultdict
+
 from compta_ecom.models import AccountingEntry, BalanceError
 
 JOURNAL_REGLEMENT = "RG"
@@ -70,3 +73,39 @@ def verify_balance(entries: list[AccountingEntry]) -> None:
         raise BalanceError(
             f"Déséquilibre écriture: débit={total_debit}, crédit={total_credit}"
         )
+
+
+def _index_to_letter(index: int) -> str:
+    """Convertit un index (0-based) en code lettrage alphabétique.
+
+    Séquence : A, B, ..., Z, AA, BB, ..., ZZ, AAA, BBB, ..., ZZZ, etc.
+    """
+    repeat = index // 26 + 1
+    letter = chr(ord("A") + index % 26)
+    return letter * repeat
+
+
+def normalize_lettrage(entries: list[AccountingEntry]) -> list[AccountingEntry]:
+    """Remplace les valeurs de lettrage par des lettres alphabétiques séquentielles.
+
+    Compteurs indépendants par préfixe de compte (3 premiers caractères).
+    Les entrées avec lettrage vide sont inchangées.
+    """
+    # Grouper par préfixe de compte : { "411": {"#1118": "A", "#1119": "B"}, "511": {...} }
+    counters: dict[str, int] = defaultdict(int)
+    mappings: dict[str, dict[str, str]] = defaultdict(dict)
+
+    for entry in entries:
+        if not entry.lettrage:
+            continue
+        prefix = entry.account[:3]
+        if entry.lettrage not in mappings[prefix]:
+            mappings[prefix][entry.lettrage] = _index_to_letter(counters[prefix])
+            counters[prefix] += 1
+
+    return [
+        dataclasses.replace(entry, lettrage=mappings[entry.account[:3]][entry.lettrage])
+        if entry.lettrage and entry.account[:3] in mappings
+        else entry
+        for entry in entries
+    ]

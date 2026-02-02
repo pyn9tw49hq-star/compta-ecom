@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from compta_ecom.config.loader import AppConfig
 from compta_ecom.engine import marketplace_entries
+from compta_ecom.engine.accounts import normalize_lettrage
 from compta_ecom.engine.marketplace_payout_entries import generate_marketplace_payout
 from compta_ecom.engine.payout_entries import generate_payout_entries
 from compta_ecom.engine.sale_entries import generate_sale_entries
@@ -68,4 +69,5 @@ def generate_entries(
         entries.extend(payout_entries_list)
         anomalies.extend(payout_anomalies)
 
+    entries = normalize_lettrage(entries)
     return entries, anomalies
