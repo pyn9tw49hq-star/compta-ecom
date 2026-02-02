@@ -264,6 +264,42 @@ countries:
         assert config.alpha2_to_numeric == {"FR": "250", "BE": "056"}
 
 
+class TestMultiFiles:
+    def test_multi_files_parsed(self, tmp_path: Path) -> None:
+        channels_mf = """\
+channels:
+  shopify:
+    files:
+      sales: "Ventes Shopify*.csv"
+      payout_details: "Detail transactions par versements/*.csv"
+    multi_files: ["payout_details"]
+    encoding: utf-8
+    separator: ","
+"""
+        _write_configs(tmp_path, channels=channels_mf)
+        config = load_config(tmp_path)
+        assert config.channels["shopify"].multi_files == ["payout_details"]
+
+    def test_multi_files_absent_defaults_empty(self, tmp_path: Path) -> None:
+        _write_configs(tmp_path)
+        config = load_config(tmp_path)
+        assert config.channels["shopify"].multi_files == []
+
+    def test_multi_files_invalid_key_raises(self, tmp_path: Path) -> None:
+        channels_bad = """\
+channels:
+  shopify:
+    files:
+      sales: "Ventes Shopify*.csv"
+    multi_files: ["inexistant"]
+    encoding: utf-8
+    separator: ","
+"""
+        _write_configs(tmp_path, channels=channels_bad)
+        with pytest.raises(ConfigError, match="inexistant"):
+            load_config(tmp_path)
+
+
 class TestMatchingTolerance:
     def test_matching_tolerance_explicit(self, tmp_path: Path) -> None:
         chart_with_tolerance = VALID_CHART + "matching_tolerance: 0.05\n"

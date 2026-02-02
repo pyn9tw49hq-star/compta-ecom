@@ -41,7 +41,7 @@ class PipelineOrchestrator:
                 logger.warning("Parser non implémenté pour le canal %s — ignoré", canal)
                 continue
 
-            files = self._detect_files(input_dir, channel_config.files)
+            files = self._detect_files(input_dir, channel_config.files, channel_config.multi_files)
             if not files:
                 logger.info("Aucun fichier trouvé pour le canal %s — ignoré", canal)
                 continue
@@ -83,12 +83,19 @@ class PipelineOrchestrator:
 
     @staticmethod
     def _detect_files(
-        input_dir: Path, file_patterns: dict[str, str]
-    ) -> dict[str, Path]:
+        input_dir: Path,
+        file_patterns: dict[str, str],
+        multi_files: list[str] | None = None,
+    ) -> dict[str, Path | list[Path]]:
         """Détecte les fichiers CSV dans input_dir via les patterns glob."""
-        found: dict[str, Path] = {}
+        multi_files = multi_files or []
+        found: dict[str, Path | list[Path]] = {}
         for file_key, pattern in file_patterns.items():
             matches = sorted(input_dir.glob(pattern))
-            if matches:
-                found[file_key] = matches[0]
+            if file_key in multi_files:
+                if matches:
+                    found[file_key] = matches
+            else:
+                if matches:
+                    found[file_key] = matches[0]
         return found

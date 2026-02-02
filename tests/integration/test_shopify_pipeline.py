@@ -172,3 +172,76 @@ class TestCLIExitCodes:
                 "WARNING",
             ])
         assert exc_info.value.code == 3
+
+
+DETAIL_FIXTURES = SHOPIFY_FIXTURES / "detail_versements"
+
+
+class TestPipelineDetailedLettrage:
+    """AC19 : Pipeline avec detail_versements → lettrage identique entre settlement et payout sur 511."""
+
+    def test_lettrage_settlement_payout_match(self, tmp_path: Path) -> None:
+        """Pour une commande donnée, settlement et payout partagent le même lettrage sur le compte 511."""
+        # Setup input directory with all files
+        input_dir = tmp_path / "input"
+        input_dir.mkdir()
+        shutil.copy(SHOPIFY_FIXTURES / "ventes.csv", input_dir / "ventes.csv")
+        shutil.copy(SHOPIFY_FIXTURES / "transactions.csv", input_dir / "transactions.csv")
+        shutil.copy(SHOPIFY_FIXTURES / "versements.csv", input_dir / "versements.csv")
+
+        # Copy detail_versements files
+        for detail_file in DETAIL_FIXTURES.glob("*.csv"):
+            shutil.copy(detail_file, input_dir / detail_file.name)
+
+        # Load config and add payout_details to shopify channel
+        config = load_config(CONFIG_FIXTURES)
+        config.channels["shopify"].files["payout_details"] = "detail_*.csv"
+        config.channels["shopify"].multi_files = ["payout_details"]
+
+        output = tmp_path / "output.xlsx"
+        orchestrator = PipelineOrchestrator()
+        orchestrator.run(input_dir, output, config)
+
+        assert output.exists()
+
+        wb = openpyxl.load_workbook(output)
+        ws = wb["Écritures"]
+        headers = [cell.value for cell in ws[1]]
+        data_rows = list(ws.iter_rows(min_row=2, values_only=True))
+        wb.close()
+
+        # Build column index map
+        col = {name: idx for idx, name in enumerate(headers)}
+
+        # Collect entries on 511 accounts (settlement + payout) by order reference (lettrage)
+        settlement_511: dict[str, list[tuple]] = {}
+        payout_511: dict[str, list[tuple]] = {}
+
+        for row in data_rows:
+            account = row[col["account"]]
+            entry_type = row[col["entry_type"]]
+            lettrage = row[col["lettrage"]]
+
+            if account is None or not str(account).startswith("511"):
+                continue
+
+            if entry_type == "settlement":
+                settlement_511.setdefault(lettrage, []).append(row)
+            elif entry_type == "payout":
+                payout_511.setdefault(lettrage, []).append(row)
+
+        # Verify: for order #TEST001, both settlement and payout entries exist with same lettrage
+        assert "#TEST001" in settlement_511, "Settlement entry for #TEST001 not found on 511"
+        assert "#TEST001" in payout_511, "Payout entry for #TEST001 not found on 511"
+
+        # The settlement credits 511 and the payout debits 511 — they cancel out
+        for ref in ["#TEST001", "#TEST002", "#TEST003"]:
+            if ref in settlement_511 and ref in payout_511:
+                # Same account for both
+                s_account = settlement_511[ref][0][col["account"]]
+                p_account = payout_511[ref][0][col["account"]]
+                assert s_account == p_account, f"Account mismatch for {ref}: settlement={s_account}, payout={p_account}"
+
+        # Verify payout entries use order references as lettrage (not payout reference)
+        for lettrage in payout_511:
+            assert lettrage.startswith("#"), f"Payout lettrage should be order reference, got: {lettrage}"

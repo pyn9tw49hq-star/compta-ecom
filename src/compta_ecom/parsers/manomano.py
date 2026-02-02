@@ -316,10 +316,12 @@ class ManoManoParser(BaseParser):
 
         return summaries, anomalies
 
-    def parse(self, files: dict[str, Path], config: AppConfig) -> ParseResult:
+    def parse(self, files: dict[str, Path | list[Path]], config: AppConfig) -> ParseResult:
         """Parse les fichiers CSV ManoMano et retourne un ParseResult normalisé."""
         ca_path = files["ca"]
         payouts_path = files["payouts"]
+        assert isinstance(ca_path, Path)
+        assert isinstance(payouts_path, Path)
 
         channel_config = config.channels["manomano"]
 

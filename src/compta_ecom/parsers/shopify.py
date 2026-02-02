@@ -11,7 +11,7 @@ from typing import Any
 import pandas as pd
 
 from compta_ecom.config.loader import AppConfig
-from compta_ecom.models import Anomaly, NormalizedTransaction, ParseResult, PayoutSummary
+from compta_ecom.models import Anomaly, NormalizedTransaction, ParseResult, PayoutDetail, PayoutSummary
 from compta_ecom.parsers.base import BaseParser
 
 logger = logging.getLogger(__name__)
@@ -48,6 +48,18 @@ REQUIRED_PAYOUTS_COLUMNS = [
     "Total",
 ]
 
+REQUIRED_PAYOUT_DETAIL_COLUMNS = [
+    "Transaction Date",
+    "Type",
+    "Order",
+    "Amount",
+    "Fee",
+    "Net",
+    "Payout Date",
+    "Payout ID",
+    "Payment Method Name",
+]
+
 
 def _is_notna(value: object) -> bool:
     """Vérifie qu'une valeur scalaire n'est pas NaN/None (compatible mypy --strict)."""
@@ -65,17 +77,17 @@ def _extract_vat_rate(tax_name: object) -> float:
 class ShopifyParser(BaseParser):
     """Parser Shopify — 3 fichiers CSV (Ventes, Transactions, Versements PSP)."""
 
-    def parse(self, files: dict[str, Path], config: AppConfig) -> ParseResult:
-        """Orchestre le parsing des 3 fichiers et le matching."""
+    def parse(self, files: dict[str, Path | list[Path]], config: AppConfig) -> ParseResult:
+        """Orchestre le parsing des fichiers et le matching."""
         anomalies: list[Anomaly] = []
 
         # 1. Ventes (obligatoire)
-        sales_data, sales_anomalies = self._parse_sales(files["sales"], config)
+        sales_data, sales_anomalies = self._parse_sales(files["sales"], config)  # type: ignore[arg-type]
         anomalies.extend(sales_anomalies)
 
         # 2. Transactions (optionnel — mode dégradé si absent)
         if "transactions" in files:
-            tx_data, tx_anomalies = self._parse_transactions(files["transactions"], config)
+            tx_data, tx_anomalies = self._parse_transactions(files["transactions"], config)  # type: ignore[arg-type]
             anomalies.extend(tx_anomalies)
         else:
             logger.warning("Fichier Transactions absent — mode dégradé")
@@ -85,9 +97,21 @@ class ShopifyParser(BaseParser):
         transactions, match_anomalies = self._match_and_build(sales_data, tx_data, config)
         anomalies.extend(match_anomalies)
 
+        # 3.5 Detail transactions par versements (optionnel)
+        payout_details_by_id: dict[str, list[PayoutDetail]] | None = None
+        if "payout_details" in files:
+            detail_files = files["payout_details"]  # list[Path]
+            payout_details_by_id, detail_anomalies = self._parse_payout_details(
+                detail_files, config  # type: ignore[arg-type]
+            )
+            anomalies.extend(detail_anomalies)
+
         # 4. Versements PSP (optionnel)
         if "payouts" in files:
-            payouts = self._parse_payouts(files["payouts"], tx_data, config)
+            payouts, payout_anomalies = self._parse_payouts(
+                files["payouts"], tx_data, config, payout_details_by_id  # type: ignore[arg-type]
+            )
+            anomalies.extend(payout_anomalies)
         else:
             logger.warning("Fichier Versements absent — pas de PayoutSummary")
             payouts = []
@@ -482,14 +506,128 @@ class ShopifyParser(BaseParser):
 
         return result, anomalies
 
+    def _parse_payout_details(
+        self,
+        detail_files: list[Path],
+        config: AppConfig,
+    ) -> tuple[dict[str, list[PayoutDetail]], list[Anomaly]]:
+        """Parse les fichiers detail transactions par versements."""
+        channel_config = config.channels["shopify"]
+        psp_mapping: dict[str, str] = {}
+        for psp_name in config.psp:
+            psp_mapping[psp_name] = psp_name
+
+        anomalies: list[Anomaly] = []
+        details_by_id: dict[str, list[PayoutDetail]] = {}
+
+        for fpath in detail_files:
+            try:
+                df = pd.read_csv(
+                    fpath,
+                    sep=channel_config.separator,
+                    encoding=channel_config.encoding,
+                )
+            except Exception:
+                anomalies.append(
+                    Anomaly(
+                        type="parse_warning",
+                        severity="warning",
+                        reference=fpath.name,
+                        channel="shopify",
+                        detail=f"Fichier detail illisible : {fpath.name}",
+                        expected_value=None,
+                        actual_value=None,
+                    )
+                )
+                continue
+
+            missing = [c for c in REQUIRED_PAYOUT_DETAIL_COLUMNS if c not in df.columns]
+            if missing:
+                anomalies.append(
+                    Anomaly(
+                        type="parse_warning",
+                        severity="warning",
+                        reference=fpath.name,
+                        channel="shopify",
+                        detail=f"Colonnes manquantes dans {fpath.name} : {', '.join(missing)}",
+                        expected_value=None,
+                        actual_value=None,
+                    )
+                )
+                continue
+
+            for _, row in df.iterrows():
+                payout_id = str(row["Payout ID"])
+                order = str(row["Order"])
+                tx_type = str(row["Type"]).strip().lower()
+                amount = round(float(row["Amount"]), 2)
+                fee = round(float(row["Fee"]), 2)
+                net = round(float(row["Net"]), 2)
+                payment_method_raw = str(row["Payment Method Name"]).strip().lower()
+                payment_method: str | None = psp_mapping.get(payment_method_raw)
+                if payment_method is None:
+                    anomalies.append(
+                        Anomaly(
+                            type="unknown_psp",
+                            severity="warning",
+                            reference=order,
+                            channel="shopify",
+                            detail=f"PSP inconnu : {payment_method_raw}",
+                            expected_value=None,
+                            actual_value=payment_method_raw,
+                        )
+                    )
+
+                payout_date_raw = row["Payout Date"]
+                payout_date: datetime.date | None = None
+                if _is_notna(payout_date_raw):
+                    try:
+                        payout_date = pd.to_datetime(str(payout_date_raw)).date()
+                    except (ValueError, TypeError):
+                        pass
+
+                if payout_date is None:
+                    anomalies.append(
+                        Anomaly(
+                            type="parse_warning",
+                            severity="warning",
+                            reference=order,
+                            channel="shopify",
+                            detail="Payout Date non parsable dans detail — ligne ignorée",
+                            expected_value=None,
+                            actual_value=str(payout_date_raw),
+                        )
+                    )
+                    continue
+
+                detail = PayoutDetail(
+                    payout_date=payout_date,
+                    payout_id=payout_id,
+                    order_reference=order,
+                    transaction_type=tx_type,
+                    amount=amount,
+                    fee=fee,
+                    net=net,
+                    payment_method=payment_method,
+                    channel="shopify",
+                )
+
+                if payout_id not in details_by_id:
+                    details_by_id[payout_id] = []
+                details_by_id[payout_id].append(detail)
+
+        return details_by_id, anomalies
+
     def _parse_payouts(
         self,
         payouts_path: Path,
         transactions: dict[str, list[dict[str, Any]]],
         config: AppConfig,
-    ) -> list[PayoutSummary]:
+        payout_details_by_id: dict[str, list[PayoutDetail]] | None = None,
+    ) -> tuple[list[PayoutSummary], list[Anomaly]]:
         """Lecture du fichier Versements PSP, construction des PayoutSummary."""
         channel_config = config.channels["shopify"]
+        anomalies: list[Anomaly] = []
 
         df = pd.read_csv(
             payouts_path,
@@ -548,6 +686,28 @@ class ShopifyParser(BaseParser):
             if payout_date is None:
                 continue
 
+            # Rattachement details
+            details: list[PayoutDetail] | None = None
+            if payout_details_by_id is not None and payout_reference is not None:
+                details = payout_details_by_id.get(payout_reference)
+
+            # Validation somme
+            if details is not None:
+                detail_sum = round(sum(d.net for d in details), 2)
+                date_str = str(payout_date)
+                if abs(detail_sum - total_amount) > config.matching_tolerance:
+                    anomalies.append(
+                        Anomaly(
+                            type="payout_detail_mismatch",
+                            severity="error",
+                            reference=payout_reference or f"PAYOUT-{date_str}",
+                            channel="shopify",
+                            detail=f"Somme des nets detail ({detail_sum}€) != total versement ({total_amount}€) — écart de {round(abs(detail_sum - total_amount), 2)}€",
+                            expected_value=str(total_amount),
+                            actual_value=str(detail_sum),
+                        )
+                    )
+
             payouts.append(
                 PayoutSummary(
                     payout_date=payout_date,
@@ -559,7 +719,41 @@ class ShopifyParser(BaseParser):
                     transaction_references=tx_refs,
                     psp_type=psp_type,
                     payout_reference=payout_reference,
+                    details=details,
                 )
             )
 
-        return payouts
+        # --- Contrôle : payout_missing_details (Story 4.3) ---
+        if payout_details_by_id is not None and len(payout_details_by_id) > 0:
+            for payout in payouts:
+                if payout.details is None:
+                    date_str = str(payout.payout_date)
+                    anomalies.append(
+                        Anomaly(
+                            type="payout_missing_details",
+                            severity="warning",
+                            reference=payout.payout_reference or f"PAYOUT-{date_str}",
+                            channel="shopify",
+                            detail=f"Versement du {date_str} sans fichier detail — mode agrégé utilisé",
+                            expected_value="fichier detail avec Payout ID correspondant",
+                            actual_value="aucun fichier detail trouvé",
+                        )
+                    )
+
+            # --- Contrôle : orphan_payout_detail (Story 4.3) ---
+            payout_refs = {p.payout_reference for p in payouts if p.payout_reference is not None}
+            for orphan_payout_id in payout_details_by_id:
+                if orphan_payout_id not in payout_refs:
+                    anomalies.append(
+                        Anomaly(
+                            type="orphan_payout_detail",
+                            severity="warning",
+                            reference=orphan_payout_id,
+                            channel="shopify",
+                            detail=f"Fichier detail avec Payout ID {orphan_payout_id} sans versement correspondant dans le fichier résumé",
+                            expected_value="versement correspondant dans Détails versements.csv",
+                            actual_value="aucun versement trouvé",
+                        )
+                    )
+
+        return payouts, anomalies

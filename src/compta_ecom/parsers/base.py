@@ -15,7 +15,7 @@ class BaseParser(ABC):
     """Classe abstraite définissant l'interface commune des parsers."""
 
     @abstractmethod
-    def parse(self, files: dict[str, Path], config: AppConfig) -> ParseResult:
+    def parse(self, files: dict[str, Path | list[Path]], config: AppConfig) -> ParseResult:
         """Parse les fichiers CSV et retourne un ParseResult normalisé."""
 
     @staticmethod

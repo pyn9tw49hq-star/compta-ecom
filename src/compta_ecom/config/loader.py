@@ -25,6 +25,7 @@ class ChannelConfig:
     separator: str
     default_country_code: str | None = None
     commission_vat_rate: float | None = None
+    multi_files: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -283,12 +284,27 @@ def _validate_channels(data: dict[str, object]) -> dict[str, ChannelConfig]:
                 )
             commission_vat_rate = float(raw_cvr)
 
+        # Multi-files (optional)
+        multi_files_raw = chan_data.get("multi_files", [])
+        if not isinstance(multi_files_raw, list):
+            raise ConfigError(
+                f"'multi_files' doit être une liste pour le canal '{chan_str}' dans {context}"
+            )
+        multi_files_list: list[str] = [str(v) for v in multi_files_raw]
+        files_dict = {str(k): str(v) for k, v in files.items()}
+        for mf_key in multi_files_list:
+            if mf_key not in files_dict:
+                raise ConfigError(
+                    f"Clé multi_files '{mf_key}' absente de 'files' pour le canal '{chan_str}' dans {context}"
+                )
+
         channels[chan_str] = ChannelConfig(
-            files={str(k): str(v) for k, v in files.items()},
+            files=files_dict,
             encoding=encoding,
             separator=separator,
             default_country_code=default_country_code,
             commission_vat_rate=commission_vat_rate,
+            multi_files=multi_files_list,
         )
 
     return channels

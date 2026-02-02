@@ -136,6 +136,57 @@ def _run_pipeline_with_mocks(
     return mock_vat, mock_matching, mock_export
 
 
+class TestDetectFilesMultiFiles:
+    """Tests _detect_files avec support multi-fichiers."""
+
+    def test_multi_files_returns_list(self, tmp_path: Path) -> None:
+        # Arrange
+        sub = tmp_path / "Detail transactions par versements"
+        sub.mkdir()
+        (sub / "payout1.csv").write_text("dummy")
+        (sub / "payout2.csv").write_text("dummy")
+        (sub / "payout3.csv").write_text("dummy")
+        patterns = {
+            "sales": "Ventes Shopify*.csv",
+            "payout_details": "Detail transactions par versements/*.csv",
+        }
+        (tmp_path / "Ventes Shopify 2026.csv").write_text("dummy")
+
+        # Act
+        result = PipelineOrchestrator._detect_files(tmp_path, patterns, ["payout_details"])
+
+        # Assert
+        assert isinstance(result["payout_details"], list)
+        assert len(result["payout_details"]) == 3
+        assert isinstance(result["sales"], Path)
+
+    def test_multi_files_no_match_key_absent(self, tmp_path: Path) -> None:
+        # Arrange
+        patterns = {
+            "sales": "Ventes Shopify*.csv",
+            "payout_details": "Detail transactions par versements/*.csv",
+        }
+        (tmp_path / "Ventes Shopify 2026.csv").write_text("dummy")
+
+        # Act
+        result = PipelineOrchestrator._detect_files(tmp_path, patterns, ["payout_details"])
+
+        # Assert
+        assert "payout_details" not in result
+        assert "sales" in result
+
+    def test_multi_files_empty_list_standard_behavior(self, tmp_path: Path) -> None:
+        # Arrange
+        patterns = {"sales": "Ventes Shopify*.csv"}
+        (tmp_path / "Ventes Shopify 2026.csv").write_text("dummy")
+
+        # Act
+        result = PipelineOrchestrator._detect_files(tmp_path, patterns, [])
+
+        # Assert
+        assert isinstance(result["sales"], Path)
+
+
 class TestPipelineCheckersIntegration:
     """Vérifie que VatChecker et MatchingChecker sont appelés dans run()."""
 

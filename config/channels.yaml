@@ -4,6 +4,8 @@ channels:
       sales: "Ventes Shopify*.csv"
       transactions: "Transactions Shopify*.csv"
       payouts: "Détails versements*.csv"
+      payout_details: "Detail transactions par versements/*.csv"
+    multi_files: ["payout_details"]
     encoding: utf-8
     separator: ","
   manomano:

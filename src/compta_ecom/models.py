@@ -98,6 +98,22 @@ class PayoutSummary:
     transaction_references: list[str]
     psp_type: str | None
     payout_reference: str | None
+    details: list[PayoutDetail] | None = None
+
+
+@dataclass(frozen=True)
+class PayoutDetail:
+    """Ligne individuelle d'un versement : une transaction dans un batch de payout."""
+
+    payout_date: datetime.date
+    payout_id: str
+    order_reference: str
+    transaction_type: str  # "charge" ou "refund"
+    amount: float  # montant brut
+    fee: float  # commission PSP
+    net: float  # net = amount - fee
+    payment_method: str | None  # "card", "paypal", etc.
+    channel: str
 
 
 @dataclass(frozen=True)
