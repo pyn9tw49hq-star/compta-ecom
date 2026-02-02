@@ -2,7 +2,8 @@
 
 Produit :
     dist/
-    ├── 1_DEPOSER_CSV_ICI/   (dossier vide pour les CSV d'entrée)
+    ├── 1_DEPOSER_CSV_ICI/
+    │   └── Detail transactions par versements/   (optionnel — CSV Shopify par versement)
     ├── 2_RESULTATS/         (dossier vide pour les fichiers Excel)
     ├── config/              (configuration YAML modifiable)
     ├── compta-ecom.exe      (exécutable autonome)
@@ -77,6 +78,10 @@ def _create_user_dirs() -> None:
         d = DIST_DIR / name
         d.mkdir(exist_ok=True)
         print(f"[build] dossier {name}/ créé dans {d}")
+    # Sous-dossier pour les fichiers detail transactions (Epic 4)
+    detail_dir = DIST_DIR / "1_DEPOSER_CSV_ICI" / "Detail transactions par versements"
+    detail_dir.mkdir(exist_ok=True)
+    print(f"[build] dossier Detail transactions par versements/ créé dans {detail_dir}")
 
 
 def main() -> None:

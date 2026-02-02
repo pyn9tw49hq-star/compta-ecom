@@ -55,6 +55,7 @@ Le nommage doit correspondre aux patterns configurés. Par défaut :
 | Shopify — Ventes | `Ventes Shopify*.csv` | Virgule (,) |
 | Shopify — Transactions | `Transactions Shopify*.csv` | Virgule (,) |
 | Shopify — Versements PSP | `Détails versements*.csv` | Virgule (,) |
+| Shopify — Detail transactions (optionnel) | `Detail transactions par versements/*.csv` | Virgule (,) |
 | ManoMano — CA | `CA Manomano*.csv` | Point-virgule (;) |
 | ManoMano — Versements | `Detail versement Manomano*.csv` | Point-virgule (;) |
 | Décathlon | `Decathlon*.csv` | Point-virgule (;) |
@@ -64,13 +65,17 @@ Le `*` signifie que le nom peut contenir une suite quelconque (date, suffixe, et
 - `Ventes Shopify janvier 2026.csv` correspond au pattern `Ventes Shopify*.csv`
 - `CA Manomano 2026-01.csv` correspond au pattern `CA Manomano*.csv`
 
-### Fichiers Shopify (3 fichiers requis)
+### Fichiers Shopify (3 fichiers requis + 1 optionnel)
 
 Pour que le canal Shopify soit traité, les **3 fichiers** doivent être présents :
 
 1. **Ventes** : exporté depuis Shopify Admin > Commandes > Exporter
 2. **Transactions** : exporté depuis Shopify Admin > Finances > Transactions
 3. **Versements PSP** : exporté depuis Shopify Admin > Finances > Versements
+
+Optionnel — pour le lettrage par commande sur le compte 511 :
+
+4. **Detail transactions par versement** : un fichier CSV par versement, déposé dans le sous-dossier `Detail transactions par versements/`. Chaque fichier contient le détail des transactions composant un versement, ce qui permet de ventiler les écritures de reversement (compte 511) commande par commande au lieu d'un montant agrégé par versement. Si ces fichiers sont absents, le traitement fonctionne normalement en mode agrégé (comportement identique à avant).
 
 ### Fichiers ManoMano (2 fichiers requis)
 
@@ -180,6 +185,10 @@ Liste les incohérences détectées pendant le traitement. **Les anomalies ne bl
 | `orphan_refund` | warning | Remboursement sans vente correspondante | Vérifier que la vente d'origine est dans les fichiers |
 | `unknown_country` | warning | Pays de livraison non reconnu dans la table TVA | Ajouter le pays dans `config/vat_table.yaml` |
 | `missing_payout` | info | Transaction sans date de reversement | Normal en cours de mois — le reversement n'a pas encore eu lieu |
+| `payout_detail_mismatch` | error | La somme des nets du fichier detail ne correspond pas au total du versement | Vérifier le fichier detail et le fichier versements PSP pour ce payout |
+| `payout_missing_details` | warning | Versement sans fichier detail correspondant (mode agrégé utilisé) | Fournir le fichier detail ou ignorer si le mode agrégé est acceptable |
+| `orphan_payout_detail` | warning | Fichier detail dont le Payout ID ne correspond à aucun versement | Vérifier que le fichier Détails versements couvre la même période |
+| `unknown_psp_detail` | warning | Ligne detail sans méthode de paiement identifiable | Vérifier la colonne Payment Method Name dans le fichier detail |
 
 Les anomalies `info` (notamment `missing_payout`) sont normales et attendues si vous traitez des données en cours de mois.
 
@@ -350,5 +359,5 @@ Exemple : `4457250` = TVA collectée, France.
 
 ---
 
-*Document rédigé le 31/01/2026 — Version 1.0*
+*Document rédigé le 31/01/2026, mis à jour le 02/02/2026 — Version 1.1*
 *Source : PRD v4, Architecture v1.0, Brief v2.0*
