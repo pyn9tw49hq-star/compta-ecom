@@ -8,6 +8,8 @@ from compta_ecom.config.loader import AppConfig
 from compta_ecom.engine.payout_entries import generate_payout_entries
 from compta_ecom.models import PayoutDetail, PayoutSummary
 
+# Note: PayoutDetail imported for test_global_mode_with_details_present
+
 
 def _make_payout(**overrides: object) -> PayoutSummary:
     """Helper pour construire un PayoutSummary avec des valeurs par défaut."""
@@ -169,233 +171,95 @@ class TestGeneratePayoutEntriesBalance:
         assert round(total_debit, 2) == round(total_credit, 2)
 
 
-# ---------------------------------------------------------------------------
-# Helpers pour le mode détaillé
-# ---------------------------------------------------------------------------
-
-def _make_detail(**overrides: object) -> PayoutDetail:
-    """Helper pour construire un PayoutDetail avec des valeurs par défaut."""
-    defaults: dict[str, object] = {
-        "payout_date": datetime.date(2026, 1, 30),
-        "payout_id": "144387047761",
-        "order_reference": "#1186",
-        "transaction_type": "charge",
-        "amount": 420.00,
-        "fee": -19.70,
-        "net": 400.30,
-        "payment_method": "card",
-        "channel": "shopify",
-    }
-    defaults.update(overrides)
-    return PayoutDetail(**defaults)  # type: ignore[arg-type]
-
-
-def _make_detailed_payout(**overrides: object) -> PayoutSummary:
-    """Helper pour construire un PayoutSummary avec details (mode détaillé)."""
-    defaults: dict[str, object] = {
-        "payout_date": datetime.date(2026, 1, 30),
-        "channel": "shopify",
-        "total_amount": 446.44,
-        "charges": 466.14,
-        "refunds": 0.0,
-        "fees": -19.70,
-        "transaction_references": ["#1186", "#1185"],
-        "psp_type": "card",
-        "payout_reference": "144387047761",
-        "details": [
-            _make_detail(order_reference="#1186", net=400.30),
-            _make_detail(order_reference="#1185", net=46.14, amount=48.30, fee=-2.16),
-        ],
-    }
-    defaults.update(overrides)
-    return PayoutSummary(**defaults)  # type: ignore[arg-type]
-
 
 # ---------------------------------------------------------------------------
-# Tests mode détaillé
+# Tests mode global avec details présents (correctif v2)
 # ---------------------------------------------------------------------------
 
 
-class TestDetailedPayoutNominal:
-    """AC11 : Mode détaillé nominal — 2 PayoutDetail card → 4 écritures."""
+class TestGlobalModeWithDetails:
+    """AC12 : Même avec details non-None, 1 seule paire globale."""
 
-    def test_two_details_four_entries(self, sample_config: AppConfig) -> None:
-        """2 PayoutDetail → 4 écritures (2 paires), lettrage 511 = payout_reference."""
-        payout = _make_detailed_payout()
-        entries, anomalies = generate_payout_entries(payout, sample_config)
-
-        assert len(anomalies) == 0
-        assert len(entries) == 4
-
-        # Pair 1 : #1186 — 400.30
-        assert entries[0].account == "58000000"
-        assert entries[0].debit == 400.30
-        assert entries[0].lettrage == ""
-        assert entries[0].piece_number == "#1186"
-        assert entries[1].account == "51150007"
-        assert entries[1].credit == 400.30
-        assert entries[1].lettrage == "144387047761"  # payout_reference
-
-        # Pair 2 : #1185 — 46.14
-        assert entries[2].account == "58000000"
-        assert entries[2].debit == 46.14
-        assert entries[2].lettrage == ""
-        assert entries[3].account == "51150007"
-        assert entries[3].credit == 46.14
-        assert entries[3].lettrage == "144387047761"  # payout_reference (même payout)
-
-    def test_detailed_label_format(self, sample_config: AppConfig) -> None:
-        """Label contient psp_type et order_reference."""
-        payout = _make_detailed_payout()
-        entries, _ = generate_payout_entries(payout, sample_config)
-
-        assert entries[0].label == "Reversement card #1186"
-        assert entries[2].label == "Reversement card #1185"
-
-    def test_detailed_journal_and_entry_type(self, sample_config: AppConfig) -> None:
-        """Journal = RG, entry_type = payout pour toutes les écritures."""
-        payout = _make_detailed_payout()
-        entries, _ = generate_payout_entries(payout, sample_config)
-
-        assert all(e.journal == "RG" for e in entries)
-        assert all(e.entry_type == "payout" for e in entries)
-
-
-class TestDetailedPayoutRefund:
-    """AC12 : Refund — net négatif → 511 D / 580 C."""
-
-    def test_refund_inverted(self, sample_config: AppConfig) -> None:
-        """PayoutDetail refund net=-29.00 → 580 C 29 / 511 D 29."""
-        detail_refund = _make_detail(
-            order_reference="#1099",
-            transaction_type="refund",
-            net=-29.00,
-            amount=-29.00,
-            fee=0.0,
-        )
-        payout = _make_detailed_payout(
-            total_amount=-29.00,
-            details=[detail_refund],
+    def test_global_mode_with_details_present(self, sample_config: AppConfig) -> None:
+        """PayoutSummary avec details non-None → 1 seule paire globale (pas N paires)."""
+        details = [
+            PayoutDetail(
+                payout_date=datetime.date(2026, 1, 30),
+                payout_id="144387047761",
+                order_reference="#1186",
+                transaction_type="charge",
+                amount=420.00,
+                fee=-19.70,
+                net=400.30,
+                payment_method="card",
+                channel="shopify",
+            ),
+            PayoutDetail(
+                payout_date=datetime.date(2026, 1, 30),
+                payout_id="144387047761",
+                order_reference="#1185",
+                transaction_type="charge",
+                amount=48.30,
+                fee=-2.16,
+                net=46.14,
+                payment_method="card",
+                channel="shopify",
+            ),
+        ]
+        payout = _make_payout(
+            payout_date=datetime.date(2026, 1, 30),
+            total_amount=446.44,
+            payout_reference="144387047761",
+            details=details,
         )
         entries, anomalies = generate_payout_entries(payout, sample_config)
 
         assert len(anomalies) == 0
+        # 1 seule paire (2 lignes), pas 2 paires (4 lignes)
         assert len(entries) == 2
 
         transit = entries[0]
         psp = entries[1]
 
-        # Transit au crédit (net négatif)
+        # Montant = total_amount (446.44), pas somme des nets (446.44 ici aussi)
         assert transit.account == "58000000"
-        assert transit.debit == 0.0
-        assert transit.credit == 29.00
+        assert transit.debit == 446.44
+        assert transit.credit == 0.0
 
-        # PSP au débit (net négatif)
         assert psp.account == "51150007"
-        assert psp.debit == 29.00
-        assert psp.credit == 0.0
+        assert psp.debit == 0.0
+        assert psp.credit == 446.44
 
+        # Lettrage = payout_reference (pas order_reference)
         assert transit.lettrage == ""
+        assert psp.lettrage == "144387047761"
+
+        # Piece number = payout_reference (pas order_reference)
+        assert transit.piece_number == "144387047761"
+        assert psp.piece_number == "144387047761"
 
 
-class TestDetailedPayoutNetZero:
-    """AC13 : Net zéro → ignoré, pas d'écriture."""
+class TestTotalAmountOverMatchedNetSum:
+    """AC13 : Montant = total_amount, pas matched_net_sum."""
 
-    def test_net_zero_skipped(self, sample_config: AppConfig) -> None:
-        """PayoutDetail avec net=0.0 → aucune écriture."""
-        detail_zero = _make_detail(
-            order_reference="#ZERO",
-            net=0.0,
-            amount=10.0,
-            fee=-10.0,
-        )
-        payout = _make_detailed_payout(
-            total_amount=400.30,
-            details=[
-                _make_detail(order_reference="#1186", net=400.30),
-                detail_zero,
-            ],
+    def test_uses_total_amount_not_matched_net_sum(self, sample_config: AppConfig) -> None:
+        """Quand matched_net_sum != total_amount, le montant = total_amount."""
+        payout = _make_payout(
+            total_amount=500.00,
+            matched_net_sum=480.00,  # Différent de total_amount
         )
         entries, anomalies = generate_payout_entries(payout, sample_config)
 
-        assert len(anomalies) == 0
-        # Only 1 pair for #1186, the zero-net detail is skipped
         assert len(entries) == 2
-        assert entries[0].lettrage == ""  # transit 580 : pas de lettrage
-        assert entries[1].lettrage == "144387047761"  # PSP 511 : payout_reference
-
-
-class TestDetailedPayoutPaypal:
-    """AC14 : PSP paypal → compte 51150004."""
-
-    def test_paypal_account(self, sample_config: AppConfig) -> None:
-        """PayoutDetail payment_method='paypal' → account = 51150004."""
-        detail_paypal = _make_detail(
-            order_reference="#PP01",
-            payment_method="paypal",
-            net=50.00,
-        )
-        payout = _make_detailed_payout(
-            total_amount=50.00,
-            psp_type="paypal",
-            details=[detail_paypal],
-        )
-        entries, anomalies = generate_payout_entries(payout, sample_config)
-
         assert len(anomalies) == 0
-        assert len(entries) == 2
-        assert entries[1].account == "51150004"
+
+        # Le montant doit être total_amount (500), pas matched_net_sum (480)
+        assert entries[0].debit == 500.00
+        assert entries[1].credit == 500.00
 
 
-class TestDetailedPayoutUnknownPsp:
-    """AC15 : PSP inconnu → anomalie unknown_psp_detail, pas d'écriture."""
-
-    def test_unknown_psp_anomaly(self, sample_config: AppConfig) -> None:
-        """payment_method=None + psp_type=None → anomalie."""
-        detail_no_psp = _make_detail(
-            order_reference="#NOPSP",
-            payment_method=None,
-            net=100.0,
-        )
-        payout = _make_detailed_payout(
-            total_amount=100.0,
-            psp_type=None,
-            details=[detail_no_psp],
-        )
-        entries, anomalies = generate_payout_entries(payout, sample_config)
-
-        assert len(entries) == 0
-        assert len(anomalies) == 1
-        assert anomalies[0].type == "unknown_psp_detail"
-        assert anomalies[0].severity == "warning"
-        assert "#NOPSP" in anomalies[0].reference
-
-
-class TestDetailedPayoutFallbackPsp:
-    """AC16 : Fallback PSP — payment_method=None + payout.psp_type='card' → utilise card."""
-
-    def test_fallback_to_payout_psp_type(self, sample_config: AppConfig) -> None:
-        """payment_method=None → fallback sur payout.psp_type='card' → 51150007."""
-        detail_no_method = _make_detail(
-            order_reference="#FB01",
-            payment_method=None,
-            net=75.00,
-        )
-        payout = _make_detailed_payout(
-            total_amount=75.00,
-            psp_type="card",
-            details=[detail_no_method],
-        )
-        entries, anomalies = generate_payout_entries(payout, sample_config)
-
-        assert len(anomalies) == 0
-        assert len(entries) == 2
-        assert entries[1].account == "51150007"
-        assert entries[0].label == "Reversement card #FB01"
-
-
-class TestDetailedPayoutAggregatedUnchanged:
-    """AC17 : Mode agrégé inchangé quand details=None."""
+class TestAggregatedModeUnchanged:
+    """AC14 : Mode agrégé sans details — comportement identique."""
 
     def test_aggregated_when_details_none(self, sample_config: AppConfig) -> None:
         """PayoutSummary sans details → mode agrégé, comportement identique."""
@@ -404,31 +268,5 @@ class TestDetailedPayoutAggregatedUnchanged:
 
         assert len(entries) == 2
         assert len(anomalies) == 0
-        # Lettrage = payout_reference uniquement sur 511 (mode agrégé)
         assert entries[0].lettrage == ""  # transit 580 : pas de lettrage
-        assert entries[1].lettrage == "P001"  # PSP 511 : lettrage
-
-
-class TestDetailedPayoutBalance:
-    """AC18 : Chaque paire en mode détaillé est équilibrée."""
-
-    def test_each_pair_balanced(self, sample_config: AppConfig) -> None:
-        """Vérifier que chaque paire transit/psp est équilibrée."""
-        payout = _make_detailed_payout()
-        entries, _ = generate_payout_entries(payout, sample_config)
-
-        # 4 entries = 2 pairs
-        for i in range(0, len(entries), 2):
-            pair = entries[i : i + 2]
-            total_debit = round(sum(e.debit for e in pair), 2)
-            total_credit = round(sum(e.credit for e in pair), 2)
-            assert total_debit == total_credit
-
-    def test_total_balance(self, sample_config: AppConfig) -> None:
-        """Équilibre total de toutes les écritures."""
-        payout = _make_detailed_payout()
-        entries, _ = generate_payout_entries(payout, sample_config)
-
-        total_debit = round(sum(e.debit for e in entries), 2)
-        total_credit = round(sum(e.credit for e in entries), 2)
-        assert total_debit == total_credit
+        assert entries[1].lettrage == "P001"  # PSP 511 : lettrage = payout_reference

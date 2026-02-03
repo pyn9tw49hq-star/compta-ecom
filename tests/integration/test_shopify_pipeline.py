@@ -178,11 +178,11 @@ DETAIL_FIXTURES = SHOPIFY_FIXTURES / "detail_versements"
 
 
 class TestPipelineDetailedLettrage:
-    """AC19 : Pipeline avec detail_versements → lettrage identique entre settlement et payout sur 511."""
+    """AC16 : Pipeline avec detail_versements → 1 seule paire payout globale par versement,
+    lettrage = payout_reference partagé entre settlement et payout sur 511."""
 
-    def test_lettrage_settlement_payout_match(self, tmp_path: Path) -> None:
-        """Pour une commande donnée, settlement et payout partagent le même lettrage sur le compte 511."""
-        # Setup input directory with all files
+    def _run_pipeline_with_details(self, tmp_path: Path) -> list[tuple]:
+        """Helper : exécute le pipeline avec detail_versements et retourne (headers, data_rows)."""
         input_dir = tmp_path / "input"
         input_dir.mkdir()
         shutil.copy(SHOPIFY_FIXTURES / "ventes.csv", input_dir / "ventes.csv")
@@ -210,28 +210,73 @@ class TestPipelineDetailedLettrage:
         data_rows = list(ws.iter_rows(min_row=2, values_only=True))
         wb.close()
 
-        # Build column index map
+        return headers, data_rows
+
+    def test_one_payout_pair_per_versement(self, tmp_path: Path) -> None:
+        """Avec detail files, 1 seule paire payout (2 lignes : 580 D / 511 C) par versement."""
+        headers, data_rows = self._run_pipeline_with_details(tmp_path)
         col = {name: idx for idx, name in enumerate(headers)}
 
-        # Collect entries on 511 accounts by lettrage (alphabetical letters)
-        entries_511_by_lettrage: dict[str, list[tuple]] = {}
+        payout_entries = [r for r in data_rows if r[col["entry_type"]] == "payout"]
 
+        # 2 versements (P001, P002) → 2 paires = 4 lignes payout
+        assert len(payout_entries) == 4, (
+            f"Attendu 4 lignes payout (2 paires), trouvé {len(payout_entries)}"
+        )
+
+        # Each versement has exactly 1 transit (580) + 1 PSP (511) line
+        payout_580 = [r for r in payout_entries if str(r[col["account"]]).startswith("580")]
+        payout_511 = [r for r in payout_entries if str(r[col["account"]]).startswith("511")]
+        assert len(payout_580) == 2, "Attendu 2 lignes 580 (1 par versement)"
+        assert len(payout_511) == 2, "Attendu 2 lignes 511 (1 par versement)"
+
+    def test_lettrage_shared_between_settlement_and_payout(self, tmp_path: Path) -> None:
+        """Le lettrage sur 511 est partagé entre settlement et payout (même code par versement)."""
+        headers, data_rows = self._run_pipeline_with_details(tmp_path)
+        col = {name: idx for idx, name in enumerate(headers)}
+
+        # Collect payout entries on 511
+        payout_511 = [
+            r for r in data_rows
+            if r[col["entry_type"]] == "payout"
+            and str(r[col["account"]]).startswith("511")
+        ]
+        payout_lettrage = {r[col["lettrage"]] for r in payout_511}
+
+        # Collect settlement entries on 511
+        settlement_511 = [
+            r for r in data_rows
+            if r[col["entry_type"]] == "settlement"
+            and str(r[col["account"]]).startswith("511")
+        ]
+        settlement_lettrage = {r[col["lettrage"]] for r in settlement_511 if r[col["lettrage"]]}
+
+        # Payout lettrage codes must be a subset of settlement lettrage codes
+        # (each payout shares its lettrage with at least one settlement)
+        assert len(payout_lettrage) == 2, f"Attendu 2 codes lettrage payout, trouvé {payout_lettrage}"
+        assert payout_lettrage <= settlement_lettrage, (
+            f"Lettrage payout {payout_lettrage} non partagé avec settlement {settlement_lettrage}"
+        )
+
+    def test_lettrage_balance_on_511(self, tmp_path: Path) -> None:
+        """Pour chaque payout_reference, somme D 511 = somme C 511 (settlements + payout)."""
+        headers, data_rows = self._run_pipeline_with_details(tmp_path)
+        col = {name: idx for idx, name in enumerate(headers)}
+
+        # Collect all 511 entries by lettrage
+        entries_511_by_lettrage: dict[str, list[tuple]] = {}
         for row in data_rows:
             account = row[col["account"]]
             lettrage = row[col["lettrage"]]
-
             if account is None or not str(account).startswith("511"):
                 continue
             if not lettrage:
                 continue
-
             entries_511_by_lettrage.setdefault(lettrage, []).append(row)
 
-        # Verify: at least one lettrage group exists with both settlement and payout entries
         assert len(entries_511_by_lettrage) > 0, "No 511 entries with lettrage found"
 
         for lettrage, rows in entries_511_by_lettrage.items():
-            assert lettrage.isalpha(), f"Lettrage '{lettrage}' n'est pas alphabétique"
             entry_types = {r[col["entry_type"]] for r in rows}
             assert "settlement" in entry_types, f"Lettrage {lettrage}: missing settlement entries"
             assert "payout" in entry_types, f"Lettrage {lettrage}: missing payout entries"
