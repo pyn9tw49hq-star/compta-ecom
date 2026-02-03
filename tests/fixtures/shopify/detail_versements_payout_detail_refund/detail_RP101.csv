@@ -1,0 +1,2 @@
+Transaction Date,Type,Order,Amount,Fee,Net,Payout Date,Payout ID,Payment Method Name
+2026-01-26,refund,#PD002,-60.00,0.00,-60.00,2026-01-27,RP101,card

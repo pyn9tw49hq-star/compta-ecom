@@ -114,6 +114,7 @@ class PayoutDetail:
     net: float  # net = amount - fee
     payment_method: str | None  # "card", "paypal", etc.
     channel: str
+    transaction_date: datetime.date | None = None  # date de la transaction (distincte de payout_date)
 
 
 @dataclass(frozen=True)

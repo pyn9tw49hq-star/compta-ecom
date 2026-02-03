@@ -36,7 +36,9 @@ def generate_entries(
 
     for transaction in transactions:
         if transaction.special_type is not None:
-            if transaction.channel in config.fournisseurs:
+            if transaction.special_type == "payout_detail_refund":
+                entries.extend(generate_settlement_entries(transaction, config))
+            elif transaction.channel in config.fournisseurs:
                 entries.extend(generate_marketplace_payout(transaction, config))
             continue
         try:

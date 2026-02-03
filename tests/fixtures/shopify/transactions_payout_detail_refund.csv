@@ -1,0 +1,3 @@
+Order,Type,Payment Method Name,Amount,Fee,Net,Payout Date,Payout ID
+#PD001,charge,card,132.00,3.84,128.16,2026-01-25,RP100
+#PD002,charge,card,60.00,2.10,57.90,2026-01-25,RP100

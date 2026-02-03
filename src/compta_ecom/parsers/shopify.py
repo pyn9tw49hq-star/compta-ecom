@@ -106,6 +106,13 @@ class ShopifyParser(BaseParser):
             )
             anomalies.extend(detail_anomalies)
 
+            # 3.6 Refunds découverts dans payout details mais absents de Transactions Shopify
+            detail_refunds, detail_refund_anomalies = self._build_refunds_from_payout_details(
+                payout_details_by_id, transactions, sales_data
+            )
+            transactions.extend(detail_refunds)
+            anomalies.extend(detail_refund_anomalies)
+
         # 4. Versements PSP (optionnel)
         if "payouts" in files:
             payouts, payout_anomalies = self._parse_payouts(
@@ -600,6 +607,14 @@ class ShopifyParser(BaseParser):
                     )
                     continue
 
+                tx_date_raw = row["Transaction Date"]
+                tx_date: datetime.date | None = None
+                if _is_notna(tx_date_raw):
+                    try:
+                        tx_date = pd.to_datetime(str(tx_date_raw)).date()
+                    except (ValueError, TypeError):
+                        pass
+
                 detail = PayoutDetail(
                     payout_date=payout_date,
                     payout_id=payout_id,
@@ -610,6 +625,7 @@ class ShopifyParser(BaseParser):
                     net=net,
                     payment_method=payment_method,
                     channel="shopify",
+                    transaction_date=tx_date,
                 )
 
                 if payout_id not in details_by_id:
@@ -617,6 +633,106 @@ class ShopifyParser(BaseParser):
                 details_by_id[payout_id].append(detail)
 
         return details_by_id, anomalies
+
+    def _build_refunds_from_payout_details(
+        self,
+        payout_details_by_id: dict[str, list[PayoutDetail]],
+        existing_transactions: list[NormalizedTransaction],
+        sales_data: dict[str, dict[str, Any]],
+    ) -> tuple[list[NormalizedTransaction], list[Anomaly]]:
+        """Crée des NormalizedTransaction refund pour les remboursements présents
+        dans les payout details mais absents du fichier Transactions Shopify.
+
+        Ces transactions portent special_type='payout_detail_refund' pour que
+        le moteur comptable ne génère que les écritures RG (pas d'avoir VE).
+        """
+        # Compteur des refunds déjà couverts par (order_reference, payout_id).
+        # Un Counter plutôt qu'un set pour supporter les remboursements partiels
+        # multiples sur la même commande dans le même batch de payout.
+        existing_refund_counts: dict[tuple[str, str], int] = {}
+        for tx in existing_transactions:
+            if tx.type == "refund" and tx.payout_reference:
+                key = (tx.reference, tx.payout_reference)
+                existing_refund_counts[key] = existing_refund_counts.get(key, 0) + 1
+
+        # Compteur des refunds dans les payout details par clé
+        detail_refund_counts: dict[tuple[str, str], int] = {}
+
+        result: list[NormalizedTransaction] = []
+        anomalies: list[Anomaly] = []
+
+        for payout_id, details in payout_details_by_id.items():
+            for detail in details:
+                if detail.transaction_type != "refund":
+                    continue
+
+                key = (detail.order_reference, detail.payout_id)
+                detail_refund_counts[key] = detail_refund_counts.get(key, 0) + 1
+
+                # Passer si ce refund est déjà couvert par les transactions existantes
+                if detail_refund_counts[key] <= existing_refund_counts.get(key, 0):
+                    continue
+
+                # Récupérer le taux TVA et pays depuis la vente d'origine si disponible
+                sale = sales_data.get(detail.order_reference)
+                tva_rate = sale["tva_rate"] if sale else 0.0
+                country_code = sale["country_code"] if sale else "000"
+
+                amount_ttc = round(abs(detail.amount), 2)
+                if tva_rate > 0:
+                    amount_ht = round(amount_ttc / (1 + tva_rate / 100), 2)
+                else:
+                    amount_ht = amount_ttc
+                amount_tva = round(amount_ttc - amount_ht, 2)
+
+                entry_date = detail.transaction_date or detail.payout_date
+
+                tx = NormalizedTransaction(
+                    reference=detail.order_reference,
+                    channel="shopify",
+                    date=entry_date,
+                    type="refund",
+                    amount_ht=amount_ht,
+                    amount_tva=amount_tva,
+                    amount_ttc=amount_ttc,
+                    shipping_ht=0.0,
+                    shipping_tva=0.0,
+                    tva_rate=tva_rate,
+                    country_code=country_code,
+                    commission_ttc=detail.fee,
+                    commission_ht=0.0,
+                    net_amount=detail.net,
+                    payout_date=detail.payout_date,
+                    payout_reference=detail.payout_id,
+                    payment_method=detail.payment_method,
+                    special_type="payout_detail_refund",
+                )
+                result.append(tx)
+
+                anomalies.append(
+                    Anomaly(
+                        type="payout_detail_refund_discovered",
+                        severity="info",
+                        reference=detail.order_reference,
+                        channel="shopify",
+                        detail=(
+                            f"Remboursement {detail.order_reference} découvert dans "
+                            f"payout detail {detail.payout_id} (montant={amount_ttc}€) "
+                            f"— écriture RG générée"
+                        ),
+                        expected_value=None,
+                        actual_value=None,
+                    )
+                )
+
+                logger.info(
+                    "Refund %s découvert dans payout detail %s (montant=%s€)",
+                    detail.order_reference,
+                    detail.payout_id,
+                    amount_ttc,
+                )
+
+        return result, anomalies
 
     def _parse_payouts(
         self,
@@ -682,6 +798,17 @@ class ShopifyParser(BaseParser):
             psp_type: str | None = None
             if len(psp_types) == 1:
                 psp_type = psp_types.pop()
+
+            # Fallback : si tx_data ne couvre pas ce versement, chercher le
+            # payout_reference dans payout_details_by_id via payout_date
+            if payout_reference is None and payout_details_by_id is not None:
+                for pid, dets in payout_details_by_id.items():
+                    if dets and dets[0].payout_date == payout_date:
+                        payout_reference = pid
+                        psp_types_det = {d.payment_method for d in dets}
+                        if len(psp_types_det) == 1:
+                            psp_type = psp_types_det.pop()
+                        break
 
             if payout_date is None:
                 continue
