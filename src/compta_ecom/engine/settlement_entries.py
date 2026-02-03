@@ -31,7 +31,9 @@ def generate_settlement_entries(
     canal_display = transaction.channel.replace("_", " ").title()
     is_refund = transaction.type == "refund"
     label_prefix = "Remb. PSP" if is_refund else "Règlement"
-    label = f"{label_prefix} {transaction.reference} {canal_display}"
+    # Orphan settlements: transactions without matching sale — mark label for FEC traceability
+    orphan_tag = "[Orphelin] " if transaction.special_type == "orphan_settlement" else ""
+    label = f"{orphan_tag}{label_prefix} {transaction.reference} {canal_display}"
 
     entries: list[AccountingEntry] = []
 

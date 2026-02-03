@@ -133,16 +133,27 @@ class TestGeneratePayoutEntriesZero:
 class TestGeneratePayoutEntriesMixedPsp:
     """Tests pour psp_type = None (payout multi-PSP hétérogène)."""
 
-    def test_mixed_psp_anomaly(self, sample_config: AppConfig) -> None:
-        """psp_type = None → Anomaly(type='mixed_psp_payout'), pas d'écriture."""
+    def test_mixed_psp_anomaly_cross_period(self, sample_config: AppConfig) -> None:
+        """psp_type=None, matched_net_sum=None → info severity (cross-period)."""
         payout = _make_payout(psp_type=None, payout_reference="P_MIX")
         entries, anomalies = generate_payout_entries(payout, sample_config)
 
         assert entries == []
         assert len(anomalies) == 1
         assert anomalies[0].type == "mixed_psp_payout"
+        assert anomalies[0].severity == "info"
+        assert "cross-period" in anomalies[0].detail
+
+    def test_mixed_psp_anomaly_with_matched_transactions(self, sample_config: AppConfig) -> None:
+        """psp_type=None, matched_net_sum set → warning severity (true mixed PSP)."""
+        payout = _make_payout(psp_type=None, payout_reference="P_MIX", matched_net_sum=100.0)
+        entries, anomalies = generate_payout_entries(payout, sample_config)
+
+        assert entries == []
+        assert len(anomalies) == 1
+        assert anomalies[0].type == "mixed_psp_payout"
         assert anomalies[0].severity == "warning"
-        assert "P_MIX" in anomalies[0].detail
+        assert "hétérogènes" in anomalies[0].detail
 
 
 class TestGeneratePayoutEntriesBalance:

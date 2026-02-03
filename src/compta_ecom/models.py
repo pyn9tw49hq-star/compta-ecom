@@ -99,6 +99,8 @@ class PayoutSummary:
     psp_type: str | None
     payout_reference: str | None
     details: list[PayoutDetail] | None = None
+    psp_amounts: dict[str, float] | None = None
+    matched_net_sum: float | None = None
 
 
 @dataclass(frozen=True)

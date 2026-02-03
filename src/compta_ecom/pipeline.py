@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import unicodedata
 from collections.abc import Callable
 from pathlib import Path
 
@@ -97,6 +98,11 @@ class PipelineOrchestrator:
         found: dict[str, Path | list[Path]] = {}
         for file_key, pattern in file_patterns.items():
             matches = sorted(input_dir.glob(pattern))
+            if not matches:
+                # macOS returns NFD filenames; retry with NFD-normalized pattern
+                nfd_pattern = unicodedata.normalize("NFD", pattern)
+                if nfd_pattern != pattern:
+                    matches = sorted(input_dir.glob(nfd_pattern))
             if file_key in multi_files:
                 if matches:
                     found[file_key] = matches

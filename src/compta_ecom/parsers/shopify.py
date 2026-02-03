@@ -66,6 +66,17 @@ def _is_notna(value: object) -> bool:
     return bool(pd.notna(pd.Series([value])).iloc[0])
 
 
+def _normalize_payout_id(raw: object) -> str:
+    """Normalise un Payout ID: supprime le suffixe .0 ajouté par pandas sur les colonnes float."""
+    s = str(raw)
+    if s.endswith(".0"):
+        try:
+            return str(int(float(s)))
+        except (ValueError, OverflowError):
+            pass
+    return s
+
+
 def _extract_vat_rate(tax_name: object) -> float:
     """Extraire le taux TVA depuis Tax 1 Name. Ex: 'FR TVA 20%' -> 20.0."""
     if not tax_name or not isinstance(tax_name, str):
@@ -376,7 +387,7 @@ class ShopifyParser(BaseParser):
                     pass
 
             payout_id_raw = row["Payout ID"]
-            payout_reference: str | None = str(payout_id_raw) if _is_notna(payout_id_raw) else None
+            payout_reference: str | None = _normalize_payout_id(payout_id_raw) if _is_notna(payout_id_raw) else None
 
             tx_entry: dict[str, Any] = {
                 "order": order,
@@ -412,6 +423,9 @@ class ShopifyParser(BaseParser):
 
             if charges:
                 charge = charges[0]
+                # Sum net/fee across all charges (handles split payments)
+                total_net = round(sum(c["net"] for c in charges), 2)
+                total_fee = round(sum(c["fee"] for c in charges), 2)
                 tx = NormalizedTransaction(
                     reference=sale["reference"],
                     channel="shopify",
@@ -424,9 +438,9 @@ class ShopifyParser(BaseParser):
                     shipping_tva=sale["shipping_tva"],
                     tva_rate=sale["tva_rate"],
                     country_code=sale["country_code"],
-                    commission_ttc=charge["fee"],
+                    commission_ttc=total_fee,
                     commission_ht=0.0,
-                    net_amount=charge["net"],
+                    net_amount=total_net,
                     payout_date=charge.get("payout_date"),
                     payout_reference=charge.get("payout_reference"),
                     payment_method=charge.get("payment_method"),
@@ -497,7 +511,7 @@ class ShopifyParser(BaseParser):
                 result.append(tx)
 
         # Orphan settlements (transactions without matching sale)
-        for ref in transactions:
+        for ref, txs in transactions.items():
             if ref not in sales:
                 anomalies.append(
                     Anomaly(
@@ -510,6 +524,34 @@ class ShopifyParser(BaseParser):
                         actual_value=None,
                     )
                 )
+                # Generate settlement-only entries for orphan transactions
+                # so they contribute to lettrage balance on 511
+                for orphan_tx in txs:
+                    tx_type = "refund" if orphan_tx["type"] == "refund" else "sale"
+                    net = round(float(orphan_tx["net"]), 2)
+                    amount_ttc = round(abs(float(orphan_tx["amount"])), 2)
+                    result.append(
+                        NormalizedTransaction(
+                            reference=ref,
+                            channel="shopify",
+                            date=orphan_tx.get("payout_date") or datetime.date.today(),
+                            type=tx_type,
+                            amount_ht=amount_ttc,
+                            amount_tva=0.0,
+                            amount_ttc=amount_ttc,
+                            shipping_ht=0.0,
+                            shipping_tva=0.0,
+                            tva_rate=0.0,
+                            country_code="000",
+                            commission_ttc=orphan_tx["fee"],
+                            commission_ht=0.0,
+                            net_amount=net,
+                            payout_date=orphan_tx.get("payout_date"),
+                            payout_reference=orphan_tx.get("payout_reference"),
+                            payment_method=orphan_tx.get("payment_method"),
+                            special_type="orphan_settlement",
+                        )
+                    )
 
         return result, anomalies
 
@@ -526,6 +568,7 @@ class ShopifyParser(BaseParser):
 
         anomalies: list[Anomaly] = []
         details_by_id: dict[str, list[PayoutDetail]] = {}
+        seen_details: set[tuple[str, str, str, float, float]] = set()
 
         for fpath in detail_files:
             try:
@@ -564,7 +607,7 @@ class ShopifyParser(BaseParser):
                 continue
 
             for _, row in df.iterrows():
-                payout_id = str(row["Payout ID"])
+                payout_id = _normalize_payout_id(row["Payout ID"])
                 order = str(row["Order"])
                 tx_type = str(row["Type"]).strip().lower()
                 amount = round(float(row["Amount"]), 2)
@@ -627,6 +670,11 @@ class ShopifyParser(BaseParser):
                     channel="shopify",
                     transaction_date=tx_date,
                 )
+
+                dedup_key = (payout_id, order, tx_type, amount, net)
+                if dedup_key in seen_details:
+                    continue
+                seen_details.add(dedup_key)
 
                 if payout_id not in details_by_id:
                     details_by_id[payout_id] = []
@@ -796,8 +844,28 @@ class ShopifyParser(BaseParser):
                     psp_types.add(tx.get("payment_method"))
 
             psp_type: str | None = None
+            psp_amounts: dict[str, float] | None = None
             if len(psp_types) == 1:
                 psp_type = psp_types.pop()
+            elif len(psp_types) > 1:
+                # Multiple PSP types — compute per-PSP net amounts
+                _psp_nets: dict[str, float] = {}
+                for pid in matched_payout_ids:
+                    for tx in tx_by_payout[pid]:
+                        pm = tx.get("payment_method")
+                        if pm is not None:
+                            _psp_nets[pm] = round(_psp_nets.get(pm, 0.0) + tx.get("net", 0.0), 2)
+                if _psp_nets:
+                    psp_amounts = _psp_nets
+
+            # Compute matched transaction net sum for aggregated mode balance
+            matched_net_sum: float | None = None
+            if matched_payout_ids:
+                _net_sum = 0.0
+                for pid in matched_payout_ids:
+                    for tx in tx_by_payout[pid]:
+                        _net_sum += tx.get("net", 0.0)
+                matched_net_sum = round(_net_sum, 2)
 
             # Fallback : si tx_data ne couvre pas ce versement, chercher le
             # payout_reference dans payout_details_by_id via payout_date
@@ -847,6 +915,8 @@ class ShopifyParser(BaseParser):
                     psp_type=psp_type,
                     payout_reference=payout_reference,
                     details=details,
+                    psp_amounts=psp_amounts,
+                    matched_net_sum=matched_net_sum,
                 )
             )
 

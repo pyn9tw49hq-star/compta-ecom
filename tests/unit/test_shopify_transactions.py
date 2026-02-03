@@ -296,9 +296,37 @@ class TestMatching:
         assert len(anomalies) == 1
         assert anomalies[0].reference == "#9999"
 
-        # Only #1001 should produce a NormalizedTransaction
-        refs = {tx.reference for tx in result.transactions}
-        assert refs == {"#1001"}
+        # #1001 is a normal transaction, #9999 is an orphan_settlement
+        normal_txs = [tx for tx in result.transactions if tx.special_type is None]
+        assert {tx.reference for tx in normal_txs} == {"#1001"}
+
+        orphan_txs = [tx for tx in result.transactions if tx.special_type == "orphan_settlement"]
+        assert len(orphan_txs) == 1
+        assert orphan_txs[0].reference == "#9999"
+
+
+class TestSplitPayment:
+    """Tests for split payments: multiple charges for the same order."""
+
+    def test_split_payment_sums_net_and_fee(self, tmp_path: Path, shopify_config: AppConfig) -> None:
+        """2 charges for 1 order → commission_ttc = sum(fees), net_amount = sum(nets)."""
+        sales_path = _make_sales_csv(tmp_path, [_base_sale(Subtotal=200.0, Taxes=40.0, Total=250.0, Shipping=10.0)])
+        tx_path = _make_transactions_csv(tmp_path, [
+            _base_transaction(Order="#1001", Amount=150.0, Fee=4.50, Net=145.50, **{"Payment Method Name": "card", "Payout ID": "PAY-001"}),
+            _base_transaction(Order="#1001", Amount=100.0, Fee=3.00, Net=97.00, **{"Payment Method Name": "paypal", "Payout ID": "PAY-002"}),
+        ])
+
+        parser = ShopifyParser()
+        result = parser.parse({"sales": sales_path, "transactions": tx_path}, shopify_config)
+
+        sale_tx = next(tx for tx in result.transactions if tx.type == "sale")
+        # Sum of fees across both charges
+        assert sale_tx.commission_ttc == round(4.50 + 3.00, 2)
+        # Sum of nets across both charges
+        assert sale_tx.net_amount == round(145.50 + 97.00, 2)
+        # payout_reference and payment_method from charges[0]
+        assert sale_tx.payout_reference == "PAY-001"
+        assert sale_tx.payment_method == "card"
 
 
 class TestParsingPayouts:

@@ -29,18 +29,32 @@ def _generate_aggregated_payout_entries(
 ) -> tuple[list[AccountingEntry], list[Anomaly]]:
     """Mode agrégé : 1 paire d'écritures pour le versement entier (logique existante)."""
     if payout.psp_type is None:
+        # Multi-PSP payout: generate one entry pair per PSP if breakdown available
+        if payout.psp_amounts:
+            return _generate_aggregated_multi_psp_entries(payout, config)
+        # Cross-period payout: no matched transactions in current dataset → info severity
+        # True mixed PSP (transactions present but heterogeneous without breakdown) → warning
+        is_cross_period = payout.matched_net_sum is None
         anomaly = Anomaly(
             type="mixed_psp_payout",
-            severity="warning",
+            severity="info" if is_cross_period else "warning",
             reference=payout.payout_reference or "",
             channel=payout.channel,
-            detail=f"Payout {payout.payout_reference} contient des PSP hétérogènes — écriture de reversement manuelle requise",
+            detail=(
+                f"Payout {payout.payout_reference} sans transactions matchées — probable versement cross-period (transactions hors périmètre)"
+                if is_cross_period
+                else f"Payout {payout.payout_reference} contient des PSP hétérogènes — écriture de reversement manuelle requise"
+            ),
             expected_value=None,
             actual_value=None,
         )
         return [], [anomaly]
 
-    total = round(payout.total_amount, 2)
+    # Use matched transaction net sum when available (handles cross-period payouts)
+    total = round(
+        payout.matched_net_sum if payout.matched_net_sum is not None else payout.total_amount,
+        2,
+    )
     if total == 0.0:
         return [], []
 
@@ -79,6 +93,71 @@ def _generate_aggregated_payout_entries(
 
     verify_balance(entries)
     return entries, []
+
+
+def _generate_aggregated_multi_psp_entries(
+    payout: PayoutSummary, config: AppConfig
+) -> tuple[list[AccountingEntry], list[Anomaly]]:
+    """Mode agrégé multi-PSP : 1 paire d'écritures par PSP."""
+    entries: list[AccountingEntry] = []
+    anomalies: list[Anomaly] = []
+    transit_account = config.transit
+    date_str = payout.payout_date.strftime("%Y-%m-%d")
+    ref = payout.payout_reference or f"PAYOUT-{date_str}"
+
+    for psp_type, net in payout.psp_amounts.items():  # type: ignore[union-attr]
+        amount = round(net, 2)
+        if amount == 0.0:
+            continue
+
+        if psp_type not in config.psp:
+            anomalies.append(
+                Anomaly(
+                    type="unknown_psp_detail",
+                    severity="warning",
+                    reference=ref,
+                    channel=payout.channel,
+                    detail=f"PSP {psp_type} inconnu dans la config pour payout {ref}",
+                    expected_value=None,
+                    actual_value=psp_type,
+                )
+            )
+            continue
+
+        psp_account = config.psp[psp_type].compte
+        label = f"Reversement {psp_type} {date_str}"
+
+        pair = [
+            AccountingEntry(
+                date=payout.payout_date,
+                journal=JOURNAL_REGLEMENT,
+                account=transit_account,
+                label=label,
+                debit=amount if amount > 0 else 0.0,
+                credit=abs(amount) if amount < 0 else 0.0,
+                piece_number=ref,
+                lettrage="",
+                channel=payout.channel,
+                entry_type="payout",
+            ),
+            AccountingEntry(
+                date=payout.payout_date,
+                journal=JOURNAL_REGLEMENT,
+                account=psp_account,
+                label=label,
+                debit=abs(amount) if amount < 0 else 0.0,
+                credit=amount if amount > 0 else 0.0,
+                piece_number=ref,
+                lettrage=ref,
+                channel=payout.channel,
+                entry_type="payout",
+            ),
+        ]
+
+        verify_balance(pair)
+        entries.extend(pair)
+
+    return entries, anomalies
 
 
 def _generate_detailed_payout_entries(

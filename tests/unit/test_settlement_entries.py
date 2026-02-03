@@ -278,6 +278,27 @@ class TestSettlementLabels:
         entries = generate_settlement_entries(tx, config)
         assert entries[0].label == "Remb. PSP #1300 Leroy Merlin"
 
+    def test_label_orphan_settlement(self, sample_config: AppConfig) -> None:
+        """orphan_settlement → '[Orphelin] Règlement #9999 Shopify'."""
+        tx = _make_transaction(
+            reference="#9999",
+            special_type="orphan_settlement",
+        )
+        entries = generate_settlement_entries(tx, sample_config)
+        assert entries[0].label == "[Orphelin] Règlement #9999 Shopify"
+
+    def test_label_orphan_settlement_refund(self, sample_config: AppConfig) -> None:
+        """orphan_settlement refund → '[Orphelin] Remb. PSP #9999 Shopify'."""
+        tx = _make_transaction(
+            reference="#9999",
+            type="refund",
+            net_amount=-95.0,
+            commission_ttc=-5.0,
+            special_type="orphan_settlement",
+        )
+        entries = generate_settlement_entries(tx, sample_config)
+        assert entries[0].label == "[Orphelin] Remb. PSP #9999 Shopify"
+
 
 class TestSettlementMetadata:
     """Vérification des métadonnées communes."""
