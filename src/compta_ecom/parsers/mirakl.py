@@ -120,6 +120,10 @@ class MiraklParser(BaseParser):
         """Lit le CSV, valide les colonnes, convertit les numériques, parse les dates."""
         channel_config = config.channels[self.channel]
         df = pd.read_csv(data_path, sep=channel_config.separator, encoding=channel_config.encoding)
+
+        # Nettoyer les noms de colonnes (supprimer les espaces en début/fin)
+        df.columns = df.columns.str.strip()
+
         df = self.apply_column_aliases(df, COLUMN_ALIASES)
 
         # Normaliser les valeurs Type via les alias (seulement si la colonne existe)
@@ -174,7 +178,7 @@ class MiraklParser(BaseParser):
         alpha2_to_numeric: dict[str, str],
         amounts_are_ttc: bool = False,
     ) -> tuple[list[dict[str, Any]], list[Anomaly]]:
-        """Agrège les lignes commande par Numéro de commande.
+        """Agrège les lignes commande par Numéro de commande (et ID du remboursement si présent).
 
         Le DataFrame reçu est pré-filtré (ORDER_LINE_TYPES uniquement).
 
@@ -197,8 +201,37 @@ class MiraklParser(BaseParser):
         # Vérifier si la colonne Canal de diffusion existe
         has_canal_diffusion = "Canal de diffusion" in df.columns
 
-        for ref, group in df.groupby("Numéro de commande"):
-            ref_str = str(ref)
+        # Vérifier si la colonne ID du remboursement existe
+        has_refund_id = "ID du remboursement" in df.columns
+
+        # Créer la clé de regroupement : inclure ID du remboursement si présent
+        # pour séparer les ventes des remboursements sur la même commande
+        if has_refund_id:
+            # Grouper par (Numéro de commande, ID du remboursement)
+            # fillna("") pour que les ventes (sans ID remboursement) soient groupées ensemble
+            group_columns = ["Numéro de commande", "ID du remboursement"]
+            df_copy = df.copy()
+            df_copy["ID du remboursement"] = df_copy["ID du remboursement"].fillna("").astype(str)
+            grouped = df_copy.groupby(group_columns)
+        else:
+            grouped = df.groupby("Numéro de commande")
+
+        for group_key, group in grouped:
+            # Extraire la référence depuis la clé de regroupement
+            if has_refund_id and isinstance(group_key, tuple):
+                order_ref, refund_id = group_key
+                order_ref_clean = str(order_ref).strip()
+                # Si ID remboursement présent, ajouter un suffixe à la référence
+                if refund_id and str(refund_id).strip():
+                    # Nettoyer l'ID remboursement (supprimer espaces et .0 si float converti en str)
+                    refund_id_clean = str(refund_id).strip()
+                    if refund_id_clean.endswith(".0"):
+                        refund_id_clean = refund_id_clean[:-2]
+                    ref_str = f"{order_ref_clean}-R{refund_id_clean}"
+                else:
+                    ref_str = order_ref_clean
+            else:
+                ref_str = str(group_key).strip()
 
             montant_sum = float(group.loc[group["Type"] == "Montant", "Montant"].sum())
             frais_port_sum = float(group.loc[group["Type"] == "Frais de port", "Montant"].sum())

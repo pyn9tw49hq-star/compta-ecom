@@ -1,0 +1,11 @@
+Numéro de commande;Type;Date de commande;Date du cycle de paiement;Montant;ID du remboursement
+DECR001;Montant;2026-01-18;2026-01-28;100.00;
+DECR001;Frais de port;2026-01-18;2026-01-28;10.00;
+DECR001;Commission;2026-01-18;2026-01-28;-15.00;
+DECR001;Taxe sur la commission;2026-01-18;2026-01-28;0.00;
+DECR001;Paiement;2026-01-18;2026-01-28;95.00;
+DECR001;Montant;2026-01-19;2026-01-28;-100.00;3010051
+DECR001;Frais de port;2026-01-19;2026-01-28;-10.00;3010051
+DECR001;Commission;2026-01-19;2026-01-28;15.00;3010051
+DECR001;Taxe sur la commission;2026-01-19;2026-01-28;0.00;3010051
+DECR001;Paiement;2026-01-19;2026-01-28;-95.00;3010051
