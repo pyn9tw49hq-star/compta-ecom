@@ -830,3 +830,141 @@ class TestMiraklPaymentEdgeCases:
         assert len(lookup) == 1
         assert lookup["CMD001"][0] == datetime.date(2026, 1, 27)
         assert lookup["CMD001"][1] == "2026-01-27"
+
+
+# ---------------------------------------------------------------------------
+# TestMiraklAmountsTTC
+# ---------------------------------------------------------------------------
+
+
+class TestMiraklAmountsTTC:
+    """Tests pour amounts_are_ttc=True (Decathlon)."""
+
+    def test_ttc_basic_sale(self) -> None:
+        """TTC 120€, TVA 20% → HT=100€, TVA=20€."""
+        # Arrange
+        df = _make_order_df([
+            {"Numéro de commande": "CMD-TTC-001", "Type": "Montant", "Date de commande": "2026-01-15",
+             "Montant": 120.00, "Date du cycle de paiement": "2026-01-20"},
+        ])
+        parser = MiraklParser(channel="decathlon")
+
+        # Act
+        orders, anomalies = _aggregate_orders_helper(parser, df, tva_rate=20.0, country_code="250", amounts_are_ttc=True)
+
+        # Assert
+        assert len(orders) == 1
+        assert len(anomalies) == 0
+        o = orders[0]
+        assert o["amount_ht"] == 100.00
+        assert o["amount_tva"] == 20.00
+        assert o["amount_ttc"] == 120.00
+
+    def test_ttc_with_shipping(self) -> None:
+        """TTC produit + port → HT et TVA calculés séparément."""
+        # Arrange: Montant=60.00 TTC, Frais de port=12.00 TTC
+        df = _make_order_df([
+            {"Numéro de commande": "CMD-TTC-002", "Type": "Montant", "Date de commande": "2026-01-15",
+             "Montant": 60.00, "Date du cycle de paiement": "2026-01-20"},
+            {"Numéro de commande": "CMD-TTC-002", "Type": "Frais de port", "Date de commande": "2026-01-15",
+             "Montant": 12.00, "Date du cycle de paiement": "2026-01-20"},
+        ])
+        parser = MiraklParser(channel="decathlon")
+
+        # Act
+        orders, anomalies = _aggregate_orders_helper(parser, df, tva_rate=20.0, country_code="250", amounts_are_ttc=True)
+
+        # Assert
+        assert len(orders) == 1
+        o = orders[0]
+        assert o["amount_ht"] == 50.00  # 60 / 1.20
+        assert o["shipping_ht"] == 10.00  # 12 / 1.20
+        assert o["amount_tva"] == 10.00  # 60 - 50
+        assert o["shipping_tva"] == 2.00  # 12 - 10
+        assert o["amount_ttc"] == 72.00  # 60 + 12
+
+    def test_ttc_refund(self) -> None:
+        """Remboursement TTC → type=refund, montants abs positifs."""
+        # Arrange
+        df = _make_order_df([
+            {"Numéro de commande": "CMD-TTC-003", "Type": "Montant", "Date de commande": "2026-01-15",
+             "Montant": -120.00, "Date du cycle de paiement": "2026-01-20"},
+        ])
+        parser = MiraklParser(channel="decathlon")
+
+        # Act
+        orders, anomalies = _aggregate_orders_helper(parser, df, tva_rate=20.0, country_code="250", amounts_are_ttc=True)
+
+        # Assert
+        assert len(orders) == 1
+        o = orders[0]
+        assert o["type"] == "refund"
+        assert o["amount_ht"] == 100.00  # abs(-120 / 1.20)
+        assert o["amount_tva"] == 20.00
+        assert o["net_amount"] < 0  # net_amount négatif
+
+    def test_ttc_zero_rate(self) -> None:
+        """TVA 0% → HT = TTC."""
+        # Arrange
+        df = _make_order_df([
+            {"Numéro de commande": "CMD-TTC-004", "Type": "Montant", "Date de commande": "2026-01-15",
+             "Montant": 100.00, "Date du cycle de paiement": "2026-01-20"},
+        ])
+        parser = MiraklParser(channel="decathlon")
+
+        # Act
+        orders, anomalies = _aggregate_orders_helper(parser, df, tva_rate=0.0, country_code="250", amounts_are_ttc=True)
+
+        # Assert
+        assert len(orders) == 1
+        o = orders[0]
+        assert o["amount_ht"] == 100.00
+        assert o["amount_tva"] == 0.00
+
+    def test_ttc_country_from_canal_diffusion(self) -> None:
+        """Canal de diffusion=Belgique → taux 21% utilisé."""
+        # Arrange: 121€ TTC avec TVA Belgique 21%
+        df = _make_order_df([
+            {"Numéro de commande": "CMD-TTC-005", "Type": "Montant", "Date de commande": "2026-01-15",
+             "Montant": 121.00, "Date du cycle de paiement": "2026-01-20", "Canal de diffusion": "Belgique"},
+        ])
+        parser = MiraklParser(channel="decathlon")
+
+        # Act
+        orders, anomalies = _aggregate_orders_helper(parser, df, tva_rate=20.0, country_code="250", amounts_are_ttc=True)
+
+        # Assert
+        assert len(orders) == 1
+        o = orders[0]
+        assert o["tva_rate"] == 21.0
+        assert o["country_code"] == "056"
+        assert o["amount_ht"] == 100.00  # 121 / 1.21
+        assert o["amount_tva"] == 21.00
+
+
+# ---------------------------------------------------------------------------
+# TestMiraklLeroyMerlinNonRegression
+# ---------------------------------------------------------------------------
+
+
+class TestMiraklLeroyMerlinNonRegression:
+    """Tests de non-régression Leroy Merlin (amounts_are_ttc=False)."""
+
+    def test_leroy_merlin_amounts_remain_ht(self) -> None:
+        """Leroy Merlin : amounts_are_ttc=False → montants = HT."""
+        # Arrange: Montant=100.00 (HT)
+        df = _make_order_df([
+            {"Numéro de commande": "LM-NR-001", "Type": "Montant", "Date de commande": "2026-01-15",
+             "Montant": 100.00, "Date du cycle de paiement": "2026-01-20"},
+        ])
+        parser = MiraklParser(channel="leroy_merlin")
+
+        # Act
+        orders, anomalies = _aggregate_orders_helper(parser, df, tva_rate=20.0, country_code="250", amounts_are_ttc=False)
+
+        # Assert
+        assert len(orders) == 1
+        o = orders[0]
+        assert o["amount_ht"] == 100.00
+        assert o["amount_tva"] == 20.00  # TVA calculée sur HT
+        assert o["amount_ttc"] == 120.00  # HT + TVA

@@ -60,6 +60,7 @@ def sample_config() -> AppConfig:
         separator=";",
         default_country_code="250",
         commission_vat_rate=0.0,
+        amounts_are_ttc=True,
     )
     config.channels["leroy_merlin"] = ChannelConfig(
         files={"data": "Leroy Merlin*.csv"},
