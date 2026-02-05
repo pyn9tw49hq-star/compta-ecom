@@ -79,10 +79,13 @@ class TestMultiChannelPipeline:
 
         # Count by entry_type
         payout_entries = [r for r in data_rows if r[9] == "payout"]
-        # ManoMano: M001 payout(2) + M002 payout(2) + SUB001 payout(2) + ADJ001 payout(2) = 8
-        # Décathlon: DEC001 payout(2) + SUBDEC001 payout(2) = 4
-        # Leroy Merlin: LM001 payout(2) = 2
-        # Shopify: payout PSP from PayoutSummary(2) = 2
+        fee_entries = [r for r in data_rows if r[9] == "fee"]
+        # ManoMano: M001 payout(2) + M002 payout(2) + ADJ001 payout(2) + PayoutSummary PAY001(2) = 8 payout
+        # ManoMano: SUB001 fee(2) = 2 fee
+        # Décathlon: DEC001 transaction payout(2) + Paiement PayoutSummary(2) = 4 payout
+        # Décathlon: SUBDEC001 fee(2) = 2 fee
+        # Leroy Merlin: LM001 transaction payout(2) + Paiement PayoutSummary(2) = 4 payout
+        # Shopify: payout PSP from PayoutSummary(2) = 2 payout
         mm_payouts = [r for r in payout_entries if r[8] == "manomano"]
         assert len(mm_payouts) == 8
 
@@ -90,7 +93,13 @@ class TestMultiChannelPipeline:
         assert len(dec_payouts) == 4
 
         lm_payouts = [r for r in payout_entries if r[8] == "leroy_merlin"]
-        assert len(lm_payouts) == 2
+        assert len(lm_payouts) == 4
+
+        # Vérifier les entrées fee (frais d'abonnement)
+        mm_fees = [r for r in fee_entries if r[8] == "manomano"]
+        assert len(mm_fees) == 2
+        dec_fees = [r for r in fee_entries if r[8] == "decathlon"]
+        assert len(dec_fees) == 2
 
         wb.close()
 

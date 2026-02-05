@@ -8,8 +8,11 @@ import logging
 import pytest
 
 from compta_ecom.config.loader import AppConfig
-from compta_ecom.engine.marketplace_payout_entries import generate_marketplace_payout
-from compta_ecom.models import BalanceError, NormalizedTransaction
+from compta_ecom.engine.marketplace_payout_entries import (
+    generate_marketplace_payout,
+    generate_marketplace_payout_from_summary,
+)
+from compta_ecom.models import BalanceError, NormalizedTransaction, PayoutSummary
 
 
 def _make_transaction(**overrides: object) -> NormalizedTransaction:
@@ -157,7 +160,7 @@ class TestSpecialTypes:
         assert entries[1].credit == 30.0
 
     def test_subscription_manomano(self, sample_config: AppConfig) -> None:
-        """SUBSCRIPTION ManoMano : FMANO D, 51200000 C."""
+        """SUBSCRIPTION ManoMano : FMANO D, 411MANO C (compte client)."""
         tx = _make_transaction(
             channel="manomano",
             special_type="SUBSCRIPTION",
@@ -170,11 +173,14 @@ class TestSpecialTypes:
         assert len(entries) == 2
         assert entries[0].account == "FMANO"
         assert entries[0].debit == 100.0
-        assert entries[1].account == "51200000"
+        assert entries[1].account == "411MANO"
         assert entries[1].credit == 100.0
+        # Vérifier que entry_type est "fee" pour les abonnements
+        assert entries[0].entry_type == "fee"
+        assert entries[1].entry_type == "fee"
 
     def test_subscription_decathlon(self, sample_config: AppConfig) -> None:
-        """SUBSCRIPTION Décathlon : FDECATHLON D, 51200000 C."""
+        """SUBSCRIPTION Décathlon : FDECATHLON D, 411DECA C (compte client)."""
         tx = _make_transaction(
             channel="decathlon",
             special_type="SUBSCRIPTION",
@@ -187,11 +193,14 @@ class TestSpecialTypes:
         assert len(entries) == 2
         assert entries[0].account == "FDECATHLON"
         assert entries[0].debit == 70.0
-        assert entries[1].account == "51200000"
+        assert entries[1].account == "411DECA"
         assert entries[1].credit == 70.0
+        # Vérifier que entry_type est "fee" pour les abonnements
+        assert entries[0].entry_type == "fee"
+        assert entries[1].entry_type == "fee"
 
     def test_subscription_leroy_merlin(self, sample_config: AppConfig) -> None:
-        """SUBSCRIPTION Leroy Merlin : FADEO D, 51200000 C."""
+        """SUBSCRIPTION Leroy Merlin : FADEO D, 411LM C (compte client)."""
         tx = _make_transaction(
             channel="leroy_merlin",
             special_type="SUBSCRIPTION",
@@ -204,8 +213,11 @@ class TestSpecialTypes:
         assert len(entries) == 2
         assert entries[0].account == "FADEO"
         assert entries[0].debit == 46.80
-        assert entries[1].account == "51200000"
+        assert entries[1].account == "411LM"
         assert entries[1].credit == 46.80
+        # Vérifier que entry_type est "fee" pour les abonnements
+        assert entries[0].entry_type == "fee"
+        assert entries[1].entry_type == "fee"
 
     def test_refund_penalty(self, sample_config: AppConfig) -> None:
         """REFUND_PENALTY : FMANO D, 51200000 C."""
@@ -313,3 +325,110 @@ class TestBalanceVerification:
         with patch.object(mod, "verify_balance", side_effect=fake_verify):
             with pytest.raises(BalanceError, match="Déséquilibre"):
                 generate_marketplace_payout(tx, sample_config)
+
+
+class TestMarketplacePayoutFromSummary:
+    """Tests pour generate_marketplace_payout_from_summary (lignes Paiement)."""
+
+    def test_decathlon_payout_nominal(self, sample_config: AppConfig) -> None:
+        """Payout Decathlon : 58000000 D, 411DECA C."""
+        payout = PayoutSummary(
+            payout_date=datetime.date(2024, 1, 25),
+            channel="decathlon",
+            total_amount=-56.70,
+            charges=0.0,
+            refunds=0.0,
+            fees=0.0,
+            transaction_references=["CMD-001"],
+            psp_type=None,
+            payout_reference="2024-01-25",
+        )
+        entries = generate_marketplace_payout_from_summary(payout, sample_config)
+
+        assert len(entries) == 2
+        # Transit (580) débité
+        assert entries[0].account == "58000000"
+        assert entries[0].debit == 56.70
+        assert entries[0].credit == 0.0
+        # Client (411DECA) crédité
+        assert entries[1].account == "411DECA"
+        assert entries[1].debit == 0.0
+        assert entries[1].credit == 56.70
+        # entry_type = "payout"
+        assert entries[0].entry_type == "payout"
+        assert entries[1].entry_type == "payout"
+
+    def test_manomano_payout_nominal(self, sample_config: AppConfig) -> None:
+        """Payout ManoMano : 58000000 D, 411MANO C."""
+        payout = PayoutSummary(
+            payout_date=datetime.date(2024, 1, 20),
+            channel="manomano",
+            total_amount=-850.0,
+            charges=0.0,
+            refunds=0.0,
+            fees=0.0,
+            transaction_references=["CMD-002"],
+            psp_type=None,
+            payout_reference="2024-01-20",
+        )
+        entries = generate_marketplace_payout_from_summary(payout, sample_config)
+
+        assert len(entries) == 2
+        assert entries[0].account == "58000000"
+        assert entries[0].debit == 850.0
+        assert entries[1].account == "411MANO"
+        assert entries[1].credit == 850.0
+
+    def test_leroy_merlin_payout_nominal(self, sample_config: AppConfig) -> None:
+        """Payout Leroy Merlin : 58000000 D, 411LM C."""
+        payout = PayoutSummary(
+            payout_date=datetime.date(2024, 1, 15),
+            channel="leroy_merlin",
+            total_amount=-200.0,
+            charges=0.0,
+            refunds=0.0,
+            fees=0.0,
+            transaction_references=["CMD-003"],
+            psp_type=None,
+            payout_reference="2024-01-15",
+        )
+        entries = generate_marketplace_payout_from_summary(payout, sample_config)
+
+        assert len(entries) == 2
+        assert entries[0].account == "58000000"
+        assert entries[0].debit == 200.0
+        assert entries[1].account == "411LM"
+        assert entries[1].credit == 200.0
+
+    def test_zero_amount_returns_empty(self, sample_config: AppConfig) -> None:
+        """total_amount == 0.0 → liste vide."""
+        payout = PayoutSummary(
+            payout_date=datetime.date(2024, 1, 25),
+            channel="decathlon",
+            total_amount=0.0,
+            charges=0.0,
+            refunds=0.0,
+            fees=0.0,
+            transaction_references=[],
+            psp_type=None,
+            payout_reference="2024-01-25",
+        )
+        entries = generate_marketplace_payout_from_summary(payout, sample_config)
+        assert entries == []
+
+    def test_label_format(self, sample_config: AppConfig) -> None:
+        """Libellé contient le canal et la date."""
+        payout = PayoutSummary(
+            payout_date=datetime.date(2024, 1, 25),
+            channel="decathlon",
+            total_amount=-100.0,
+            charges=0.0,
+            refunds=0.0,
+            fees=0.0,
+            transaction_references=[],
+            psp_type=None,
+            payout_reference="2024-01-25",
+        )
+        entries = generate_marketplace_payout_from_summary(payout, sample_config)
+        assert "Decathlon" in entries[0].label
+        assert "2024-01-25" in entries[0].label

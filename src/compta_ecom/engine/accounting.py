@@ -5,7 +5,10 @@ from __future__ import annotations
 from compta_ecom.config.loader import AppConfig
 from compta_ecom.engine import marketplace_entries
 from compta_ecom.engine.accounts import normalize_lettrage
-from compta_ecom.engine.marketplace_payout_entries import generate_marketplace_payout
+from compta_ecom.engine.marketplace_payout_entries import (
+    generate_marketplace_payout,
+    generate_marketplace_payout_from_summary,
+)
 from compta_ecom.engine.payout_entries import generate_payout_entries
 from compta_ecom.engine.sale_entries import generate_sale_entries
 from compta_ecom.engine.settlement_entries import generate_settlement_entries
@@ -66,10 +69,13 @@ def generate_entries(
 
     for payout in payouts:
         if payout.channel in config.fournisseurs:
-            continue  # reversements marketplace = per-transaction
-        payout_entries_list, payout_anomalies = generate_payout_entries(payout, config)
-        entries.extend(payout_entries_list)
-        anomalies.extend(payout_anomalies)
+            # Marketplace: générer les écritures de payout agrégé (580 ↔ 411)
+            entries.extend(generate_marketplace_payout_from_summary(payout, config))
+        else:
+            # PSP: générer les écritures standard
+            payout_entries_list, payout_anomalies = generate_payout_entries(payout, config)
+            entries.extend(payout_entries_list)
+            anomalies.extend(payout_anomalies)
 
     entries = normalize_lettrage(entries)
     return entries, anomalies

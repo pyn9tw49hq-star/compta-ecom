@@ -6,7 +6,7 @@ import logging
 
 from compta_ecom.config.loader import AppConfig
 from compta_ecom.engine.accounts import JOURNAL_REGLEMENT, verify_balance
-from compta_ecom.models import AccountingEntry, NormalizedTransaction
+from compta_ecom.models import AccountingEntry, NormalizedTransaction, PayoutSummary
 
 logger = logging.getLogger(__name__)
 
@@ -60,12 +60,21 @@ def generate_marketplace_payout(
     )
     label = f"{label_prefix} {transaction.reference} {canal_display}"
 
+    # Déterminer le type d'écriture et le compte banque/client
+    if transaction.special_type == "SUBSCRIPTION":
+        entry_type = "fee"
+        # Frais d'abonnement: utiliser le compte client au lieu de la banque
+        bank_or_client_account = config.clients[transaction.channel]
+    else:
+        entry_type = "payout"
+        bank_or_client_account = config.banque
+
     if net > 0:
-        debit_account = config.banque
+        debit_account = bank_or_client_account
         credit_account = account
     else:
         debit_account = account
-        credit_account = config.banque
+        credit_account = bank_or_client_account
 
     amount = round(abs(net), 2)
 
@@ -80,7 +89,7 @@ def generate_marketplace_payout(
             piece_number=transaction.reference,
             lettrage=transaction.reference,
             channel=transaction.channel,
-            entry_type="payout",
+            entry_type=entry_type,
         ),
         AccountingEntry(
             date=transaction.payout_date,
@@ -92,6 +101,63 @@ def generate_marketplace_payout(
             piece_number=transaction.reference,
             lettrage=transaction.reference,
             channel=transaction.channel,
+            entry_type=entry_type,
+        ),
+    ]
+
+    verify_balance(entries)
+
+    return entries
+
+
+def generate_marketplace_payout_from_summary(
+    payout: PayoutSummary, config: AppConfig
+) -> list[AccountingEntry]:
+    """Génère les écritures de payout marketplace agrégé (580 ↔ 411).
+
+    Pour les lignes "Paiement" des marketplaces (Decathlon, etc.):
+    - Débite le compte transit (580)
+    - Crédite le compte client (411DECA)
+
+    Retourne [] si total_amount == 0.0.
+    """
+    total = round(payout.total_amount, 2)
+    if total == 0.0:
+        return []
+
+    client_account = config.clients[payout.channel]
+    transit_account = config.transit
+    date_str = payout.payout_date.strftime("%Y-%m-%d")
+    label = f"Reversement {payout.channel.replace('_', ' ').title()} {date_str}"
+    ref = payout.payout_reference or f"PAYOUT-{date_str}"
+
+    # Les montants de paiement sont négatifs (sortie d'argent du marketplace)
+    # Donc abs(total) pour les écritures
+    amount = round(abs(total), 2)
+
+    entries = [
+        AccountingEntry(
+            date=payout.payout_date,
+            journal=JOURNAL_REGLEMENT,
+            account=transit_account,
+            label=label,
+            debit=amount,
+            credit=0.0,
+            piece_number=ref,
+            lettrage=ref,
+            channel=payout.channel,
+            entry_type="payout",
+        ),
+        AccountingEntry(
+            date=payout.payout_date,
+            journal=JOURNAL_REGLEMENT,
+            account=client_account,
+            label=label,
+            debit=0.0,
+            credit=amount,
+            piece_number=ref,
+            lettrage=ref,
+            channel=payout.channel,
             entry_type="payout",
         ),
     ]

@@ -387,6 +387,7 @@ class TestDispatchFinalStory24:
         settlement_entries = [e for e in entries if e.entry_type == "settlement"]
         commission_entries = [e for e in entries if e.entry_type == "commission"]
         payout_entries = [e for e in entries if e.entry_type == "payout"]
+        fee_entries = [e for e in entries if e.entry_type == "fee"]
 
         # SHOP01: 3 sale, MM01: 3 sale
         assert len(sale_entries) == 6
@@ -396,12 +397,14 @@ class TestDispatchFinalStory24:
         assert len(settlement_entries) == 2
         # SHOP01 commission(1) + MM01 commission(2) + MM02 commission(2)
         assert len(commission_entries) == 5
-        # MM01 payout(2) + MM02 payout(2) + SUB01 payout(2) + ADJ01 payout(2)
-        assert len(payout_entries) == 8
+        # MM01 payout(2) + MM02 payout(2) + ADJ01 payout(2)
+        assert len(payout_entries) == 6
+        # SUB01 fee(2) - les abonnements sont maintenant des "fee" pas des "payout"
+        assert len(fee_entries) == 2
 
         # Verify marketplace payout entries by channel
         mm_payouts = [e for e in payout_entries if e.channel == "manomano"]
-        assert len(mm_payouts) == 8
+        assert len(mm_payouts) == 6
 
         assert len(anomalies) == 0
 
@@ -434,13 +437,15 @@ class TestDispatchFinalStory24:
         assert len(commission_entries) == 2  # FMANO + 411MANO
         assert len(payout_entries) == 0  # No payout_date → no payout
 
-    def test_payout_summary_manomano_skipped(self, sample_config: AppConfig) -> None:
-        """PayoutSummary ManoMano → skip (pas d'écriture, pas d'anomalie)."""
+    def test_payout_summary_manomano_generates_entries(
+        self, sample_config: AppConfig
+    ) -> None:
+        """PayoutSummary ManoMano → écritures payout agrégé (580 ↔ 411)."""
         payouts = [
             PayoutSummary(
                 payout_date=datetime.date(2026, 1, 23),
                 channel="manomano",
-                total_amount=500.0,
+                total_amount=-500.0,  # Négatif car paiement sortant du marketplace
                 charges=500.0,
                 refunds=0.0,
                 fees=0.0,
@@ -452,7 +457,12 @@ class TestDispatchFinalStory24:
 
         entries, anomalies = generate_entries([], payouts, sample_config)
 
-        assert len(entries) == 0
+        assert len(entries) == 2
+        # 580 (transit) débité, 411MANO (client) crédité
+        assert entries[0].account == "58000000"
+        assert entries[0].debit == 500.0
+        assert entries[1].account == "411MANO"
+        assert entries[1].credit == 500.0
         assert len(anomalies) == 0
 
     def test_payout_summary_shopify_psp_generates_entries(
