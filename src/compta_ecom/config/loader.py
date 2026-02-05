@@ -26,6 +26,7 @@ class ChannelConfig:
     default_country_code: str | None = None
     commission_vat_rate: float | None = None
     multi_files: list[str] = field(default_factory=list)
+    amounts_are_ttc: bool = False  # Si True, montants CSV = TTC (calcul HT via TVA)
 
 
 @dataclass
@@ -298,6 +299,9 @@ def _validate_channels(data: dict[str, object]) -> dict[str, ChannelConfig]:
                     f"Clé multi_files '{mf_key}' absente de 'files' pour le canal '{chan_str}' dans {context}"
                 )
 
+        # amounts_are_ttc (optional, default False)
+        amounts_are_ttc = bool(chan_data.get("amounts_are_ttc", False))
+
         channels[chan_str] = ChannelConfig(
             files=files_dict,
             encoding=encoding,
@@ -305,6 +309,7 @@ def _validate_channels(data: dict[str, object]) -> dict[str, ChannelConfig]:
             default_country_code=default_country_code,
             commission_vat_rate=commission_vat_rate,
             multi_files=multi_files_list,
+            amounts_are_ttc=amounts_are_ttc,
         )
 
     return channels

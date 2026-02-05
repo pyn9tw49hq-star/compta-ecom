@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+from typing import Any
 
 import pandas as pd
 import pytest
@@ -13,6 +14,17 @@ from compta_ecom.parsers.mirakl import MiraklParser
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+# Table TVA simplifiée pour les tests
+_TEST_VAT_TABLE: dict[str, dict[str, Any]] = {
+    "250": {"name": "France", "rate": 20.0, "alpha2": "FR"},
+    "056": {"name": "Belgique", "rate": 21.0, "alpha2": "BE"},
+}
+
+_TEST_ALPHA2_TO_NUMERIC: dict[str, str] = {
+    "FR": "250",
+    "BE": "056",
+}
 
 
 def _make_order_df(rows: list[dict]) -> pd.DataFrame:
@@ -26,6 +38,24 @@ def _make_order_df(rows: list[dict]) -> pd.DataFrame:
         errors="coerce",
     )
     return df
+
+
+def _aggregate_orders_helper(
+    parser: MiraklParser,
+    df: pd.DataFrame,
+    tva_rate: float = 20.0,
+    country_code: str = "250",
+    amounts_are_ttc: bool = False,
+) -> tuple[list[dict[str, Any]], list[Any]]:
+    """Helper pour appeler _aggregate_orders avec les paramètres par défaut."""
+    return parser._aggregate_orders(
+        df,
+        default_tva_rate=tva_rate,
+        default_country_code=country_code,
+        vat_table=_TEST_VAT_TABLE,
+        alpha2_to_numeric=_TEST_ALPHA2_TO_NUMERIC,
+        amounts_are_ttc=amounts_are_ttc,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -52,7 +82,7 @@ class TestMiraklAggregation:
         parser = MiraklParser(channel="decathlon")
 
         # Act
-        orders, anomalies = parser._aggregate_orders(df, tva_rate=20.0, country_code="250")
+        orders, anomalies = _aggregate_orders_helper(parser, df, tva_rate=20.0, country_code="250")
 
         # Assert
         assert len(orders) == 1
@@ -83,7 +113,7 @@ class TestMiraklAggregation:
         parser = MiraklParser(channel="decathlon")
 
         # Act
-        orders, anomalies = parser._aggregate_orders(df, tva_rate=20.0, country_code="250")
+        orders, anomalies = _aggregate_orders_helper(parser, df, tva_rate=20.0, country_code="250")
 
         # Assert
         assert len(orders) == 1
@@ -101,7 +131,7 @@ class TestMiraklAggregation:
         parser = MiraklParser(channel="decathlon")
 
         # Act
-        orders, anomalies = parser._aggregate_orders(df, tva_rate=20.0, country_code="250")
+        orders, anomalies = _aggregate_orders_helper(parser, df, tva_rate=20.0, country_code="250")
 
         # Assert
         assert len(orders) == 2
@@ -118,7 +148,7 @@ class TestMiraklAggregation:
         parser = MiraklParser(channel="decathlon")
 
         # Act
-        orders, _ = parser._aggregate_orders(df, tva_rate=20.0, country_code="250")
+        orders, _ = _aggregate_orders_helper(parser, df, tva_rate=20.0, country_code="250")
 
         # Assert
         assert orders[0]["shipping_ht"] == 0.00
@@ -134,7 +164,7 @@ class TestMiraklAggregation:
         parser = MiraklParser(channel="decathlon")
 
         # Act
-        orders, _ = parser._aggregate_orders(df, tva_rate=20.0, country_code="250")
+        orders, _ = _aggregate_orders_helper(parser, df, tva_rate=20.0, country_code="250")
 
         # Assert
         assert orders[0]["commission_ht"] == 0.00
@@ -154,7 +184,7 @@ class TestMiraklAggregation:
         parser = MiraklParser(channel="decathlon")
 
         # Act
-        orders, _ = parser._aggregate_orders(df, tva_rate=20.0, country_code="250")
+        orders, _ = _aggregate_orders_helper(parser, df, tva_rate=20.0, country_code="250")
 
         # Assert
         o = orders[0]
@@ -177,7 +207,7 @@ class TestMiraklAggregation:
         parser = MiraklParser(channel="decathlon")
 
         # Act
-        orders, _ = parser._aggregate_orders(df, tva_rate=20.0, country_code="250")
+        orders, _ = _aggregate_orders_helper(parser, df, tva_rate=20.0, country_code="250")
 
         # Assert
         o = orders[0]
@@ -197,7 +227,7 @@ class TestMiraklAggregation:
         parser = MiraklParser(channel="decathlon")
 
         # Act
-        orders, _ = parser._aggregate_orders(df, tva_rate=20.0, country_code="250")
+        orders, _ = _aggregate_orders_helper(parser, df, tva_rate=20.0, country_code="250")
 
         # Assert
         assert orders[0]["type"] == "sale"
@@ -212,7 +242,7 @@ class TestMiraklAggregation:
         parser = MiraklParser(channel="decathlon")
 
         # Act
-        orders, _ = parser._aggregate_orders(df, tva_rate=20.0, country_code="250")
+        orders, _ = _aggregate_orders_helper(parser, df, tva_rate=20.0, country_code="250")
 
         # Assert
         assert orders[0]["type"] == "refund"
@@ -227,7 +257,7 @@ class TestMiraklAggregation:
         parser = MiraklParser(channel="decathlon")
 
         # Act
-        orders, anomalies = parser._aggregate_orders(df, tva_rate=20.0, country_code="250")
+        orders, anomalies = _aggregate_orders_helper(parser, df, tva_rate=20.0, country_code="250")
 
         # Assert
         assert len(orders) == 0
@@ -244,7 +274,7 @@ class TestMiraklAggregation:
         parser = MiraklParser(channel="decathlon")
 
         # Act
-        orders, _ = parser._aggregate_orders(df, tva_rate=20.0, country_code="250")
+        orders, _ = _aggregate_orders_helper(parser, df, tva_rate=20.0, country_code="250")
 
         # Assert
         assert orders[0]["amount_tva"] == 20.00
@@ -261,7 +291,7 @@ class TestMiraklAggregation:
         parser = MiraklParser(channel="decathlon")
 
         # Act
-        orders, _ = parser._aggregate_orders(df, tva_rate=20.0, country_code="250")
+        orders, _ = _aggregate_orders_helper(parser, df, tva_rate=20.0, country_code="250")
 
         # Assert
         o = orders[0]
@@ -284,7 +314,7 @@ class TestMiraklAggregation:
         parser = MiraklParser(channel="decathlon")
 
         # Act
-        orders, _ = parser._aggregate_orders(df, tva_rate=20.0, country_code="250")
+        orders, _ = _aggregate_orders_helper(parser, df, tva_rate=20.0, country_code="250")
 
         # Assert
         o = orders[0]
@@ -304,7 +334,7 @@ class TestMiraklAggregation:
         parser = MiraklParser(channel="decathlon")
 
         # Act
-        orders, anomalies = parser._aggregate_orders(df, tva_rate=20.0, country_code="250")
+        orders, anomalies = _aggregate_orders_helper(parser, df, tva_rate=20.0, country_code="250")
 
         # Assert
         assert len(orders) == 0

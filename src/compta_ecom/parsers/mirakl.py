@@ -52,6 +52,61 @@ TYPE_ALIASES: dict[str, str] = {
 # Types de taxe explicite (Leroy Merlin) — ignorées si le parser calcule la TVA
 TAX_LINE_TYPES = {"Taxe sur commande", "Taxe sur frais de port", "Taxe sur abonnement"}
 
+# Mapping nom de pays (Canal de diffusion) → code alpha2
+COUNTRY_NAME_TO_ALPHA2: dict[str, str] = {
+    "France": "FR",
+    "Belgique": "BE",
+    "Belgium": "BE",
+    "Italie": "IT",
+    "Italy": "IT",
+    "Espagne": "ES",
+    "Spain": "ES",
+    "Allemagne": "DE",
+    "Germany": "DE",
+    "Pays-Bas": "NL",
+    "Netherlands": "NL",
+    "Portugal": "PT",
+    "Autriche": "AT",
+    "Austria": "AT",
+    "Pologne": "PL",
+    "Poland": "PL",
+    "Suède": "SE",
+    "Sweden": "SE",
+    "Danemark": "DK",
+    "Denmark": "DK",
+    "Finlande": "FI",
+    "Finland": "FI",
+    "Irlande": "IE",
+    "Ireland": "IE",
+    "Grèce": "GR",
+    "Greece": "GR",
+    "Hongrie": "HU",
+    "Hungary": "HU",
+    "Tchéquie": "CZ",
+    "Czech Republic": "CZ",
+    "Roumanie": "RO",
+    "Romania": "RO",
+    "Bulgarie": "BG",
+    "Bulgaria": "BG",
+    "Croatie": "HR",
+    "Croatia": "HR",
+    "Slovaquie": "SK",
+    "Slovakia": "SK",
+    "Slovénie": "SI",
+    "Slovenia": "SI",
+    "Lituanie": "LT",
+    "Lithuania": "LT",
+    "Lettonie": "LV",
+    "Latvia": "LV",
+    "Estonie": "EE",
+    "Estonia": "EE",
+    "Luxembourg": "LU",
+    "Malte": "MT",
+    "Malta": "MT",
+    "Chypre": "CY",
+    "Cyprus": "CY",
+}
+
 
 class MiraklParser(BaseParser):
     """Parser mutualisé pour les CSV Mirakl (Décathlon, Leroy Merlin)."""
@@ -111,11 +166,26 @@ class MiraklParser(BaseParser):
         return df, anomalies
 
     def _aggregate_orders(
-        self, df: pd.DataFrame, tva_rate: float, country_code: str
+        self,
+        df: pd.DataFrame,
+        default_tva_rate: float,
+        default_country_code: str,
+        vat_table: dict[str, dict[str, object]],
+        alpha2_to_numeric: dict[str, str],
+        amounts_are_ttc: bool = False,
     ) -> tuple[list[dict[str, Any]], list[Anomaly]]:
         """Agrège les lignes commande par Numéro de commande.
 
         Le DataFrame reçu est pré-filtré (ORDER_LINE_TYPES uniquement).
+
+        Args:
+            df: DataFrame des lignes de commande.
+            default_tva_rate: Taux TVA par défaut si pays non trouvé.
+            default_country_code: Code pays par défaut si non trouvé.
+            vat_table: Table TVA {country_code: {"rate": float, ...}}.
+            alpha2_to_numeric: Mapping {alpha2: country_code}.
+            amounts_are_ttc: Si True, les montants CSV sont TTC (extraire HT).
+
         Retourne des dicts intermédiaires :
         - reference, type, date, amount_ht, amount_tva, amount_ttc,
           shipping_ht, shipping_tva, commission_ht, commission_ttc,
@@ -123,6 +193,9 @@ class MiraklParser(BaseParser):
         """
         orders: list[dict[str, Any]] = []
         anomalies: list[Anomaly] = []
+
+        # Vérifier si la colonne Canal de diffusion existe
+        has_canal_diffusion = "Canal de diffusion" in df.columns
 
         for ref, group in df.groupby("Numéro de commande"):
             ref_str = str(ref)
@@ -173,14 +246,48 @@ class MiraklParser(BaseParser):
 
             order_date: datetime.date = first_date.date()
 
-            amount_ht = round(abs(montant_sum), 2)
-            shipping_ht = round(abs(frais_port_sum), 2)
+            # Déterminer le pays et taux TVA depuis Canal de diffusion
+            tva_rate = default_tva_rate
+            country_code = default_country_code
+            if has_canal_diffusion:
+                canal_values = group["Canal de diffusion"].dropna()
+                if not canal_values.empty:
+                    country_name = str(canal_values.iloc[0]).strip()
+                    alpha2 = COUNTRY_NAME_TO_ALPHA2.get(country_name)
+                    if alpha2 and alpha2 in alpha2_to_numeric:
+                        country_code = alpha2_to_numeric[alpha2]
+                        if country_code in vat_table:
+                            tva_rate = float(vat_table[country_code]["rate"])
+
+            # Calcul des montants HT/TTC selon le mode
+            if amounts_are_ttc:
+                # Montants CSV = TTC → extraire HT
+                amount_ttc_raw = round(abs(montant_sum), 2)
+                shipping_ttc_raw = round(abs(frais_port_sum), 2)
+
+                if tva_rate > 0:
+                    divisor = 1 + tva_rate / 100
+                    amount_ht = round(amount_ttc_raw / divisor, 2)
+                    shipping_ht = round(shipping_ttc_raw / divisor, 2)
+                else:
+                    # Taux 0% : HT = TTC
+                    amount_ht = amount_ttc_raw
+                    shipping_ht = shipping_ttc_raw
+
+                amount_tva = round(amount_ttc_raw - amount_ht, 2)
+                shipping_tva = round(shipping_ttc_raw - shipping_ht, 2)
+                amount_ttc = round(amount_ttc_raw + shipping_ttc_raw, 2)
+            else:
+                # Montants CSV = HT → calculer TVA et TTC
+                amount_ht = round(abs(montant_sum), 2)
+                shipping_ht = round(abs(frais_port_sum), 2)
+                amount_tva = round(amount_ht * tva_rate / 100, 2)
+                shipping_tva = round(shipping_ht * tva_rate / 100, 2)
+                amount_ttc = round(amount_ht + shipping_ht + amount_tva + shipping_tva, 2)
+
             commission_ht = round(commission_sum, 2)
             taxe_commission = round(taxe_commission_sum, 2)
             commission_ttc = round(commission_ht + taxe_commission, 2)
-            amount_tva = round(amount_ht * tva_rate / 100, 2)
-            shipping_tva = round(shipping_ht * tva_rate / 100, 2)
-            amount_ttc = round(amount_ht + shipping_ht + amount_tva + shipping_tva, 2)
             signed_ttc = amount_ttc if tx_type == "sale" else -amount_ttc
             net_amount = round(signed_ttc - commission_ttc, 2)
 
@@ -354,7 +461,15 @@ class MiraklParser(BaseParser):
         df_subscriptions = df[df["Type"] == "Abonnement"]
 
         # 6. Process each sub-DataFrame
-        order_dicts, order_anomalies = self._aggregate_orders(df_orders, tva_rate, country_code)
+        channel_config = config.channels[self.channel]
+        order_dicts, order_anomalies = self._aggregate_orders(
+            df_orders,
+            default_tva_rate=tva_rate,
+            default_country_code=country_code,
+            vat_table=config.vat_table,
+            alpha2_to_numeric=config.alpha2_to_numeric,
+            amounts_are_ttc=channel_config.amounts_are_ttc,
+        )
         anomalies.extend(order_anomalies)
 
         payment_lookup, payment_anomalies = self._build_payment_lookup(df_payments)
