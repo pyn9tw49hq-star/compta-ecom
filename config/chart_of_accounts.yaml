@@ -11,10 +11,10 @@ fournisseurs:
 
 psp:
   card:
-    compte: "51150007"
+    compte: "51150012"  # Shopify Payouts (unifié)
     commission: "62700002"
   paypal:
-    compte: "51150004"
+    compte: "51150012"  # Shopify Payouts (unifié)
     commission: "62700001"
   klarna:
     compte: "51150011"
