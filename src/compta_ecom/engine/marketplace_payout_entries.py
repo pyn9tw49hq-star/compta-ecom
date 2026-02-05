@@ -117,7 +117,7 @@ def generate_marketplace_payout_from_summary(
 
     Pour les lignes "Paiement" des marketplaces (Decathlon, etc.):
     - Débite le compte transit (580)
-    - Crédite le compte client (411DECA)
+    - Crédite le compte client (CDECATHLON)
 
     Retourne [] si total_amount == 0.0.
     """

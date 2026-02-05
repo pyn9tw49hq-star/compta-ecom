@@ -180,7 +180,7 @@ class TestSpecialTypes:
         assert entries[1].entry_type == "fee"
 
     def test_subscription_decathlon(self, sample_config: AppConfig) -> None:
-        """SUBSCRIPTION Décathlon : FDECATHLON D, 411DECA C (compte client)."""
+        """SUBSCRIPTION Décathlon : FDECATHLON D, CDECATHLON C (compte client)."""
         tx = _make_transaction(
             channel="decathlon",
             special_type="SUBSCRIPTION",
@@ -193,7 +193,7 @@ class TestSpecialTypes:
         assert len(entries) == 2
         assert entries[0].account == "FDECATHLON"
         assert entries[0].debit == 70.0
-        assert entries[1].account == "411DECA"
+        assert entries[1].account == "CDECATHLON"
         assert entries[1].credit == 70.0
         # Vérifier que entry_type est "fee" pour les abonnements
         assert entries[0].entry_type == "fee"
@@ -331,7 +331,7 @@ class TestMarketplacePayoutFromSummary:
     """Tests pour generate_marketplace_payout_from_summary (lignes Paiement)."""
 
     def test_decathlon_payout_nominal(self, sample_config: AppConfig) -> None:
-        """Payout Decathlon : 58000000 D, 411DECA C."""
+        """Payout Decathlon : 58000000 D, CDECATHLON C."""
         payout = PayoutSummary(
             payout_date=datetime.date(2024, 1, 25),
             channel="decathlon",
@@ -350,8 +350,8 @@ class TestMarketplacePayoutFromSummary:
         assert entries[0].account == "58000000"
         assert entries[0].debit == 56.70
         assert entries[0].credit == 0.0
-        # Client (411DECA) crédité
-        assert entries[1].account == "411DECA"
+        # Client (CDECATHLON) crédité
+        assert entries[1].account == "CDECATHLON"
         assert entries[1].debit == 0.0
         assert entries[1].credit == 56.70
         # entry_type = "payout"

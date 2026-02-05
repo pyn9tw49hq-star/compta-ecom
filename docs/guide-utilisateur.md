@@ -319,7 +319,7 @@ compta-ecom ./csv_janvier/ ./sortie/compta_2026-01.xlsx --log-level DEBUG
 |--------|-------|
 | 411SHOPIFY | Shopify |
 | 411MANO | ManoMano |
-| 411DECA | Décathlon |
+| CDECATHLON | Décathlon |
 | 411LM | Leroy Merlin |
 
 ### Comptes fournisseurs (401)

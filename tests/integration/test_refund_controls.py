@@ -292,10 +292,10 @@ class TestMultiChannelRefundOrchestration:
             if tx.type != "refund":
                 continue
             entries = generate_sale_entries(tx, sample_config)
-            client_accounts = {e.account for e in entries if e.account.startswith("411")}
+            client_accounts = {e.account for e in entries if e.account.startswith("411") or e.account == "CDECATHLON"}
             channel_accounts.setdefault(tx.channel, set()).update(client_accounts)
 
         # Chaque canal utilise un compte client 411 distinct
         assert channel_accounts.get("shopify") == {"411SHOPIFY"}
         assert channel_accounts.get("manomano") == {"411MANO"}
-        assert channel_accounts.get("decathlon") == {"411DECA"}
+        assert channel_accounts.get("decathlon") == {"CDECATHLON"}

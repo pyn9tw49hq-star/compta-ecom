@@ -75,7 +75,7 @@ class TestMiraklRefundEntries:
         """Écritures vente refund inversées."""
         entries = generate_sale_entries(mirakl_refund, sample_config)
 
-        entry_411 = [e for e in entries if e.account == "411DECA"]
+        entry_411 = [e for e in entries if e.account == "CDECATHLON"]
         entry_707 = [e for e in entries if e.account.startswith("707")]
 
         assert len(entry_411) == 1
@@ -120,7 +120,7 @@ class TestMiraklRefundEntries:
         assert len(entries) == 2
 
         entry_401 = [e for e in entries if e.account == "FDECATHLON"]
-        entry_411 = [e for e in entries if e.account == "411DECA"]
+        entry_411 = [e for e in entries if e.account == "CDECATHLON"]
 
         assert len(entry_401) == 1
         assert len(entry_411) == 1

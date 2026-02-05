@@ -48,7 +48,7 @@ def sample_config() -> AppConfig:
             ),
         },
     )
-    config.clients["decathlon"] = "411DECA"
+    config.clients["decathlon"] = "CDECATHLON"
     config.clients["leroy_merlin"] = "411LM"
     config.fournisseurs["decathlon"] = "FDECATHLON"
     config.fournisseurs["leroy_merlin"] = "FADEO"

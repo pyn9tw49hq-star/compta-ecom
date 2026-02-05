@@ -42,7 +42,7 @@ def _make_transaction(**overrides: object) -> NormalizedTransaction:
     ("channel", "fournisseur_account", "client_account"),
     [
         ("manomano", "FMANO", "411MANO"),
-        ("decathlon", "FDECATHLON", "411DECA"),
+        ("decathlon", "FDECATHLON", "CDECATHLON"),
         ("leroy_merlin", "FADEO", "411LM"),
     ],
 )
