@@ -359,10 +359,15 @@ def _make_payment_df(rows: list[dict]) -> pd.DataFrame:
 
 def _make_subscription_df(rows: list[dict]) -> pd.DataFrame:
     """Construit un DataFrame pré-filtré Type=Abonnement avec dates parsées."""
+    for row in rows:
+        row.setdefault("Date de commande", "2026-01-15")
     df = pd.DataFrame(rows)
     df["Montant"] = pd.to_numeric(df["Montant"], errors="coerce")
     df["Date du cycle de paiement"] = pd.to_datetime(
         df["Date du cycle de paiement"], format="%Y-%m-%d", errors="coerce"
+    )
+    df["Date de commande"] = pd.to_datetime(
+        df["Date de commande"], format="%Y-%m-%d", errors="coerce"
     )
     return df
 
@@ -478,10 +483,11 @@ class TestMiraklSubscriptions:
     """Tests pour _parse_subscriptions()."""
 
     def test_subscription_nominal(self) -> None:
-        """Abonnement nominal → special_type=SUBSCRIPTION, date=payout_date."""
+        """Abonnement nominal → special_type=SUBSCRIPTION, date=Date de commande."""
         # Arrange
         df = _make_subscription_df([
             {"Numéro de commande": "ABO001", "Type": "Abonnement",
+             "Date de commande": "2026-01-10",
              "Date du cycle de paiement": "2026-01-31", "Montant": -39.99},
         ])
         parser = MiraklParser(channel="decathlon")
@@ -496,7 +502,7 @@ class TestMiraklSubscriptions:
         assert s["special_type"] == "SUBSCRIPTION"
         assert s["type"] == "sale"
         assert s["reference"] == "ABO001"
-        assert s["date"] == datetime.date(2026, 1, 31)
+        assert s["date"] == datetime.date(2026, 1, 10)  # Date de commande, pas payout
         assert s["net_amount"] == -39.99
         assert s["payout_date"] == datetime.date(2026, 1, 31)
         assert s["payout_reference"] == "2026-01-31"
@@ -515,6 +521,25 @@ class TestMiraklSubscriptions:
 
         # Assert
         assert subs[0]["reference"] == "ABO-decathlon-20260131"
+
+    def test_subscription_missing_creation_date(self) -> None:
+        """Date de commande absente → Anomaly(type=invalid_date), abonnement ignoré."""
+        # Arrange
+        df = _make_subscription_df([
+            {"Numéro de commande": "ABO002", "Type": "Abonnement",
+             "Date de commande": None,
+             "Date du cycle de paiement": "2026-01-31", "Montant": -39.99},
+        ])
+        parser = MiraklParser(channel="decathlon")
+
+        # Act
+        subs, anomalies = parser._parse_subscriptions(df, country_code="250")
+
+        # Assert
+        assert len(subs) == 0
+        assert len(anomalies) == 1
+        assert anomalies[0].type == "invalid_date"
+        assert "Date de commande invalide" in anomalies[0].detail
 
     def test_subscription_decathlon_vs_leroy_merlin(self) -> None:
         """Abonnement Décathlon vs Leroy Merlin — montant lu du CSV."""
@@ -591,7 +616,7 @@ class TestMiraklParseDecathlon:
              "Date du cycle de paiement": "2026-01-20", "Montant": "0.00"},
             {"Numéro de commande": "CMD001", "Type": "Paiement", "Date de commande": "",
              "Date du cycle de paiement": "2026-01-20", "Montant": "95.00"},
-            {"Numéro de commande": "", "Type": "Abonnement", "Date de commande": "",
+            {"Numéro de commande": "", "Type": "Abonnement", "Date de commande": "2026-01-10",
              "Date du cycle de paiement": "2026-01-20", "Montant": "-39.99"},
         ])
         parser = MiraklParser(channel="decathlon")
@@ -673,7 +698,7 @@ class TestMiraklParseLeroyMerlin:
              "Date du cycle de paiement": "2026-01-15", "Montant": "-15.00"},
             {"Numéro de commande": "LM001", "Type": "Paiement", "Date de commande": "",
              "Date du cycle de paiement": "2026-01-15", "Montant": "410.00"},
-            {"Numéro de commande": "", "Type": "Abonnement", "Date de commande": "",
+            {"Numéro de commande": "", "Type": "Abonnement", "Date de commande": "2026-01-05",
              "Date du cycle de paiement": "2026-01-15", "Montant": "-49.99"},
         ])
         parser = MiraklParser(channel="leroy_merlin")

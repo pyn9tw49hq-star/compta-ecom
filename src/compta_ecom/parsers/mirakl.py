@@ -433,6 +433,22 @@ class MiraklParser(BaseParser):
             payout_date: datetime.date = date_cycle.date()
             payout_reference = payout_date.strftime("%Y-%m-%d")
 
+            # Date d'écriture = Date de commande (alias "Date de création"), colonne 1
+            date_creation = row["Date de commande"]
+            if pd.isna(date_creation):
+                anomalies.append(Anomaly(
+                    type="invalid_date",
+                    severity="warning",
+                    reference=str(row["Numéro de commande"]) if pd.notna(row["Numéro de commande"]) else "",
+                    channel=self.channel,
+                    detail="Date de commande invalide pour abonnement",
+                    expected_value=DATE_FORMAT,
+                    actual_value=None,
+                ))
+                continue
+
+            creation_date: datetime.date = date_creation.date()
+
             ref_raw = row["Numéro de commande"]
             if pd.notna(ref_raw) and str(ref_raw).strip():
                 reference = str(ref_raw)
@@ -443,7 +459,7 @@ class MiraklParser(BaseParser):
                 "reference": reference,
                 "special_type": "SUBSCRIPTION",
                 "type": "sale",
-                "date": payout_date,
+                "date": creation_date,
                 "net_amount": round(float(row["Montant"]), 2),
                 "payout_date": payout_date,
                 "payout_reference": payout_reference,

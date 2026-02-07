@@ -78,9 +78,13 @@ def generate_marketplace_payout(
 
     amount = round(abs(net), 2)
 
+    # Frais d'abonnement : date d'écriture = date de création (transaction.date)
+    # Autres reversements : date d'écriture = date du cycle de paiement (payout_date)
+    entry_date = transaction.date if transaction.special_type == "SUBSCRIPTION" else transaction.payout_date
+
     entries = [
         AccountingEntry(
-            date=transaction.payout_date,
+            date=entry_date,
             journal=JOURNAL_REGLEMENT,
             account=debit_account,
             label=label,
@@ -92,7 +96,7 @@ def generate_marketplace_payout(
             entry_type=entry_type,
         ),
         AccountingEntry(
-            date=transaction.payout_date,
+            date=entry_date,
             journal=JOURNAL_REGLEMENT,
             account=credit_account,
             label=label,

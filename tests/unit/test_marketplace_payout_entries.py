@@ -128,12 +128,14 @@ class TestSpecialTypes:
     """Tests des lignes spéciales."""
 
     def test_adjustment(self, sample_config: AppConfig) -> None:
-        """ADJUSTMENT : 51200000 D, 51150002 C."""
+        """ADJUSTMENT : 51200000 D, 51150002 C, date = payout_date."""
+        payout_date = datetime.date(2024, 1, 20)
         tx = _make_transaction(
             special_type="ADJUSTMENT",
             net_amount=50.0,
             commission_ttc=0.0,
             commission_ht=None,
+            payout_date=payout_date,
         )
         entries = generate_marketplace_payout(tx, sample_config)
 
@@ -142,6 +144,8 @@ class TestSpecialTypes:
         assert entries[0].debit == 50.0
         assert entries[1].account == "51150002"
         assert entries[1].credit == 50.0
+        # Non-régression : les types spéciaux non-SUBSCRIPTION utilisent payout_date
+        assert all(e.date == payout_date for e in entries)
 
     def test_eco_contribution(self, sample_config: AppConfig) -> None:
         """ECO_CONTRIBUTION : net_amount=-30.00 → FMANO D, 51200000 C."""
@@ -292,11 +296,27 @@ class TestEntryMetadata:
         assert all(e.journal == "RG" for e in entries)
 
     def test_date_is_payout_date(self, sample_config: AppConfig) -> None:
-        """Date de l'écriture = payout_date."""
+        """Date de l'écriture = payout_date pour les reversements classiques."""
         payout_date = datetime.date(2024, 2, 10)
         tx = _make_transaction(payout_date=payout_date)
         entries = generate_marketplace_payout(tx, sample_config)
         assert all(e.date == payout_date for e in entries)
+
+    def test_subscription_date_is_creation_date(self, sample_config: AppConfig) -> None:
+        """Date de l'écriture SUBSCRIPTION = date de création (transaction.date), pas payout_date."""
+        creation_date = datetime.date(2024, 1, 15)
+        payout_date = datetime.date(2024, 2, 10)
+        tx = _make_transaction(
+            special_type="SUBSCRIPTION",
+            date=creation_date,
+            payout_date=payout_date,
+            net_amount=-40.0,
+            commission_ttc=0.0,
+            commission_ht=None,
+        )
+        entries = generate_marketplace_payout(tx, sample_config)
+        assert all(e.date == creation_date for e in entries)
+        assert all(e.date != payout_date for e in entries)
 
     def test_piece_number_and_lettrage(self, sample_config: AppConfig) -> None:
         """piece_number et lettrage = reference."""
