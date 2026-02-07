@@ -63,7 +63,8 @@ def generate_entries(
             entries.extend(
                 marketplace_entries.generate_marketplace_commission(transaction, config)
             )
-            entries.extend(generate_marketplace_payout(transaction, config))
+            if transaction.channel != "decathlon":
+                entries.extend(generate_marketplace_payout(transaction, config))
         else:
             entries.extend(generate_settlement_entries(transaction, config))
 

@@ -82,7 +82,7 @@ class TestMultiChannelPipeline:
         fee_entries = [r for r in data_rows if r[9] == "fee"]
         # ManoMano: M001 payout(2) + M002 payout(2) + ADJ001 payout(2) + PayoutSummary PAY001(2) = 8 payout
         # ManoMano: SUB001 fee(2) = 2 fee
-        # Décathlon: DEC001 transaction payout(2) + Paiement PayoutSummary(2) = 4 payout
+        # Décathlon: Paiement PayoutSummary(2) = 2 payout (pas de payout individuel 512)
         # Décathlon: SUBDEC001 fee(2) = 2 fee
         # Leroy Merlin: LM001 transaction payout(2) + Paiement PayoutSummary(2) = 4 payout
         # Shopify: payout PSP from PayoutSummary(2) = 2 payout
@@ -90,7 +90,7 @@ class TestMultiChannelPipeline:
         assert len(mm_payouts) == 8
 
         dec_payouts = [r for r in payout_entries if r[8] == "decathlon"]
-        assert len(dec_payouts) == 4
+        assert len(dec_payouts) == 2
 
         lm_payouts = [r for r in payout_entries if r[8] == "leroy_merlin"]
         assert len(lm_payouts) == 4

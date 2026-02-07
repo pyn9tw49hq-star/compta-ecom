@@ -588,6 +588,174 @@ class TestDispatchFinalStory24:
         assert len(entries) == 0
 
 
+class TestDecathlonSkipIndividualPayout:
+    """Tests du skip payout individuel Décathlon (accounting.py L66)."""
+
+    def test_decathlon_sale_no_individual_payout(self, sample_config: AppConfig) -> None:
+        """Vente Décathlon régulière → sale + commission mais aucun payout individuel."""
+        transactions = [
+            _make_transaction(
+                reference="#DEC01",
+                channel="decathlon",
+                payment_method=None,
+                amount_ht=83.33,
+                amount_tva=16.67,
+                amount_ttc=100.0,
+                net_amount=85.0,
+                commission_ttc=-15.0,
+                commission_ht=-15.0,
+                payout_date=datetime.date(2024, 1, 20),
+                payout_reference="CYC-2024-01",
+            ),
+        ]
+
+        entries, anomalies = generate_entries(transactions, [], sample_config)
+
+        sale_entries = [e for e in entries if e.entry_type == "sale"]
+        commission_entries = [e for e in entries if e.entry_type == "commission"]
+        payout_entries = [e for e in entries if e.entry_type == "payout"]
+
+        # sale : CDECATHLON + 70703250 + 4457250 = 3 lignes
+        assert len(sale_entries) == 3
+        # commission : FDECATHLON D / CDECATHLON C (commission_ttc < 0) = 2 lignes
+        assert len(commission_entries) == 2
+        # payout : 0 — comportement spécifique Décathlon
+        assert len(payout_entries) == 0
+        assert len(anomalies) == 0
+
+        # Aucune écriture ne touche le compte banque ni FDECATHLON en payout
+        all_accounts = {e.account for e in entries if e.entry_type == "payout"}
+        assert "51200000" not in all_accounts
+        assert "FDECATHLON" not in all_accounts
+
+    def test_decathlon_sale_with_payout_summary(self, sample_config: AppConfig) -> None:
+        """Flux complet Décathlon : vente (pas de payout individuel) + PayoutSummary agrégé."""
+        transactions = [
+            _make_transaction(
+                reference="#DEC01",
+                channel="decathlon",
+                payment_method=None,
+                amount_ht=83.33,
+                amount_tva=16.67,
+                amount_ttc=100.0,
+                net_amount=85.0,
+                commission_ttc=-15.0,
+                commission_ht=-15.0,
+                payout_date=datetime.date(2024, 1, 20),
+                payout_reference="CYC-2024-01",
+            ),
+        ]
+        payouts = [
+            PayoutSummary(
+                payout_date=datetime.date(2024, 1, 20),
+                channel="decathlon",
+                total_amount=-85.0,
+                charges=100.0,
+                refunds=0.0,
+                fees=-15.0,
+                transaction_references=["#DEC01"],
+                psp_type=None,
+                payout_reference="CYC-2024-01",
+            ),
+        ]
+
+        entries, anomalies = generate_entries(transactions, payouts, sample_config)
+
+        sale_entries = [e for e in entries if e.entry_type == "sale"]
+        commission_entries = [e for e in entries if e.entry_type == "commission"]
+        payout_entries = [e for e in entries if e.entry_type == "payout"]
+
+        # sale : 3 lignes
+        assert len(sale_entries) == 3
+        # commission : 2 lignes
+        assert len(commission_entries) == 2
+        # payout : 2 lignes (uniquement le PayoutSummary agrégé)
+        assert len(payout_entries) == 2
+        assert len(anomalies) == 0
+
+        # Les 2 écritures payout touchent transit (580) et client (CDECATHLON)
+        payout_accounts = {e.account for e in payout_entries}
+        assert "58000000" in payout_accounts
+        assert "CDECATHLON" in payout_accounts
+        # Aucune écriture payout sur banque ni fournisseur
+        assert "51200000" not in payout_accounts
+        assert "FDECATHLON" not in payout_accounts
+
+    def test_decathlon_subscription_still_generates_fee(self, sample_config: AppConfig) -> None:
+        """SUBSCRIPTION Décathlon → écritures fee toujours générées (branche L44-45 non impactée)."""
+        transactions = [
+            _make_transaction(
+                reference="#SUBDEC01",
+                channel="decathlon",
+                special_type="SUBSCRIPTION",
+                payment_method=None,
+                amount_ht=0.0,
+                amount_tva=0.0,
+                amount_ttc=0.0,
+                net_amount=-39.90,
+                commission_ttc=0.0,
+                commission_ht=None,
+                payout_date=datetime.date(2024, 1, 20),
+                payout_reference="CYC-2024-01",
+            ),
+        ]
+
+        entries, anomalies = generate_entries(transactions, [], sample_config)
+
+        fee_entries = [e for e in entries if e.entry_type == "fee"]
+        sale_entries = [e for e in entries if e.entry_type == "sale"]
+        payout_entries = [e for e in entries if e.entry_type == "payout"]
+
+        # fee : CDECATHLON ↔ FDECATHLON = 2 lignes
+        assert len(fee_entries) == 2
+        # sale : 0 (le continue L46 bypass le bloc sale)
+        assert len(sale_entries) == 0
+        # payout : 0
+        assert len(payout_entries) == 0
+        assert len(anomalies) == 0
+
+        # Les comptes touchés sont client et fournisseur, entry_type="fee"
+        fee_accounts = {e.account for e in fee_entries}
+        assert "CDECATHLON" in fee_accounts
+        assert "FDECATHLON" in fee_accounts
+
+    def test_leroy_merlin_still_generates_individual_payout(self, sample_config: AppConfig) -> None:
+        """Non-régression : Leroy Merlin génère toujours des payout individuels (skip Décathlon uniquement)."""
+        transactions = [
+            _make_transaction(
+                reference="#LM01",
+                channel="leroy_merlin",
+                payment_method=None,
+                amount_ht=50.0,
+                amount_tva=10.0,
+                amount_ttc=60.0,
+                net_amount=48.0,
+                commission_ttc=-12.0,
+                commission_ht=-10.0,
+                payout_date=datetime.date(2024, 1, 25),
+            ),
+        ]
+
+        entries, anomalies = generate_entries(transactions, [], sample_config)
+
+        sale_entries = [e for e in entries if e.entry_type == "sale"]
+        commission_entries = [e for e in entries if e.entry_type == "commission"]
+        payout_entries = [e for e in entries if e.entry_type == "payout"]
+
+        # sale : 411LM + 70704250 + 4457250 = 3 lignes
+        assert len(sale_entries) == 3
+        # commission : FADEO D / 411LM C = 2 lignes
+        assert len(commission_entries) == 2
+        # payout : 51200000 ↔ FADEO = 2 lignes (non impacté par le skip)
+        assert len(payout_entries) == 2
+        assert len(anomalies) == 0
+
+        # Les 2 écritures payout touchent banque et fournisseur
+        payout_accounts = {e.account for e in payout_entries}
+        assert "51200000" in payout_accounts
+        assert "FADEO" in payout_accounts
+
+
 class TestNoPandasInEngine:
     """Vérification automatisée : aucun import pandas dans engine/."""
 
