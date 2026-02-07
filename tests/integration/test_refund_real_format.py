@@ -65,9 +65,9 @@ class TestRealFormatParsing:
         assert real_format_refund.reference == "DECREAL002-R3740677"
 
     def test_refund_amounts(self, real_format_refund: NormalizedTransaction) -> None:
-        """Montants du remboursement en valeur absolue."""
-        assert real_format_refund.amount_ht == 739.00
-        assert real_format_refund.shipping_ht == 4.00
+        """Montants du remboursement (CSV TTC / 1.20 = HT)."""
+        assert real_format_refund.amount_ht == 615.83
+        assert real_format_refund.shipping_ht == 3.33
         assert real_format_refund.commission_ttc == 74.30
 
     def test_sale_reference(self, real_format_sale: NormalizedTransaction) -> None:
@@ -75,9 +75,9 @@ class TestRealFormatParsing:
         assert real_format_sale.reference == "DECREAL001"
 
     def test_sale_amounts(self, real_format_sale: NormalizedTransaction) -> None:
-        """Montants de la vente."""
-        assert real_format_sale.amount_ht == 59.00
-        assert real_format_sale.shipping_ht == 4.00
+        """Montants de la vente (CSV TTC / 1.20 = HT)."""
+        assert real_format_sale.amount_ht == 49.17
+        assert real_format_sale.shipping_ht == 3.33
         # Commission négative pour vente (prélevée)
         assert real_format_sale.commission_ttc == -6.30
 

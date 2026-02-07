@@ -55,8 +55,8 @@ class TestMiraklRefundParsing:
         assert mirakl_refund.type == "refund"
 
     def test_refund_amounts_positive(self, mirakl_refund: NormalizedTransaction) -> None:
-        """Montants en valeur absolue."""
-        assert mirakl_refund.amount_ht == 100.00
+        """Montants en valeur absolue (CSV TTC 100.00 / 1.20 = 83.33 HT)."""
+        assert mirakl_refund.amount_ht == 83.33
         assert mirakl_refund.amount_ttc > 0
 
     def test_refund_channel(self, mirakl_refund: NormalizedTransaction) -> None:
