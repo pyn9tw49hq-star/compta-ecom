@@ -477,7 +477,7 @@ class TestDecathlonSubscriptionLettrageByPayoutCycle:
     """Lettrage CDECATHLON subscription par cycle de paiement (AC-LETTRAGE-DEC)."""
 
     def test_subscription_decathlon_lettrage_split(self, sample_config: AppConfig) -> None:
-        """SUBSCRIPTION Décathlon : lettrage CDECATHLON = payout_reference, FDECATHLON = reference."""
+        """SUBSCRIPTION Décathlon : seul CDECATHLON est lettré (payout_reference), FDECATHLON vide."""
         tx = _make_transaction(
             channel="decathlon",
             reference="ABO-DEC-001",
@@ -491,9 +491,9 @@ class TestDecathlonSubscriptionLettrageByPayoutCycle:
         entries = generate_marketplace_payout(tx, sample_config)
 
         assert len(entries) == 2
-        # FDECATHLON au débit → lettrage = reference
+        # FDECATHLON au débit → pas de lettrage
         assert entries[0].account == "FDECATHLON"
-        assert entries[0].lettrage == "ABO-DEC-001"
+        assert entries[0].lettrage == ""
         # CDECATHLON au crédit → lettrage = payout_reference
         assert entries[1].account == "CDECATHLON"
         assert entries[1].lettrage == "2025-07-01"

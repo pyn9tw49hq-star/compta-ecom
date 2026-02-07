@@ -32,11 +32,13 @@ def generate_marketplace_commission(
     label = f"{label_prefix} {transaction.reference} {canal_display}"
 
     # Décathlon : lettrage client par cycle de paiement pour rapprochement
-    fournisseur_lettrage = transaction.reference
+    # Seul le compte client (CDECATHLON) est lettré, pas le fournisseur
     if transaction.channel == "decathlon" and transaction.payout_reference:
         client_lettrage = transaction.payout_reference
+        fournisseur_lettrage = ""
     else:
         client_lettrage = transaction.reference
+        fournisseur_lettrage = transaction.reference
 
     if commission > 0:
         # Remboursement commission (retour) : 411 Client au débit, 401 Fournisseur au crédit

@@ -246,7 +246,7 @@ class TestDecathlonLettrageByPayoutCycle:
     """Lettrage CDECATHLON par cycle de paiement (AC-LETTRAGE-DEC)."""
 
     def test_decathlon_commission_lettrage_split(self, sample_config: AppConfig) -> None:
-        """Décathlon : lettrage client = payout_reference, lettrage fournisseur = reference."""
+        """Décathlon : seul CDECATHLON est lettré (payout_reference), FDECATHLON vide."""
         tx = _make_transaction(
             channel="decathlon",
             reference="fr12345-A",
@@ -257,15 +257,15 @@ class TestDecathlonLettrageByPayoutCycle:
         entries = generate_marketplace_commission(tx, sample_config)
 
         assert len(entries) == 2
-        # Fournisseur (FDECATHLON) au débit → lettrage = reference
+        # Fournisseur (FDECATHLON) au débit → pas de lettrage
         assert entries[0].account == "FDECATHLON"
-        assert entries[0].lettrage == "fr12345-A"
+        assert entries[0].lettrage == ""
         # Client (CDECATHLON) au crédit → lettrage = payout_reference
         assert entries[1].account == "CDECATHLON"
         assert entries[1].lettrage == "2025-07-01"
 
     def test_decathlon_refund_commission_lettrage_split(self, sample_config: AppConfig) -> None:
-        """Décathlon refund : lettrage client = payout_reference côté débit."""
+        """Décathlon refund : seul CDECATHLON est lettré (payout_reference), FDECATHLON vide."""
         tx = _make_transaction(
             channel="decathlon",
             reference="fr12345-A",
@@ -280,9 +280,9 @@ class TestDecathlonLettrageByPayoutCycle:
         # Client (CDECATHLON) au débit → lettrage = payout_reference
         assert entries[0].account == "CDECATHLON"
         assert entries[0].lettrage == "2025-07-01"
-        # Fournisseur (FDECATHLON) au crédit → lettrage = reference
+        # Fournisseur (FDECATHLON) au crédit → pas de lettrage
         assert entries[1].account == "FDECATHLON"
-        assert entries[1].lettrage == "fr12345-A"
+        assert entries[1].lettrage == ""
 
     def test_decathlon_without_payout_reference(self, sample_config: AppConfig) -> None:
         """Décathlon sans payout_reference → lettrage = reference pour tous."""
