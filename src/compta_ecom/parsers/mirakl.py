@@ -324,6 +324,15 @@ class MiraklParser(BaseParser):
             signed_ttc = amount_ttc if tx_type == "sale" else -amount_ttc
             net_amount = round(signed_ttc - commission_ttc, 2)
 
+            # Extraire la Date du cycle de paiement depuis les lignes commande
+            order_payout_date: datetime.date | None = None
+            order_payout_reference: str | None = None
+            if "Date du cycle de paiement" in group.columns:
+                payout_dates = group["Date du cycle de paiement"].dropna()
+                if not payout_dates.empty:
+                    order_payout_date = payout_dates.iloc[0].date()
+                    order_payout_reference = order_payout_date.strftime("%Y-%m-%d")
+
             orders.append({
                 "reference": ref_str,
                 "type": tx_type,
@@ -338,6 +347,8 @@ class MiraklParser(BaseParser):
                 "net_amount": net_amount,
                 "country_code": country_code,
                 "tva_rate": tva_rate,
+                "payout_date": order_payout_date,
+                "payout_reference": order_payout_reference,
             })
 
         return orders, anomalies
@@ -525,9 +536,10 @@ class MiraklParser(BaseParser):
         order_transactions: list[NormalizedTransaction] = []
         for od in order_dicts:
             ref = str(od["reference"])
-            payout_date: datetime.date | None = None
-            payout_reference: str | None = None
-            if ref in payment_lookup:
+            # Prefer payout info extracted from order lines, fallback to payment_lookup
+            payout_date: datetime.date | None = od.get("payout_date")
+            payout_reference: str | None = od.get("payout_reference")
+            if payout_date is None and ref in payment_lookup:
                 payout_date, payout_reference = payment_lookup[ref]
 
             order_transactions.append(NormalizedTransaction(

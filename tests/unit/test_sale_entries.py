@@ -467,6 +467,49 @@ class TestMarketplaceTransaction:
         )
 
 
+class TestDecathlonLettrageByPayoutCycle:
+    """Lettrage CDECATHLON par cycle de paiement (AC-LETTRAGE-DEC)."""
+
+    def test_decathlon_lettrage_uses_payout_reference(self, sample_config: AppConfig) -> None:
+        """Décathlon avec payout_reference → lettrage client = payout_reference."""
+        tx = _make_transaction(
+            channel="decathlon",
+            reference="fr12345-A",
+            payout_reference="2025-07-01",
+            payout_date=datetime.date(2025, 7, 1),
+        )
+        entries = generate_sale_entries(tx, sample_config)
+        client_entry = [e for e in entries if e.account == "CDECATHLON"][0]
+        assert client_entry.lettrage == "2025-07-01"
+        # Les autres comptes n'ont pas de lettrage
+        for e in entries:
+            if e.account != "CDECATHLON":
+                assert e.lettrage == ""
+
+    def test_decathlon_without_payout_reference_falls_back(self, sample_config: AppConfig) -> None:
+        """Décathlon sans payout_reference → lettrage client = reference."""
+        tx = _make_transaction(
+            channel="decathlon",
+            reference="fr12345-A",
+            payout_reference=None,
+        )
+        entries = generate_sale_entries(tx, sample_config)
+        client_entry = [e for e in entries if e.account == "CDECATHLON"][0]
+        assert client_entry.lettrage == "fr12345-A"
+
+    def test_non_decathlon_marketplace_unaffected(self, sample_config: AppConfig) -> None:
+        """Leroy Merlin avec payout_reference → lettrage client = reference (pas cycle)."""
+        tx = _make_transaction(
+            channel="leroy_merlin",
+            reference="LM-001",
+            payout_reference="2025-07-01",
+            payout_date=datetime.date(2025, 7, 1),
+        )
+        entries = generate_sale_entries(tx, sample_config)
+        client_entry = [e for e in entries if e.account == "411LM"][0]
+        assert client_entry.lettrage == "LM-001"
+
+
 class TestChannelErrors:
     """Erreurs de configuration canal."""
 

@@ -82,6 +82,20 @@ def generate_marketplace_payout(
     # Autres reversements : date d'écriture = date du cycle de paiement (payout_date)
     entry_date = transaction.date if transaction.special_type == "SUBSCRIPTION" else transaction.payout_date
 
+    # Décathlon SUBSCRIPTION : lettrage client par cycle de paiement
+    default_lettrage = transaction.reference
+    if (
+        transaction.channel == "decathlon"
+        and transaction.special_type == "SUBSCRIPTION"
+        and transaction.payout_reference
+    ):
+        client_account_val = config.clients[transaction.channel]
+        debit_lettrage = transaction.payout_reference if debit_account == client_account_val else default_lettrage
+        credit_lettrage = transaction.payout_reference if credit_account == client_account_val else default_lettrage
+    else:
+        debit_lettrage = default_lettrage
+        credit_lettrage = default_lettrage
+
     entries = [
         AccountingEntry(
             date=entry_date,
@@ -91,7 +105,7 @@ def generate_marketplace_payout(
             debit=amount,
             credit=0.0,
             piece_number=transaction.reference,
-            lettrage=transaction.reference,
+            lettrage=debit_lettrage,
             channel=transaction.channel,
             entry_type=entry_type,
         ),
@@ -103,7 +117,7 @@ def generate_marketplace_payout(
             debit=0.0,
             credit=amount,
             piece_number=transaction.reference,
-            lettrage=transaction.reference,
+            lettrage=credit_lettrage,
             channel=transaction.channel,
             entry_type=entry_type,
         ),

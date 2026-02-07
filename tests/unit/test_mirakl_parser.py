@@ -100,6 +100,20 @@ class TestMiraklAggregation:
         assert o["net_amount"] == 150.00  # 132 - (-18)
         assert o["country_code"] == "250"
         assert o["tva_rate"] == 20.0
+        # Payout date extraite des lignes commande
+        assert o["payout_date"] == datetime.date(2026, 1, 20)
+        assert o["payout_reference"] == "2026-01-20"
+
+    def test_payout_date_missing_returns_none(self) -> None:
+        """Commande sans Date du cycle de paiement → payout_date=None."""
+        df = _make_order_df([
+            {"Numéro de commande": "CMD-NOPAY", "Type": "Montant", "Date de commande": "2026-01-15",
+             "Montant": 50.00},
+        ])
+        parser = MiraklParser(channel="decathlon")
+        orders, _ = _aggregate_orders_helper(parser, df)
+        assert orders[0]["payout_date"] is None
+        assert orders[0]["payout_reference"] is None
 
     def test_multi_article_same_order(self) -> None:
         """2 lignes Montant pour la même commande → somme correcte."""

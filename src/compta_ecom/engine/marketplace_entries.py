@@ -31,14 +31,25 @@ def generate_marketplace_commission(
     label_prefix = "Commission" if transaction.type == "sale" else "Remb. commission"
     label = f"{label_prefix} {transaction.reference} {canal_display}"
 
+    # Décathlon : lettrage client par cycle de paiement pour rapprochement
+    fournisseur_lettrage = transaction.reference
+    if transaction.channel == "decathlon" and transaction.payout_reference:
+        client_lettrage = transaction.payout_reference
+    else:
+        client_lettrage = transaction.reference
+
     if commission > 0:
         # Remboursement commission (retour) : 411 Client au débit, 401 Fournisseur au crédit
         debit_account = client_account
+        debit_lettrage = client_lettrage
         credit_account = fournisseur_account
+        credit_lettrage = fournisseur_lettrage
     else:
         # Commission vente normale : 401 Fournisseur au débit, 411 Client au crédit
         debit_account = fournisseur_account
+        debit_lettrage = fournisseur_lettrage
         credit_account = client_account
+        credit_lettrage = client_lettrage
 
     amount = round(abs(commission), 2)
 
@@ -51,7 +62,7 @@ def generate_marketplace_commission(
             debit=amount,
             credit=0.0,
             piece_number=transaction.reference,
-            lettrage=transaction.reference,
+            lettrage=debit_lettrage,
             channel=transaction.channel,
             entry_type="commission",
         ),
@@ -63,7 +74,7 @@ def generate_marketplace_commission(
             debit=0.0,
             credit=amount,
             piece_number=transaction.reference,
-            lettrage=transaction.reference,
+            lettrage=credit_lettrage,
             channel=transaction.channel,
             entry_type="commission",
         ),

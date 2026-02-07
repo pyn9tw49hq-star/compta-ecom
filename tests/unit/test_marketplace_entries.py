@@ -234,9 +234,77 @@ class TestMarketplaceCommissionMetadata:
             assert e.date == datetime.date(2024, 6, 1)
 
     def test_piece_number_and_lettrage(self, sample_config: AppConfig) -> None:
-        """piece_number et lettrage = reference."""
+        """piece_number et lettrage = reference (pour canal non-decathlon)."""
         tx = _make_transaction(reference="#9999", commission_ttc=-18.00)
         entries = generate_marketplace_commission(tx, sample_config)
         for e in entries:
             assert e.piece_number == "#9999"
             assert e.lettrage == "#9999"
+
+
+class TestDecathlonLettrageByPayoutCycle:
+    """Lettrage CDECATHLON par cycle de paiement (AC-LETTRAGE-DEC)."""
+
+    def test_decathlon_commission_lettrage_split(self, sample_config: AppConfig) -> None:
+        """Décathlon : lettrage client = payout_reference, lettrage fournisseur = reference."""
+        tx = _make_transaction(
+            channel="decathlon",
+            reference="fr12345-A",
+            commission_ttc=-18.00,
+            payout_reference="2025-07-01",
+            payout_date=datetime.date(2025, 7, 1),
+        )
+        entries = generate_marketplace_commission(tx, sample_config)
+
+        assert len(entries) == 2
+        # Fournisseur (FDECATHLON) au débit → lettrage = reference
+        assert entries[0].account == "FDECATHLON"
+        assert entries[0].lettrage == "fr12345-A"
+        # Client (CDECATHLON) au crédit → lettrage = payout_reference
+        assert entries[1].account == "CDECATHLON"
+        assert entries[1].lettrage == "2025-07-01"
+
+    def test_decathlon_refund_commission_lettrage_split(self, sample_config: AppConfig) -> None:
+        """Décathlon refund : lettrage client = payout_reference côté débit."""
+        tx = _make_transaction(
+            channel="decathlon",
+            reference="fr12345-A",
+            type="refund",
+            commission_ttc=15.00,
+            payout_reference="2025-07-01",
+            payout_date=datetime.date(2025, 7, 1),
+        )
+        entries = generate_marketplace_commission(tx, sample_config)
+
+        assert len(entries) == 2
+        # Client (CDECATHLON) au débit → lettrage = payout_reference
+        assert entries[0].account == "CDECATHLON"
+        assert entries[0].lettrage == "2025-07-01"
+        # Fournisseur (FDECATHLON) au crédit → lettrage = reference
+        assert entries[1].account == "FDECATHLON"
+        assert entries[1].lettrage == "fr12345-A"
+
+    def test_decathlon_without_payout_reference(self, sample_config: AppConfig) -> None:
+        """Décathlon sans payout_reference → lettrage = reference pour tous."""
+        tx = _make_transaction(
+            channel="decathlon",
+            reference="fr12345-A",
+            commission_ttc=-18.00,
+            payout_reference=None,
+        )
+        entries = generate_marketplace_commission(tx, sample_config)
+        for e in entries:
+            assert e.lettrage == "fr12345-A"
+
+    def test_leroy_merlin_unaffected(self, sample_config: AppConfig) -> None:
+        """Leroy Merlin : lettrage = reference pour les deux (pas de split)."""
+        tx = _make_transaction(
+            channel="leroy_merlin",
+            reference="LM-001",
+            commission_ttc=-20.00,
+            payout_reference="2025-07-01",
+            payout_date=datetime.date(2025, 7, 1),
+        )
+        entries = generate_marketplace_commission(tx, sample_config)
+        for e in entries:
+            assert e.lettrage == "LM-001"

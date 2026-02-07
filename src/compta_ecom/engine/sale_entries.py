@@ -19,7 +19,11 @@ def generate_sale_entries(
     """Génère les écritures de vente ou d'avoir pour une transaction."""
     accounts = _resolve_accounts(transaction, config)
     amounts = _compute_amounts(transaction)
-    entries = _build_entries(transaction, accounts, amounts)
+    # Décathlon : lettrage client par cycle de paiement pour rapprochement avec Paiement
+    client_lettrage = transaction.reference
+    if transaction.channel == "decathlon" and transaction.payout_reference:
+        client_lettrage = transaction.payout_reference
+    entries = _build_entries(transaction, accounts, amounts, client_lettrage)
     verify_balance(entries)
     return entries
 
@@ -57,6 +61,7 @@ def _build_entries(
     transaction: NormalizedTransaction,
     accounts: dict[str, str],
     amounts: dict[str, float],
+    client_lettrage: str = "",
 ) -> list[AccountingEntry]:
     canal_display = transaction.channel.replace("_", " ").title()
     journal = JOURNAUX_VENTE[transaction.channel]
@@ -82,7 +87,7 @@ def _build_entries(
             debit=ttc if is_sale else 0.0,
             credit=0.0 if is_sale else ttc,
             piece_number=transaction.reference,
-            lettrage=transaction.reference,
+            lettrage=client_lettrage or transaction.reference,
             channel=transaction.channel,
             entry_type=entry_type,
         )

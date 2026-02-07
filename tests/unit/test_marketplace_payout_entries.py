@@ -471,3 +471,62 @@ class TestMarketplacePayoutFromSummary:
         entries = generate_marketplace_payout_from_summary(payout, sample_config)
         assert "Decathlon" in entries[0].label
         assert "2024-01-25" in entries[0].label
+
+
+class TestDecathlonSubscriptionLettrageByPayoutCycle:
+    """Lettrage CDECATHLON subscription par cycle de paiement (AC-LETTRAGE-DEC)."""
+
+    def test_subscription_decathlon_lettrage_split(self, sample_config: AppConfig) -> None:
+        """SUBSCRIPTION Décathlon : lettrage CDECATHLON = payout_reference, FDECATHLON = reference."""
+        tx = _make_transaction(
+            channel="decathlon",
+            reference="ABO-DEC-001",
+            special_type="SUBSCRIPTION",
+            net_amount=-40.0,
+            commission_ttc=0.0,
+            commission_ht=None,
+            payout_date=datetime.date(2025, 7, 1),
+            payout_reference="2025-07-01",
+        )
+        entries = generate_marketplace_payout(tx, sample_config)
+
+        assert len(entries) == 2
+        # FDECATHLON au débit → lettrage = reference
+        assert entries[0].account == "FDECATHLON"
+        assert entries[0].lettrage == "ABO-DEC-001"
+        # CDECATHLON au crédit → lettrage = payout_reference
+        assert entries[1].account == "CDECATHLON"
+        assert entries[1].lettrage == "2025-07-01"
+
+    def test_subscription_decathlon_without_payout_reference(self, sample_config: AppConfig) -> None:
+        """SUBSCRIPTION Décathlon sans payout_reference → lettrage = reference pour tous."""
+        tx = _make_transaction(
+            channel="decathlon",
+            reference="ABO-DEC-001",
+            special_type="SUBSCRIPTION",
+            net_amount=-40.0,
+            commission_ttc=0.0,
+            commission_ht=None,
+            payout_date=None,
+            payout_reference=None,
+        )
+        entries = generate_marketplace_payout(tx, sample_config)
+
+        assert len(entries) == 2
+        for e in entries:
+            assert e.lettrage == "ABO-DEC-001"
+
+    def test_subscription_manomano_unaffected(self, sample_config: AppConfig) -> None:
+        """SUBSCRIPTION ManoMano : lettrage = reference pour tous (pas de split)."""
+        tx = _make_transaction(
+            channel="manomano",
+            reference="ABO-MM-001",
+            special_type="SUBSCRIPTION",
+            net_amount=-100.0,
+            commission_ttc=0.0,
+            commission_ht=None,
+            payout_reference="2025-07-01",
+        )
+        entries = generate_marketplace_payout(tx, sample_config)
+        for e in entries:
+            assert e.lettrage == "ABO-MM-001"
