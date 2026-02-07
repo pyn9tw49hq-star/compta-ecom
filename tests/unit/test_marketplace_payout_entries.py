@@ -112,9 +112,9 @@ class TestGuardClauses:
     def test_special_type_no_payout_date_warning(
         self, sample_config: AppConfig, caplog: pytest.LogCaptureFixture
     ) -> None:
-        """special_type is not None + payout_date is None → [] + logger.warning."""
+        """special_type non-SUBSCRIPTION + payout_date is None → [] + logger.warning."""
         tx = _make_transaction(
-            special_type="SUBSCRIPTION",
+            special_type="ADJUSTMENT",
             payout_date=None,
         )
         with caplog.at_level(logging.WARNING):
@@ -122,6 +122,25 @@ class TestGuardClauses:
 
         assert entries == []
         assert "sans payout_date" in caplog.text
+
+    def test_subscription_without_payout_date_generates_entries(
+        self, sample_config: AppConfig
+    ) -> None:
+        """SUBSCRIPTION + payout_date is None → écritures générées avec date de création."""
+        creation_date = datetime.date(2025, 12, 11)
+        tx = _make_transaction(
+            special_type="SUBSCRIPTION",
+            date=creation_date,
+            payout_date=None,
+            net_amount=-70.0,
+            commission_ttc=0.0,
+            commission_ht=None,
+        )
+        entries = generate_marketplace_payout(tx, sample_config)
+
+        assert len(entries) == 2
+        assert all(e.date == creation_date for e in entries)
+        assert all(e.entry_type == "fee" for e in entries)
 
 
 class TestSpecialTypes:

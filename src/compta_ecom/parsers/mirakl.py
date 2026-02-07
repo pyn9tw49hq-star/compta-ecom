@@ -417,21 +417,13 @@ class MiraklParser(BaseParser):
         anomalies: list[Anomaly] = []
 
         for idx, row in df.iterrows():
+            # Date du cycle de paiement : optionnelle (absente pour les abonnements "Payable")
             date_cycle = row["Date du cycle de paiement"]
-            if pd.isna(date_cycle):
-                anomalies.append(Anomaly(
-                    type="invalid_date",
-                    severity="warning",
-                    reference=str(row["Numéro de commande"]) if pd.notna(row["Numéro de commande"]) else "",
-                    channel=self.channel,
-                    detail="Date du cycle de paiement invalide pour abonnement",
-                    expected_value=DATE_FORMAT,
-                    actual_value=None,
-                ))
-                continue
-
-            payout_date: datetime.date = date_cycle.date()
-            payout_reference = payout_date.strftime("%Y-%m-%d")
+            payout_date: datetime.date | None = None
+            payout_reference: str | None = None
+            if not pd.isna(date_cycle):
+                payout_date = date_cycle.date()
+                payout_reference = payout_date.strftime("%Y-%m-%d")
 
             # Date d'écriture = Date de commande (alias "Date de création"), colonne 1
             date_creation = row["Date de commande"]
@@ -453,7 +445,7 @@ class MiraklParser(BaseParser):
             if pd.notna(ref_raw) and str(ref_raw).strip():
                 reference = str(ref_raw)
             else:
-                reference = f"ABO-{self.channel}-{payout_date:%Y%m%d}"
+                reference = f"ABO-{self.channel}-{creation_date:%Y%m%d}"
 
             subs.append({
                 "reference": reference,
@@ -578,7 +570,7 @@ class MiraklParser(BaseParser):
                 commission_ht=None,
                 net_amount=float(sd["net_amount"]),
                 payout_date=sd["payout_date"],
-                payout_reference=str(sd["payout_reference"]),
+                payout_reference=sd["payout_reference"],
                 payment_method=None,
                 special_type="SUBSCRIPTION",
             ))

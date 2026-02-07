@@ -151,7 +151,23 @@ class TestGenerateEntries:
         assert len(anomalies) == 0
 
     def test_special_type_filtered(self, sample_config: AppConfig) -> None:
-        """Transaction avec special_type → aucune écriture (AC16)."""
+        """Transaction avec special_type non-SUBSCRIPTION sans payout_date → aucune écriture."""
+        transactions = [
+            _make_transaction(
+                reference="#ADJ01",
+                channel="manomano",
+                special_type="ADJUSTMENT",
+                payment_method=None,
+            ),
+        ]
+
+        entries, anomalies = generate_entries(transactions, [], sample_config)
+
+        assert len(entries) == 0
+        assert len(anomalies) == 0
+
+    def test_subscription_without_payout_date_generates_entries(self, sample_config: AppConfig) -> None:
+        """SUBSCRIPTION sans payout_date → écritures fee générées (date de création)."""
         transactions = [
             _make_transaction(
                 reference="#SUB01",
@@ -163,7 +179,8 @@ class TestGenerateEntries:
 
         entries, anomalies = generate_entries(transactions, [], sample_config)
 
-        assert len(entries) == 0
+        assert len(entries) == 2
+        assert all(e.entry_type == "fee" for e in entries)
         assert len(anomalies) == 0
 
     def test_payout_anomalies_aggregated(self, sample_config: AppConfig) -> None:

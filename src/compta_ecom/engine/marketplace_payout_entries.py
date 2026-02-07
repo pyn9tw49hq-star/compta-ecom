@@ -41,7 +41,7 @@ def generate_marketplace_payout(
     Gère les transactions régulières et les lignes spéciales.
     Retourne [] si payout_date is None ou net_amount == 0.0.
     """
-    if transaction.payout_date is None:
+    if transaction.payout_date is None and transaction.special_type != "SUBSCRIPTION":
         if transaction.special_type is not None:
             logger.warning(
                 "Ligne spéciale %s sans payout_date — inattendu",

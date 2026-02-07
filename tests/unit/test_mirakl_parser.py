@@ -508,10 +508,11 @@ class TestMiraklSubscriptions:
         assert s["payout_reference"] == "2026-01-31"
 
     def test_subscription_without_order_ref(self) -> None:
-        """Abonnement sans Numéro de commande → référence générée."""
+        """Abonnement sans Numéro de commande → référence générée avec date de création."""
         # Arrange
         df = _make_subscription_df([
             {"Numéro de commande": "", "Type": "Abonnement",
+             "Date de commande": "2026-01-15",
              "Date du cycle de paiement": "2026-01-31", "Montant": -39.99},
         ])
         parser = MiraklParser(channel="decathlon")
@@ -520,7 +521,30 @@ class TestMiraklSubscriptions:
         subs, _ = parser._parse_subscriptions(df, country_code="250")
 
         # Assert
-        assert subs[0]["reference"] == "ABO-decathlon-20260131"
+        assert subs[0]["reference"] == "ABO-decathlon-20260115"
+
+    def test_subscription_without_payout_date(self) -> None:
+        """Abonnement Payable (sans Date du cycle) → payout_date=None, écriture générée."""
+        # Arrange
+        df = _make_subscription_df([
+            {"Numéro de commande": "", "Type": "Abonnement",
+             "Date de commande": "2025-12-11",
+             "Date du cycle de paiement": None, "Montant": -70.00},
+        ])
+        parser = MiraklParser(channel="decathlon")
+
+        # Act
+        subs, anomalies = parser._parse_subscriptions(df, country_code="250")
+
+        # Assert
+        assert len(subs) == 1
+        assert len(anomalies) == 0
+        s = subs[0]
+        assert s["date"] == datetime.date(2025, 12, 11)
+        assert s["payout_date"] is None
+        assert s["payout_reference"] is None
+        assert s["net_amount"] == -70.00
+        assert s["reference"] == "ABO-decathlon-20251211"
 
     def test_subscription_missing_creation_date(self) -> None:
         """Date de commande absente → Anomaly(type=invalid_date), abonnement ignoré."""
@@ -559,11 +583,11 @@ class TestMiraklSubscriptions:
         subs_deca, _ = parser_deca._parse_subscriptions(df_deca, country_code="250")
         subs_lm, _ = parser_lm._parse_subscriptions(df_lm, country_code="250")
 
-        # Assert
+        # Assert — référence basée sur Date de commande (défaut 2026-01-15)
         assert subs_deca[0]["net_amount"] == -39.99
-        assert subs_deca[0]["reference"] == "ABO-decathlon-20260131"
+        assert subs_deca[0]["reference"] == "ABO-decathlon-20260115"
         assert subs_lm[0]["net_amount"] == -49.99
-        assert subs_lm[0]["reference"] == "ABO-leroy_merlin-20260131"
+        assert subs_lm[0]["reference"] == "ABO-leroy_merlin-20260115"
 
 
 # ---------------------------------------------------------------------------
@@ -676,6 +700,28 @@ class TestMiraklParseDecathlon:
         # Assert
         assert result.transactions[0].payout_date is None
         assert result.transactions[0].payout_reference is None
+
+    def test_parse_subscription_payable_sans_payout_date(self, tmp_path, sample_config) -> None:
+        """Abonnement Payable sans Date du cycle → payout_date/payout_reference = None."""
+        # Arrange
+        csv_path = _write_csv(tmp_path, "Decathlon_test.csv", [
+            {"Numéro de commande": "", "Type": "Abonnement", "Date de commande": "11/12/2025",
+             "Date du cycle de paiement": "", "Montant": "-70.00"},
+        ])
+        parser = MiraklParser(channel="decathlon")
+
+        # Act
+        result = parser.parse(files={"data": csv_path}, config=sample_config)
+
+        # Assert
+        sub_txs = [t for t in result.transactions if t.special_type == "SUBSCRIPTION"]
+        assert len(sub_txs) == 1
+        tx = sub_txs[0]
+        assert tx.special_type == "SUBSCRIPTION"
+        assert tx.date == datetime.date(2025, 12, 11)
+        assert tx.payout_date is None
+        assert tx.payout_reference is None  # pas "None"
+        assert tx.net_amount == -70.00
 
 
 # ---------------------------------------------------------------------------
