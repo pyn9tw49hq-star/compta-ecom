@@ -19,9 +19,9 @@ def generate_sale_entries(
     """Génère les écritures de vente ou d'avoir pour une transaction."""
     accounts = _resolve_accounts(transaction, config)
     amounts = _compute_amounts(transaction)
-    # Décathlon : lettrage client par cycle de paiement pour rapprochement avec Paiement
+    # Mirakl (Décathlon, Leroy Merlin) : lettrage client par cycle de paiement pour rapprochement avec Paiement
     client_lettrage = transaction.reference
-    if transaction.channel == "decathlon" and transaction.payout_reference:
+    if transaction.channel in ("decathlon", "leroy_merlin") and transaction.payout_reference:
         client_lettrage = transaction.payout_reference
     entries = _build_entries(transaction, accounts, amounts, client_lettrage)
     verify_balance(entries)
