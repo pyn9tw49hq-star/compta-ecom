@@ -8,6 +8,7 @@ from collections import defaultdict
 from compta_ecom.models import AccountingEntry, BalanceError
 
 JOURNAL_REGLEMENT = "RG"
+JOURNAL_ACHATS = "AC"
 
 JOURNAUX_VENTE: dict[str, str] = {
     "shopify": "VE",

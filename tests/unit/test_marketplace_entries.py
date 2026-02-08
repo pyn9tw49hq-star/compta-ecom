@@ -337,11 +337,27 @@ class TestMarketplaceCommissionMetadata:
             assert e.entry_type == "commission"
 
     def test_journal_reglement(self, sample_config: AppConfig) -> None:
-        """Journal = 'RG'."""
+        """Journal = 'RG' pour les canaux sans compte de charge (ManoMano)."""
         tx = _make_transaction(commission_ttc=-18.00)
         entries = generate_marketplace_commission(tx, sample_config)
         for e in entries:
             assert e.journal == "RG"
+
+    def test_journal_achats_decathlon(self, sample_config: AppConfig) -> None:
+        """Journal = 'AC' pour les commissions Decathlon (compte de charge configuré)."""
+        tx = _make_transaction(channel="decathlon", commission_ttc=-18.00)
+        entries = generate_marketplace_commission(tx, sample_config)
+        for e in entries:
+            assert e.journal == "AC"
+
+    def test_journal_achats_leroy_merlin(self, sample_config: AppConfig) -> None:
+        """Journal = 'AC' pour les commissions Leroy Merlin (compte de charge configuré)."""
+        tx = _make_transaction(
+            channel="leroy_merlin", commission_ttc=-18.00, commission_ht=-15.00
+        )
+        entries = generate_marketplace_commission(tx, sample_config)
+        for e in entries:
+            assert e.journal == "AC"
 
     def test_date(self, sample_config: AppConfig) -> None:
         """Date = date de la transaction."""

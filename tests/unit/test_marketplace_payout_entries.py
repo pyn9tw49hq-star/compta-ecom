@@ -347,8 +347,38 @@ class TestEntryMetadata:
         assert all(e.entry_type == "payout" for e in entries)
 
     def test_journal_reglement(self, sample_config: AppConfig) -> None:
-        """journal = 'RG'."""
+        """journal = 'RG' pour les canaux sans compte de charge (ManoMano)."""
         tx = _make_transaction()
+        entries = generate_marketplace_payout(tx, sample_config)
+        assert all(e.journal == "RG" for e in entries)
+
+    def test_journal_achats_subscription_decathlon(self, sample_config: AppConfig) -> None:
+        """journal = 'AC' pour les abonnements Decathlon (compte de charge configuré)."""
+        tx = _make_transaction(
+            channel="decathlon",
+            special_type="SUBSCRIPTION",
+            net_amount=-70.0,
+            commission_ttc=0.0,
+            commission_ht=None,
+        )
+        entries = generate_marketplace_payout(tx, sample_config)
+        assert all(e.journal == "AC" for e in entries)
+
+    def test_journal_achats_subscription_leroy_merlin(self, sample_config: AppConfig) -> None:
+        """journal = 'AC' pour les abonnements Leroy Merlin (compte de charge configuré)."""
+        tx = _make_transaction(
+            channel="leroy_merlin",
+            special_type="SUBSCRIPTION",
+            net_amount=-39.00,
+            commission_ttc=0.0,
+            commission_ht=None,
+        )
+        entries = generate_marketplace_payout(tx, sample_config)
+        assert all(e.journal == "AC" for e in entries)
+
+    def test_journal_reglement_payout_decathlon(self, sample_config: AppConfig) -> None:
+        """journal = 'RG' pour les reversements Decathlon (pas un abonnement)."""
+        tx = _make_transaction(channel="decathlon", net_amount=500.0)
         entries = generate_marketplace_payout(tx, sample_config)
         assert all(e.journal == "RG" for e in entries)
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from compta_ecom.config.loader import AppConfig
-from compta_ecom.engine.accounts import JOURNAL_REGLEMENT, verify_balance
+from compta_ecom.engine.accounts import JOURNAL_ACHATS, JOURNAL_REGLEMENT, verify_balance
 from compta_ecom.models import AccountingEntry, NormalizedTransaction
 
 
@@ -34,6 +34,7 @@ def generate_marketplace_commission(
 
     counterpart_account = charge_account or config.fournisseurs[transaction.channel]
     client_account = config.clients[transaction.channel]
+    journal = JOURNAL_ACHATS if charge_account is not None else JOURNAL_REGLEMENT
 
     canal_display = transaction.channel.replace("_", " ").title()
     label_prefix = "Commission" if transaction.type == "sale" else "Remb. commission"
@@ -71,7 +72,7 @@ def generate_marketplace_commission(
         # Remboursement commission (retour) : client au débit, contrepartie(s) au crédit
         entries.append(AccountingEntry(
             date=transaction.date,
-            journal=JOURNAL_REGLEMENT,
+            journal=journal,
             account=client_account,
             label=label,
             debit=ttc_amount,
@@ -83,7 +84,7 @@ def generate_marketplace_commission(
         ))
         entries.append(AccountingEntry(
             date=transaction.date,
-            journal=JOURNAL_REGLEMENT,
+            journal=journal,
             account=counterpart_account,
             label=label,
             debit=0.0,
@@ -96,7 +97,7 @@ def generate_marketplace_commission(
         if tva_amount > 0:
             entries.append(AccountingEntry(
                 date=transaction.date,
-                journal=JOURNAL_REGLEMENT,
+                journal=journal,
                 account=tva_deductible_account,
                 label=label,
                 debit=0.0,
@@ -110,7 +111,7 @@ def generate_marketplace_commission(
         # Commission vente normale : contrepartie(s) au débit, client au crédit
         entries.append(AccountingEntry(
             date=transaction.date,
-            journal=JOURNAL_REGLEMENT,
+            journal=journal,
             account=counterpart_account,
             label=label,
             debit=ht_amount,
@@ -123,7 +124,7 @@ def generate_marketplace_commission(
         if tva_amount > 0:
             entries.append(AccountingEntry(
                 date=transaction.date,
-                journal=JOURNAL_REGLEMENT,
+                journal=journal,
                 account=tva_deductible_account,
                 label=label,
                 debit=tva_amount,
@@ -135,7 +136,7 @@ def generate_marketplace_commission(
             ))
         entries.append(AccountingEntry(
             date=transaction.date,
-            journal=JOURNAL_REGLEMENT,
+            journal=journal,
             account=client_account,
             label=label,
             debit=0.0,
