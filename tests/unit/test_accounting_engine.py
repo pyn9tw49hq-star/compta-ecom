@@ -719,8 +719,8 @@ class TestDecathlonSkipIndividualPayout:
         assert "CDECATHLON" in fee_accounts
         assert "61311112" in fee_accounts
 
-    def test_leroy_merlin_still_generates_individual_payout(self, sample_config: AppConfig) -> None:
-        """Non-régression : Leroy Merlin génère toujours des payout individuels (skip Décathlon uniquement)."""
+    def test_leroy_merlin_no_individual_payout(self, sample_config: AppConfig) -> None:
+        """Leroy Merlin : pas de payout individuel 512 (même comportement que Décathlon)."""
         transactions = [
             _make_transaction(
                 reference="#LM01",
@@ -744,16 +744,15 @@ class TestDecathlonSkipIndividualPayout:
 
         # sale : 411LM + 70704250 + 4457250 = 3 lignes
         assert len(sale_entries) == 3
-        # commission : FADEO D / 411LM C = 2 lignes
-        assert len(commission_entries) == 2
-        # payout : 51200000 ↔ FADEO = 2 lignes (non impacté par le skip)
-        assert len(payout_entries) == 2
+        # commission : 62220900 D (HT) + 44566001 D (TVA) + 411LM C (TTC) = 3 lignes
+        assert len(commission_entries) == 3
+        # payout : 0 — même comportement que Décathlon (skip payout individuel)
+        assert len(payout_entries) == 0
         assert len(anomalies) == 0
 
-        # Les 2 écritures payout touchent banque et fournisseur
-        payout_accounts = {e.account for e in payout_entries}
-        assert "51200000" in payout_accounts
-        assert "FADEO" in payout_accounts
+        # Aucune écriture ne touche le compte banque 512
+        all_accounts = {e.account for e in entries}
+        assert "51200000" not in all_accounts
 
 
 class TestNoPandasInEngine:

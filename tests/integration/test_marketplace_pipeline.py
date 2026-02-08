@@ -84,7 +84,7 @@ class TestMultiChannelPipeline:
         # ManoMano: SUB001 fee(2) = 2 fee
         # Décathlon: Paiement PayoutSummary(2) = 2 payout (pas de payout individuel 512)
         # Décathlon: SUBDEC001 fee(2) = 2 fee
-        # Leroy Merlin: LM001 transaction payout(2) + Paiement PayoutSummary(2) = 4 payout
+        # Leroy Merlin: Paiement PayoutSummary(2) = 2 payout (pas de payout individuel 512)
         # Shopify: payout PSP from PayoutSummary(2) = 2 payout
         mm_payouts = [r for r in payout_entries if r[8] == "manomano"]
         assert len(mm_payouts) == 8
@@ -93,7 +93,7 @@ class TestMultiChannelPipeline:
         assert len(dec_payouts) == 2
 
         lm_payouts = [r for r in payout_entries if r[8] == "leroy_merlin"]
-        assert len(lm_payouts) == 4
+        assert len(lm_payouts) == 2
 
         # Vérifier les entrées fee (frais d'abonnement)
         mm_fees = [r for r in fee_entries if r[8] == "manomano"]

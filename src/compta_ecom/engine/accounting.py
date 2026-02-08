@@ -63,7 +63,11 @@ def generate_entries(
             entries.extend(
                 marketplace_entries.generate_marketplace_commission(transaction, config)
             )
-            if transaction.channel != "decathlon":
+            # Reversement unitaire 512 ↔ fournisseur : seulement pour les canaux
+            # qui n'ont pas de compte de charge commission (ces canaux utilisent
+            # les reversements agrégés 580 ↔ 411 via PayoutSummary à la place).
+            charges_mp = config.comptes_charges_marketplace.get(transaction.channel, {})
+            if "commission" not in charges_mp:
                 entries.extend(generate_marketplace_payout(transaction, config))
         else:
             entries.extend(generate_settlement_entries(transaction, config))

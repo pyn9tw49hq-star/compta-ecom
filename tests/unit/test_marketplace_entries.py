@@ -43,11 +43,10 @@ def _make_transaction(**overrides: object) -> NormalizedTransaction:
     [
         ("manomano", "FMANO", "411MANO"),
         ("decathlon", "62220800", "CDECATHLON"),
-        ("leroy_merlin", "FADEO", "411LM"),
     ],
 )
 class TestMarketplaceCommissionSaleParametrized:
-    """Vente nominale paramétrée par marketplace."""
+    """Vente nominale paramétrée par marketplace (sans TVA déductible)."""
 
     def test_sale_produces_two_entries(
         self,
@@ -85,6 +84,126 @@ class TestMarketplaceCommissionSaleParametrized:
         assert round(sum(e.debit for e in entries), 2) == round(
             sum(e.credit for e in entries), 2
         )
+
+
+class TestLeroyMerlinCommissionWithTVA:
+    """Leroy Merlin : commissions éclatées en HT + TVA déductible + client TTC."""
+
+    def test_sale_produces_three_entries(self, sample_config: AppConfig) -> None:
+        """Vente Leroy Merlin : 3 lignes — charge HT + TVA déductible + client TTC."""
+        tx = _make_transaction(
+            channel="leroy_merlin",
+            commission_ttc=-18.00,
+            commission_ht=-15.00,
+        )
+
+        entries = generate_marketplace_commission(tx, sample_config)
+
+        assert len(entries) == 3
+        # Charge HT au débit
+        assert entries[0].account == "62220900"
+        assert entries[0].debit == 15.00
+        assert entries[0].credit == 0.0
+        # TVA déductible au débit
+        assert entries[1].account == "44566001"
+        assert entries[1].debit == 3.00
+        assert entries[1].credit == 0.0
+        # Client TTC au crédit
+        assert entries[2].account == "411LM"
+        assert entries[2].debit == 0.0
+        assert entries[2].credit == 18.00
+
+    def test_refund_commission_restituee(self, sample_config: AppConfig) -> None:
+        """Remboursement commission Leroy Merlin : client D TTC, charge C HT, TVA C."""
+        tx = _make_transaction(
+            channel="leroy_merlin",
+            type="refund",
+            commission_ttc=18.00,
+            commission_ht=15.00,
+        )
+
+        entries = generate_marketplace_commission(tx, sample_config)
+
+        assert len(entries) == 3
+        # Client TTC au débit
+        assert entries[0].account == "411LM"
+        assert entries[0].debit == 18.00
+        # Charge HT au crédit
+        assert entries[1].account == "62220900"
+        assert entries[1].credit == 15.00
+        # TVA déductible au crédit
+        assert entries[2].account == "44566001"
+        assert entries[2].credit == 3.00
+
+    def test_sale_balance(self, sample_config: AppConfig) -> None:
+        """Équilibre débit/crédit vérifié (vente)."""
+        tx = _make_transaction(
+            channel="leroy_merlin",
+            commission_ttc=-18.00,
+            commission_ht=-15.00,
+        )
+        entries = generate_marketplace_commission(tx, sample_config)
+        assert round(sum(e.debit for e in entries), 2) == round(
+            sum(e.credit for e in entries), 2
+        )
+
+    def test_refund_balance(self, sample_config: AppConfig) -> None:
+        """Équilibre débit/crédit vérifié (remboursement)."""
+        tx = _make_transaction(
+            channel="leroy_merlin",
+            type="refund",
+            commission_ttc=18.00,
+            commission_ht=15.00,
+        )
+        entries = generate_marketplace_commission(tx, sample_config)
+        assert round(sum(e.debit for e in entries), 2) == round(
+            sum(e.credit for e in entries), 2
+        )
+
+    def test_sale_exact_spec_amounts(self, sample_config: AppConfig) -> None:
+        """Vente Leroy Merlin avec montants exacts de la spec : HT=1.02, TTC=1.22."""
+        tx = _make_transaction(
+            channel="leroy_merlin",
+            commission_ttc=-1.22,
+            commission_ht=-1.02,
+        )
+
+        entries = generate_marketplace_commission(tx, sample_config)
+
+        assert len(entries) == 3
+        # Charge HT au débit
+        assert entries[0].account == "62220900"
+        assert entries[0].debit == 1.02
+        assert entries[0].credit == 0.0
+        # TVA déductible au débit (1.22 - 1.02 = 0.20)
+        assert entries[1].account == "44566001"
+        assert entries[1].debit == 0.20
+        assert entries[1].credit == 0.0
+        # Client TTC au crédit
+        assert entries[2].account == "411LM"
+        assert entries[2].debit == 0.0
+        assert entries[2].credit == 1.22
+
+    def test_lettrage_split(self, sample_config: AppConfig) -> None:
+        """Leroy Merlin : charge et TVA sans lettrage, client lettré par payout_reference."""
+        tx = _make_transaction(
+            channel="leroy_merlin",
+            reference="LM-001",
+            commission_ttc=-18.00,
+            commission_ht=-15.00,
+            payout_reference="2025-07-01",
+        )
+        entries = generate_marketplace_commission(tx, sample_config)
+
+        # Charge au débit → pas de lettrage
+        assert entries[0].account == "62220900"
+        assert entries[0].lettrage == ""
+        # TVA au débit → pas de lettrage
+        assert entries[1].account == "44566001"
+        assert entries[1].lettrage == ""
+        # Client au crédit → lettrage = payout_reference
+        assert entries[2].account == "411LM"
+        assert entries[2].lettrage == "2025-07-01"
 
 
 class TestMarketplaceCommissionRefund:
@@ -300,15 +419,24 @@ class TestDecathlonLettrageByPayoutCycle:
         assert entries[1].account == "CDECATHLON"
         assert entries[1].lettrage == "fr12345-A"
 
-    def test_leroy_merlin_unaffected(self, sample_config: AppConfig) -> None:
-        """Leroy Merlin : lettrage = reference pour les deux (pas de split)."""
+    def test_leroy_merlin_lettrage_split(self, sample_config: AppConfig) -> None:
+        """Leroy Merlin : charge/TVA sans lettrage, client lettré par payout_reference."""
         tx = _make_transaction(
             channel="leroy_merlin",
             reference="LM-001",
             commission_ttc=-20.00,
+            commission_ht=-16.67,
             payout_reference="2025-07-01",
             payout_date=datetime.date(2025, 7, 1),
         )
         entries = generate_marketplace_commission(tx, sample_config)
-        for e in entries:
-            assert e.lettrage == "LM-001"
+
+        assert len(entries) == 3
+        # Charge et TVA sans lettrage
+        assert entries[0].account == "62220900"
+        assert entries[0].lettrage == ""
+        assert entries[1].account == "44566001"
+        assert entries[1].lettrage == ""
+        # Client avec payout_reference
+        assert entries[2].account == "411LM"
+        assert entries[2].lettrage == "2025-07-01"

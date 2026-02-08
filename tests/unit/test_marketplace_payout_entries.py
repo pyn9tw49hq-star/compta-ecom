@@ -223,24 +223,62 @@ class TestSpecialTypes:
         assert entries[1].entry_type == "fee"
 
     def test_subscription_leroy_merlin(self, sample_config: AppConfig) -> None:
-        """SUBSCRIPTION Leroy Merlin : FADEO D, 411LM C (compte client)."""
+        """SUBSCRIPTION Leroy Merlin : 61311113 D (HT) + 44566001 D (TVA) + 411LM C (TTC)."""
         tx = _make_transaction(
             channel="leroy_merlin",
             special_type="SUBSCRIPTION",
-            net_amount=-46.80,
+            net_amount=-39.00,
             commission_ttc=0.0,
             commission_ht=None,
         )
         entries = generate_marketplace_payout(tx, sample_config)
 
-        assert len(entries) == 2
-        assert entries[0].account == "FADEO"
-        assert entries[0].debit == 46.80
-        assert entries[1].account == "411LM"
-        assert entries[1].credit == 46.80
+        assert len(entries) == 3
+        # Charge HT au débit
+        assert entries[0].account == "61311113"
+        assert entries[0].debit == 39.00
+        assert entries[0].lettrage == ""
+        # TVA déductible au débit
+        assert entries[1].account == "44566001"
+        assert entries[1].debit == 7.80
+        assert entries[1].lettrage == ""
+        # Client TTC au crédit
+        assert entries[2].account == "411LM"
+        assert entries[2].credit == 46.80
         # Vérifier que entry_type est "fee" pour les abonnements
-        assert entries[0].entry_type == "fee"
-        assert entries[1].entry_type == "fee"
+        assert all(e.entry_type == "fee" for e in entries)
+
+    def test_subscription_leroy_merlin_credit_note(self, sample_config: AppConfig) -> None:
+        """SUBSCRIPTION Leroy Merlin avoir (net_amount > 0) : sens inversé.
+
+        Remboursement d'abonnement : 411LM D (TTC) + 61311113 C (HT) + 44566001 C (TVA).
+        Par symétrie avec le traitement des commissions (marketplace_entries.py),
+        la branche 3 écritures doit respecter le signe de net_amount.
+        """
+        tx = _make_transaction(
+            channel="leroy_merlin",
+            special_type="SUBSCRIPTION",
+            net_amount=39.00,
+            commission_ttc=0.0,
+            commission_ht=None,
+        )
+        entries = generate_marketplace_payout(tx, sample_config)
+
+        assert len(entries) == 3
+        # Client TTC au débit (remboursement)
+        assert entries[0].account == "411LM"
+        assert entries[0].debit == 46.80
+        assert entries[0].credit == 0.0
+        # Charge HT au crédit (contrepassation)
+        assert entries[1].account == "61311113"
+        assert entries[1].debit == 0.0
+        assert entries[1].credit == 39.00
+        # TVA déductible au crédit (contrepassation)
+        assert entries[2].account == "44566001"
+        assert entries[2].debit == 0.0
+        assert entries[2].credit == 7.80
+        # entry_type reste "fee"
+        assert all(e.entry_type == "fee" for e in entries)
 
     def test_refund_penalty(self, sample_config: AppConfig) -> None:
         """REFUND_PENALTY : FMANO D, 51200000 C."""

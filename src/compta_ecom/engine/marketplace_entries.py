@@ -6,8 +6,6 @@ from compta_ecom.config.loader import AppConfig
 from compta_ecom.engine.accounts import JOURNAL_REGLEMENT, verify_balance
 from compta_ecom.models import AccountingEntry, NormalizedTransaction
 
-# commission_ht non utilisée — commission marketplace comptabilisée en TTC uniquement
-
 
 def generate_marketplace_commission(
     transaction: NormalizedTransaction, config: AppConfig
@@ -17,6 +15,11 @@ def generate_marketplace_commission(
     Convention signée :
     - commission_ttc < 0 (vente) → Débit 401 Fournisseur, Crédit 411 Client
     - commission_ttc > 0 (retour/restituée) → Débit 411 Client, Crédit 401 Fournisseur
+
+    Lorsqu'un compte de charge est configuré ET que la TVA déductible est
+    disponible (commission_ht ≠ None, TVA > 0), génère 3 écritures :
+    charge HT + TVA déductible + client TTC.
+
     Retourne [] si commission_ttc == 0.0.
     """
     commission = round(transaction.commission_ttc, 2)
@@ -27,6 +30,7 @@ def generate_marketplace_commission(
     # Compte de charge marketplace si configuré (ex: Decathlon → 62220800)
     charges_mp = config.comptes_charges_marketplace.get(transaction.channel, {})
     charge_account = charges_mp.get("commission")
+    tva_deductible_account = charges_mp.get("tva_deductible")
 
     counterpart_account = charge_account or config.fournisseurs[transaction.channel]
     client_account = config.clients[transaction.channel]
@@ -48,47 +52,99 @@ def generate_marketplace_commission(
         client_lettrage = transaction.reference
         counterpart_lettrage = transaction.reference
 
+    # Déterminer si on doit éclater en HT + TVA déductible
+    tva_amount = 0.0
+    ht_amount = round(abs(commission), 2)
+    if (
+        charge_account is not None
+        and tva_deductible_account is not None
+        and transaction.commission_ht is not None
+    ):
+        ht_amount = round(abs(transaction.commission_ht), 2)
+        tva_amount = round(abs(commission) - ht_amount, 2)
+
+    ttc_amount = round(abs(commission), 2)
+
+    entries: list[AccountingEntry] = []
+
     if commission > 0:
-        # Remboursement commission (retour) : 411 Client au débit, contrepartie au crédit
-        debit_account = client_account
-        debit_lettrage = client_lettrage
-        credit_account = counterpart_account
-        credit_lettrage = counterpart_lettrage
-    else:
-        # Commission vente normale : contrepartie au débit, 411 Client au crédit
-        debit_account = counterpart_account
-        debit_lettrage = counterpart_lettrage
-        credit_account = client_account
-        credit_lettrage = client_lettrage
-
-    amount = round(abs(commission), 2)
-
-    entries = [
-        AccountingEntry(
+        # Remboursement commission (retour) : client au débit, contrepartie(s) au crédit
+        entries.append(AccountingEntry(
             date=transaction.date,
             journal=JOURNAL_REGLEMENT,
-            account=debit_account,
+            account=client_account,
             label=label,
-            debit=amount,
+            debit=ttc_amount,
             credit=0.0,
             piece_number=transaction.reference,
-            lettrage=debit_lettrage,
+            lettrage=client_lettrage,
             channel=transaction.channel,
             entry_type="commission",
-        ),
-        AccountingEntry(
+        ))
+        entries.append(AccountingEntry(
             date=transaction.date,
             journal=JOURNAL_REGLEMENT,
-            account=credit_account,
+            account=counterpart_account,
             label=label,
             debit=0.0,
-            credit=amount,
+            credit=ht_amount,
             piece_number=transaction.reference,
-            lettrage=credit_lettrage,
+            lettrage=counterpart_lettrage,
             channel=transaction.channel,
             entry_type="commission",
-        ),
-    ]
+        ))
+        if tva_amount > 0:
+            entries.append(AccountingEntry(
+                date=transaction.date,
+                journal=JOURNAL_REGLEMENT,
+                account=tva_deductible_account,
+                label=label,
+                debit=0.0,
+                credit=tva_amount,
+                piece_number=transaction.reference,
+                lettrage="",
+                channel=transaction.channel,
+                entry_type="commission",
+            ))
+    else:
+        # Commission vente normale : contrepartie(s) au débit, client au crédit
+        entries.append(AccountingEntry(
+            date=transaction.date,
+            journal=JOURNAL_REGLEMENT,
+            account=counterpart_account,
+            label=label,
+            debit=ht_amount,
+            credit=0.0,
+            piece_number=transaction.reference,
+            lettrage=counterpart_lettrage,
+            channel=transaction.channel,
+            entry_type="commission",
+        ))
+        if tva_amount > 0:
+            entries.append(AccountingEntry(
+                date=transaction.date,
+                journal=JOURNAL_REGLEMENT,
+                account=tva_deductible_account,
+                label=label,
+                debit=tva_amount,
+                credit=0.0,
+                piece_number=transaction.reference,
+                lettrage="",
+                channel=transaction.channel,
+                entry_type="commission",
+            ))
+        entries.append(AccountingEntry(
+            date=transaction.date,
+            journal=JOURNAL_REGLEMENT,
+            account=client_account,
+            label=label,
+            debit=0.0,
+            credit=ttc_amount,
+            piece_number=transaction.reference,
+            lettrage=client_lettrage,
+            channel=transaction.channel,
+            entry_type="commission",
+        ))
 
     verify_balance(entries)
 

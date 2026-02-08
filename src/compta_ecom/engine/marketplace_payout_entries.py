@@ -77,13 +77,6 @@ def generate_marketplace_payout(
         entry_type = "payout"
         bank_or_client_account = config.banque
 
-    if net > 0:
-        debit_account = bank_or_client_account
-        credit_account = account
-    else:
-        debit_account = account
-        credit_account = bank_or_client_account
-
     amount = round(abs(net), 2)
 
     # Frais d'abonnement : date d'écriture = date de création (transaction.date)
@@ -96,51 +89,154 @@ def generate_marketplace_payout(
     has_charge_account = (
         transaction.special_type == "SUBSCRIPTION" and "abonnement" in charges_mp
     )
+    tva_deductible_account = charges_mp.get("tva_deductible")
     default_lettrage = transaction.reference
+
     if has_charge_account:
-        # Compte de charge : pas de lettrage ; client : payout_reference ou reference
-        client_account_val = config.clients[transaction.channel]
         client_ref = transaction.payout_reference or transaction.reference
-        debit_lettrage = client_ref if debit_account == client_account_val else ""
-        credit_lettrage = client_ref if credit_account == client_account_val else ""
     elif (
         transaction.channel == "decathlon"
         and transaction.special_type == "SUBSCRIPTION"
         and transaction.payout_reference
     ):
-        client_account_val = config.clients[transaction.channel]
-        debit_lettrage = transaction.payout_reference if debit_account == client_account_val else ""
-        credit_lettrage = transaction.payout_reference if credit_account == client_account_val else ""
+        client_ref = transaction.payout_reference
     else:
-        debit_lettrage = default_lettrage
-        credit_lettrage = default_lettrage
+        client_ref = default_lettrage
 
-    entries = [
-        AccountingEntry(
-            date=entry_date,
-            journal=JOURNAL_REGLEMENT,
-            account=debit_account,
-            label=label,
-            debit=amount,
-            credit=0.0,
-            piece_number=transaction.reference,
-            lettrage=debit_lettrage,
-            channel=transaction.channel,
-            entry_type=entry_type,
-        ),
-        AccountingEntry(
-            date=entry_date,
-            journal=JOURNAL_REGLEMENT,
-            account=credit_account,
-            label=label,
-            debit=0.0,
-            credit=amount,
-            piece_number=transaction.reference,
-            lettrage=credit_lettrage,
-            channel=transaction.channel,
-            entry_type=entry_type,
-        ),
-    ]
+    # Calculer la TVA déductible pour les abonnements avec charge account
+    fee_tva = 0.0
+    if has_charge_account and tva_deductible_account is not None:
+        channel_config = config.channels.get(transaction.channel)
+        if channel_config and channel_config.commission_vat_rate:
+            fee_tva = round(amount * channel_config.commission_vat_rate / 100, 2)
+
+    if fee_tva > 0:
+        # Abonnement avec TVA déductible : 3 écritures (charge HT + TVA + client TTC)
+        ttc_amount = round(amount + fee_tva, 2)
+
+        if net > 0:
+            # Avoir / remboursement : client D TTC, charge C HT, TVA C
+            entries = [
+                AccountingEntry(
+                    date=entry_date,
+                    journal=JOURNAL_REGLEMENT,
+                    account=bank_or_client_account,  # client (411LM)
+                    label=label,
+                    debit=ttc_amount,
+                    credit=0.0,
+                    piece_number=transaction.reference,
+                    lettrage=client_ref,
+                    channel=transaction.channel,
+                    entry_type=entry_type,
+                ),
+                AccountingEntry(
+                    date=entry_date,
+                    journal=JOURNAL_REGLEMENT,
+                    account=account,  # charge account (61311113)
+                    label=label,
+                    debit=0.0,
+                    credit=amount,
+                    piece_number=transaction.reference,
+                    lettrage="",
+                    channel=transaction.channel,
+                    entry_type=entry_type,
+                ),
+                AccountingEntry(
+                    date=entry_date,
+                    journal=JOURNAL_REGLEMENT,
+                    account=tva_deductible_account,  # TVA déductible (44566001)
+                    label=label,
+                    debit=0.0,
+                    credit=fee_tva,
+                    piece_number=transaction.reference,
+                    lettrage="",
+                    channel=transaction.channel,
+                    entry_type=entry_type,
+                ),
+            ]
+        else:
+            # Charge normale : charge D HT, TVA D, client C TTC
+            entries = [
+                AccountingEntry(
+                    date=entry_date,
+                    journal=JOURNAL_REGLEMENT,
+                    account=account,  # charge account (61311113)
+                    label=label,
+                    debit=amount,
+                    credit=0.0,
+                    piece_number=transaction.reference,
+                    lettrage="",
+                    channel=transaction.channel,
+                    entry_type=entry_type,
+                ),
+                AccountingEntry(
+                    date=entry_date,
+                    journal=JOURNAL_REGLEMENT,
+                    account=tva_deductible_account,  # TVA déductible (44566001)
+                    label=label,
+                    debit=fee_tva,
+                    credit=0.0,
+                    piece_number=transaction.reference,
+                    lettrage="",
+                    channel=transaction.channel,
+                    entry_type=entry_type,
+                ),
+                AccountingEntry(
+                    date=entry_date,
+                    journal=JOURNAL_REGLEMENT,
+                    account=bank_or_client_account,  # client (411LM)
+                    label=label,
+                    debit=0.0,
+                    credit=ttc_amount,
+                    piece_number=transaction.reference,
+                    lettrage=client_ref,
+                    channel=transaction.channel,
+                    entry_type=entry_type,
+                ),
+            ]
+    else:
+        # Cas standard : 2 écritures (sans TVA déductible)
+        if net > 0:
+            debit_account = bank_or_client_account
+            credit_account = account
+        else:
+            debit_account = account
+            credit_account = bank_or_client_account
+
+        if has_charge_account:
+            client_account_val = config.clients[transaction.channel]
+            debit_lettrage = client_ref if debit_account == client_account_val else ""
+            credit_lettrage = client_ref if credit_account == client_account_val else ""
+        else:
+            debit_lettrage = client_ref
+            credit_lettrage = client_ref
+
+        entries = [
+            AccountingEntry(
+                date=entry_date,
+                journal=JOURNAL_REGLEMENT,
+                account=debit_account,
+                label=label,
+                debit=amount,
+                credit=0.0,
+                piece_number=transaction.reference,
+                lettrage=debit_lettrage,
+                channel=transaction.channel,
+                entry_type=entry_type,
+            ),
+            AccountingEntry(
+                date=entry_date,
+                journal=JOURNAL_REGLEMENT,
+                account=credit_account,
+                label=label,
+                debit=0.0,
+                credit=amount,
+                piece_number=transaction.reference,
+                lettrage=credit_lettrage,
+                channel=transaction.channel,
+                entry_type=entry_type,
+            ),
+        ]
 
     verify_balance(entries)
 

@@ -71,5 +71,6 @@ def sample_config() -> AppConfig:
     )
     config.comptes_charges_marketplace = {
         "decathlon": {"commission": "62220800", "abonnement": "61311112"},
+        "leroy_merlin": {"commission": "62220900", "abonnement": "61311113", "tva_deductible": "44566001"},
     }
     return config
