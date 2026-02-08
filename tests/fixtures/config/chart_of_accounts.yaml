@@ -40,3 +40,8 @@ comptes_port:
     france: "00"
     hors_ue: "01"
     ue: "02"
+
+comptes_charges_marketplace:
+  decathlon:
+    commission: "62220800"
+    abonnement: "61311112"

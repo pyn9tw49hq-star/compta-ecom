@@ -203,7 +203,7 @@ class TestSpecialTypes:
         assert entries[1].entry_type == "fee"
 
     def test_subscription_decathlon(self, sample_config: AppConfig) -> None:
-        """SUBSCRIPTION Décathlon : FDECATHLON D, CDECATHLON C (compte client)."""
+        """SUBSCRIPTION Décathlon : 61311112 D, CDECATHLON C (compte client)."""
         tx = _make_transaction(
             channel="decathlon",
             special_type="SUBSCRIPTION",
@@ -214,7 +214,7 @@ class TestSpecialTypes:
         entries = generate_marketplace_payout(tx, sample_config)
 
         assert len(entries) == 2
-        assert entries[0].account == "FDECATHLON"
+        assert entries[0].account == "61311112"
         assert entries[0].debit == 70.0
         assert entries[1].account == "CDECATHLON"
         assert entries[1].credit == 70.0
@@ -477,7 +477,7 @@ class TestDecathlonSubscriptionLettrageByPayoutCycle:
     """Lettrage CDECATHLON subscription par cycle de paiement (AC-LETTRAGE-DEC)."""
 
     def test_subscription_decathlon_lettrage_split(self, sample_config: AppConfig) -> None:
-        """SUBSCRIPTION Décathlon : seul CDECATHLON est lettré (payout_reference), FDECATHLON vide."""
+        """SUBSCRIPTION Décathlon : seul CDECATHLON est lettré (payout_reference), compte charge vide."""
         tx = _make_transaction(
             channel="decathlon",
             reference="ABO-DEC-001",
@@ -491,15 +491,15 @@ class TestDecathlonSubscriptionLettrageByPayoutCycle:
         entries = generate_marketplace_payout(tx, sample_config)
 
         assert len(entries) == 2
-        # FDECATHLON au débit → pas de lettrage
-        assert entries[0].account == "FDECATHLON"
+        # 61311112 au débit → pas de lettrage (compte de charge)
+        assert entries[0].account == "61311112"
         assert entries[0].lettrage == ""
         # CDECATHLON au crédit → lettrage = payout_reference
         assert entries[1].account == "CDECATHLON"
         assert entries[1].lettrage == "2025-07-01"
 
     def test_subscription_decathlon_without_payout_reference(self, sample_config: AppConfig) -> None:
-        """SUBSCRIPTION Décathlon sans payout_reference → lettrage = reference pour tous."""
+        """SUBSCRIPTION Décathlon sans payout_reference → charge vide, client = reference."""
         tx = _make_transaction(
             channel="decathlon",
             reference="ABO-DEC-001",
@@ -513,8 +513,12 @@ class TestDecathlonSubscriptionLettrageByPayoutCycle:
         entries = generate_marketplace_payout(tx, sample_config)
 
         assert len(entries) == 2
-        for e in entries:
-            assert e.lettrage == "ABO-DEC-001"
+        # Compte de charge au débit → pas de lettrage
+        assert entries[0].account == "61311112"
+        assert entries[0].lettrage == ""
+        # Client au crédit → lettrage = reference (fallback)
+        assert entries[1].account == "CDECATHLON"
+        assert entries[1].lettrage == "ABO-DEC-001"
 
     def test_subscription_manomano_unaffected(self, sample_config: AppConfig) -> None:
         """SUBSCRIPTION ManoMano : lettrage = reference pour tous (pas de split)."""

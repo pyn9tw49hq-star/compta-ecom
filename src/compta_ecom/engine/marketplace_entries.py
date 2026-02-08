@@ -24,32 +24,40 @@ def generate_marketplace_commission(
     if commission == 0.0:
         return []
 
-    fournisseur_account = config.fournisseurs[transaction.channel]
+    # Compte de charge marketplace si configuré (ex: Decathlon → 62220800)
+    charges_mp = config.comptes_charges_marketplace.get(transaction.channel, {})
+    charge_account = charges_mp.get("commission")
+
+    counterpart_account = charge_account or config.fournisseurs[transaction.channel]
     client_account = config.clients[transaction.channel]
 
     canal_display = transaction.channel.replace("_", " ").title()
     label_prefix = "Commission" if transaction.type == "sale" else "Remb. commission"
     label = f"{label_prefix} {transaction.reference} {canal_display}"
 
-    # Décathlon : lettrage client par cycle de paiement pour rapprochement
-    # Seul le compte client (CDECATHLON) est lettré, pas le fournisseur
-    if transaction.channel == "decathlon" and transaction.payout_reference:
+    # Lettrage : pas de lettrage sur le compte de contrepartie (fournisseur ou charge)
+    # pour Décathlon ; le compte client est lettré par cycle de paiement
+    if charge_account is not None:
+        # Compte de charge : jamais de lettrage (classe 6)
+        counterpart_lettrage = ""
+        client_lettrage = transaction.payout_reference or transaction.reference
+    elif transaction.channel == "decathlon" and transaction.payout_reference:
         client_lettrage = transaction.payout_reference
-        fournisseur_lettrage = ""
+        counterpart_lettrage = ""
     else:
         client_lettrage = transaction.reference
-        fournisseur_lettrage = transaction.reference
+        counterpart_lettrage = transaction.reference
 
     if commission > 0:
-        # Remboursement commission (retour) : 411 Client au débit, 401 Fournisseur au crédit
+        # Remboursement commission (retour) : 411 Client au débit, contrepartie au crédit
         debit_account = client_account
         debit_lettrage = client_lettrage
-        credit_account = fournisseur_account
-        credit_lettrage = fournisseur_lettrage
+        credit_account = counterpart_account
+        credit_lettrage = counterpart_lettrage
     else:
-        # Commission vente normale : 401 Fournisseur au débit, 411 Client au crédit
-        debit_account = fournisseur_account
-        debit_lettrage = fournisseur_lettrage
+        # Commission vente normale : contrepartie au débit, 411 Client au crédit
+        debit_account = counterpart_account
+        debit_lettrage = counterpart_lettrage
         credit_account = client_account
         credit_lettrage = client_lettrage
 

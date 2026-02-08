@@ -144,15 +144,15 @@ class TestRealFormatRefundEntries:
         # commission_ttc = 74.30 (positive → commission restituée)
         assert len(entries) == 2
 
-        entry_401 = [e for e in entries if e.account == "FDECATHLON"]
+        entry_charge = [e for e in entries if e.account == "62220800"]
         entry_411 = [e for e in entries if e.account == "CDECATHLON"]
 
-        assert len(entry_401) == 1
+        assert len(entry_charge) == 1
         assert len(entry_411) == 1
 
-        # 411 au débit, 401 au crédit
+        # 411 au débit, compte charge au crédit
         assert entry_411[0].debit == 74.30
-        assert entry_401[0].credit == 74.30
+        assert entry_charge[0].credit == 74.30
 
     def test_commission_balance(
         self,

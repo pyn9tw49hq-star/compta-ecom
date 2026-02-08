@@ -23,8 +23,16 @@ def _resolve_payout_account(
 ) -> str:
     """Résout le compte de contrepartie pour le reversement.
 
-    special_type in comptes_speciaux → compte spécial, sinon → fournisseur.
+    Priorité :
+    1. SUBSCRIPTION + comptes_charges_marketplace.abonnement → compte de charge
+    2. special_type in comptes_speciaux → compte spécial
+    3. sinon → fournisseur
     """
+    if transaction.special_type == "SUBSCRIPTION":
+        charges_mp = config.comptes_charges_marketplace.get(transaction.channel, {})
+        charge_account = charges_mp.get("abonnement")
+        if charge_account is not None:
+            return charge_account
     if (
         transaction.special_type is not None
         and transaction.special_type in config.comptes_speciaux
@@ -82,9 +90,20 @@ def generate_marketplace_payout(
     # Autres reversements : date d'écriture = date du cycle de paiement (payout_date)
     entry_date = transaction.date if transaction.special_type == "SUBSCRIPTION" else transaction.payout_date
 
-    # Décathlon SUBSCRIPTION : seul le compte client (CDECATHLON) est lettré
+    # Lettrage : les comptes de charge (classe 6) n'ont jamais de lettrage.
+    # Pour Décathlon SUBSCRIPTION, le compte client est lettré par cycle de paiement.
+    charges_mp = config.comptes_charges_marketplace.get(transaction.channel, {})
+    has_charge_account = (
+        transaction.special_type == "SUBSCRIPTION" and "abonnement" in charges_mp
+    )
     default_lettrage = transaction.reference
-    if (
+    if has_charge_account:
+        # Compte de charge : pas de lettrage ; client : payout_reference ou reference
+        client_account_val = config.clients[transaction.channel]
+        client_ref = transaction.payout_reference or transaction.reference
+        debit_lettrage = client_ref if debit_account == client_account_val else ""
+        credit_lettrage = client_ref if credit_account == client_account_val else ""
+    elif (
         transaction.channel == "decathlon"
         and transaction.special_type == "SUBSCRIPTION"
         and transaction.payout_reference

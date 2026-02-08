@@ -69,4 +69,7 @@ def sample_config() -> AppConfig:
         default_country_code="250",
         commission_vat_rate=20.0,
     )
+    config.comptes_charges_marketplace = {
+        "decathlon": {"commission": "62220800", "abonnement": "61311112"},
+    }
     return config

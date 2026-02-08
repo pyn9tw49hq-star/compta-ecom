@@ -42,7 +42,7 @@ def _make_transaction(**overrides: object) -> NormalizedTransaction:
     ("channel", "fournisseur_account", "client_account"),
     [
         ("manomano", "FMANO", "411MANO"),
-        ("decathlon", "FDECATHLON", "CDECATHLON"),
+        ("decathlon", "62220800", "CDECATHLON"),
         ("leroy_merlin", "FADEO", "411LM"),
     ],
 )
@@ -246,7 +246,7 @@ class TestDecathlonLettrageByPayoutCycle:
     """Lettrage CDECATHLON par cycle de paiement (AC-LETTRAGE-DEC)."""
 
     def test_decathlon_commission_lettrage_split(self, sample_config: AppConfig) -> None:
-        """Décathlon : seul CDECATHLON est lettré (payout_reference), FDECATHLON vide."""
+        """Décathlon : seul CDECATHLON est lettré (payout_reference), compte charge vide."""
         tx = _make_transaction(
             channel="decathlon",
             reference="fr12345-A",
@@ -257,15 +257,15 @@ class TestDecathlonLettrageByPayoutCycle:
         entries = generate_marketplace_commission(tx, sample_config)
 
         assert len(entries) == 2
-        # Fournisseur (FDECATHLON) au débit → pas de lettrage
-        assert entries[0].account == "FDECATHLON"
+        # Compte de charge (62220800) au débit → pas de lettrage
+        assert entries[0].account == "62220800"
         assert entries[0].lettrage == ""
         # Client (CDECATHLON) au crédit → lettrage = payout_reference
         assert entries[1].account == "CDECATHLON"
         assert entries[1].lettrage == "2025-07-01"
 
     def test_decathlon_refund_commission_lettrage_split(self, sample_config: AppConfig) -> None:
-        """Décathlon refund : seul CDECATHLON est lettré (payout_reference), FDECATHLON vide."""
+        """Décathlon refund : seul CDECATHLON est lettré (payout_reference), compte charge vide."""
         tx = _make_transaction(
             channel="decathlon",
             reference="fr12345-A",
@@ -280,12 +280,12 @@ class TestDecathlonLettrageByPayoutCycle:
         # Client (CDECATHLON) au débit → lettrage = payout_reference
         assert entries[0].account == "CDECATHLON"
         assert entries[0].lettrage == "2025-07-01"
-        # Fournisseur (FDECATHLON) au crédit → pas de lettrage
-        assert entries[1].account == "FDECATHLON"
+        # Compte de charge (62220800) au crédit → pas de lettrage
+        assert entries[1].account == "62220800"
         assert entries[1].lettrage == ""
 
     def test_decathlon_without_payout_reference(self, sample_config: AppConfig) -> None:
-        """Décathlon sans payout_reference → lettrage = reference pour tous."""
+        """Décathlon sans payout_reference → charge vide, client = reference."""
         tx = _make_transaction(
             channel="decathlon",
             reference="fr12345-A",
@@ -293,8 +293,12 @@ class TestDecathlonLettrageByPayoutCycle:
             payout_reference=None,
         )
         entries = generate_marketplace_commission(tx, sample_config)
-        for e in entries:
-            assert e.lettrage == "fr12345-A"
+        # Compte de charge au débit → pas de lettrage
+        assert entries[0].account == "62220800"
+        assert entries[0].lettrage == ""
+        # Client au crédit → lettrage = reference (fallback)
+        assert entries[1].account == "CDECATHLON"
+        assert entries[1].lettrage == "fr12345-A"
 
     def test_leroy_merlin_unaffected(self, sample_config: AppConfig) -> None:
         """Leroy Merlin : lettrage = reference pour les deux (pas de split)."""

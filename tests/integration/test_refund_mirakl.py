@@ -119,15 +119,15 @@ class TestMiraklRefundEntries:
         # commission_ttc = 15 (positive → commission restituée au vendeur)
         assert len(entries) == 2
 
-        entry_401 = [e for e in entries if e.account == "FDECATHLON"]
+        entry_charge = [e for e in entries if e.account == "62220800"]
         entry_411 = [e for e in entries if e.account == "CDECATHLON"]
 
-        assert len(entry_401) == 1
+        assert len(entry_charge) == 1
         assert len(entry_411) == 1
 
-        # 411 au débit, 401 au crédit (commission_ttc > 0, restituée)
+        # 411 au débit, compte charge au crédit (commission_ttc > 0, restituée)
         assert entry_411[0].debit == 15.00
-        assert entry_401[0].credit == 15.00
+        assert entry_charge[0].credit == 15.00
 
     def test_commission_balance(
         self,

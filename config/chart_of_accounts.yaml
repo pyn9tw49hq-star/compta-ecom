@@ -46,4 +46,9 @@ comptes_port:
     hors_ue: "01"
     ue: "02"
 
+comptes_charges_marketplace:
+  decathlon:
+    commission: "62220800"
+    abonnement: "61311112"
+
 matching_tolerance: 0.01  # euros — seuil d'écart toléré pour le matching

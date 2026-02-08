@@ -65,6 +65,9 @@ class AppConfig:
     # Canaux
     channels: dict[str, ChannelConfig] = field(default_factory=dict)
 
+    # Comptes de charge marketplace (commission/abonnement directement en charge)
+    comptes_charges_marketplace: dict[str, dict[str, str]] = field(default_factory=dict)
+
     # Matching
     matching_tolerance: float = 0.01
 
@@ -102,6 +105,7 @@ def _validate_chart(data: dict[str, object]) -> tuple[
     str,
     str,
     dict[str, str],
+    dict[str, dict[str, str]],
 ]:
     """Valide et extrait le plan comptable."""
     context = "chart_of_accounts.yaml"
@@ -160,6 +164,17 @@ def _validate_chart(data: dict[str, object]) -> tuple[
         raise ConfigError(f"'comptes_port.zones' doit être un mapping dans {context}")
     zones_port: dict[str, str] = {str(k): str(v) for k, v in zones_port_raw.items()}
 
+    comptes_charges_mp_raw = data.get("comptes_charges_marketplace", {})
+    if not isinstance(comptes_charges_mp_raw, dict):
+        raise ConfigError(f"'comptes_charges_marketplace' doit être un mapping dans {context}")
+    comptes_charges_marketplace: dict[str, dict[str, str]] = {}
+    for chan, chan_data in comptes_charges_mp_raw.items():
+        if not isinstance(chan_data, dict):
+            raise ConfigError(
+                f"'comptes_charges_marketplace.{chan}' doit être un mapping dans {context}"
+            )
+        comptes_charges_marketplace[str(chan)] = {str(k): str(v) for k, v in chan_data.items()}
+
     return (
         {str(k): str(v) for k, v in clients.items()},
         {str(k): str(v) for k, v in fournisseurs.items()},
@@ -172,6 +187,7 @@ def _validate_chart(data: dict[str, object]) -> tuple[
         tva_prefix,
         port_prefix,
         zones_port,
+        comptes_charges_marketplace,
     )
 
 
@@ -333,7 +349,7 @@ def load_config(config_dir: Path) -> AppConfig:
     vat_data = _load_yaml(config_dir / "vat_table.yaml")
     channels_data = _load_yaml(config_dir / "channels.yaml")
 
-    clients, fournisseurs, psp, transit, banque, comptes_speciaux, prefix, canal_codes, tva_prefix, port_prefix, zones_port = _validate_chart(chart_data)
+    clients, fournisseurs, psp, transit, banque, comptes_speciaux, prefix, canal_codes, tva_prefix, port_prefix, zones_port, comptes_charges_marketplace = _validate_chart(chart_data)
     vat_table = _validate_vat(vat_data)
     channels = _validate_channels(channels_data)
 
@@ -360,6 +376,7 @@ def load_config(config_dir: Path) -> AppConfig:
         vat_table=vat_table,
         alpha2_to_numeric=alpha2_to_numeric,
         channels=channels,
+        comptes_charges_marketplace=comptes_charges_marketplace,
         matching_tolerance=matching_tolerance,
     )
 

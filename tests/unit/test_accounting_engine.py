@@ -617,7 +617,7 @@ class TestDecathlonSkipIndividualPayout:
 
         # sale : CDECATHLON + 70703250 + 4457250 = 3 lignes
         assert len(sale_entries) == 3
-        # commission : FDECATHLON D / CDECATHLON C (commission_ttc < 0) = 2 lignes
+        # commission : 62220800 D / CDECATHLON C (commission_ttc < 0) = 2 lignes
         assert len(commission_entries) == 2
         # payout : 0 — comportement spécifique Décathlon
         assert len(payout_entries) == 0
@@ -706,7 +706,7 @@ class TestDecathlonSkipIndividualPayout:
         sale_entries = [e for e in entries if e.entry_type == "sale"]
         payout_entries = [e for e in entries if e.entry_type == "payout"]
 
-        # fee : CDECATHLON ↔ FDECATHLON = 2 lignes
+        # fee : CDECATHLON ↔ 61311112 = 2 lignes
         assert len(fee_entries) == 2
         # sale : 0 (le continue L46 bypass le bloc sale)
         assert len(sale_entries) == 0
@@ -714,10 +714,10 @@ class TestDecathlonSkipIndividualPayout:
         assert len(payout_entries) == 0
         assert len(anomalies) == 0
 
-        # Les comptes touchés sont client et fournisseur, entry_type="fee"
+        # Les comptes touchés sont client et compte de charge abonnement, entry_type="fee"
         fee_accounts = {e.account for e in fee_entries}
         assert "CDECATHLON" in fee_accounts
-        assert "FDECATHLON" in fee_accounts
+        assert "61311112" in fee_accounts
 
     def test_leroy_merlin_still_generates_individual_payout(self, sample_config: AppConfig) -> None:
         """Non-régression : Leroy Merlin génère toujours des payout individuels (skip Décathlon uniquement)."""
