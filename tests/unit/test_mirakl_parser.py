@@ -776,6 +776,38 @@ class TestMiraklParseLeroyMerlin:
         assert order_txs[0].commission_ttc == -90.00  # -75 + -15
         assert sub_txs[0].net_amount == -49.99
 
+    def test_tax_refund_lines_filtered(self, tmp_path, sample_config) -> None:
+        """Remboursement de taxe sur commande/frais de port → filtrées, pas de warning."""
+        # Arrange — commande avec lignes de remboursement de taxe
+        csv_path = _write_csv(tmp_path, "LM_tax_refund.csv", [
+            {"Numéro de commande": "LM-TR-001", "Type": "Montant de commande",
+             "Date de commande": "2026-01-10", "Date du cycle de paiement": "2026-01-15",
+             "Montant": "200.00"},
+            {"Numéro de commande": "LM-TR-001", "Type": "Commission",
+             "Date de commande": "2026-01-10", "Date du cycle de paiement": "2026-01-15",
+             "Montant": "-30.00"},
+            {"Numéro de commande": "LM-TR-001", "Type": "Remboursement de taxe sur commande",
+             "Date de commande": "2026-01-10", "Date du cycle de paiement": "2026-01-15",
+             "Montant": "-10.00"},
+            {"Numéro de commande": "LM-TR-001", "Type": "Remboursement de taxe sur frais de port",
+             "Date de commande": "2026-01-10", "Date du cycle de paiement": "2026-01-15",
+             "Montant": "-2.00"},
+        ])
+        parser = MiraklParser(channel="leroy_merlin")
+
+        # Act
+        result = parser.parse(files={"data": csv_path}, config=sample_config)
+
+        # Assert — no unknown_line_type warnings for the tax refund lines
+        unknown_anomalies = [a for a in result.anomalies if a.type == "unknown_line_type"]
+        assert len(unknown_anomalies) == 0
+
+        # Tax refund lines must NOT affect transaction amounts
+        order_txs = [t for t in result.transactions if t.special_type is None]
+        assert len(order_txs) == 1
+        assert order_txs[0].amount_ht == 200.00
+        assert order_txs[0].commission_ht == -30.00
+
 
 # ---------------------------------------------------------------------------
 # TestMiraklCommon

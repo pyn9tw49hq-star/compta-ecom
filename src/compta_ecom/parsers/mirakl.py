@@ -47,6 +47,10 @@ TYPE_ALIASES: dict[str, str] = {
     "Taxe sur commande": "Taxe sur commande",
     "Taxe sur frais de port": "Taxe sur frais de port",
     "Taxe sur abonnement": "Taxe sur abonnement",
+    # Remboursements de taxe Leroy Merlin — même traitement (ignorées)
+    "Remboursement de taxe sur commande": "Taxe sur commande",
+    "Remboursement de taxe sur frais de port": "Taxe sur frais de port",
+    "Remboursement de taxe sur abonnement": "Taxe sur abonnement",
 }
 
 # Types de taxe explicite (Leroy Merlin) — ignorées si le parser calcule la TVA
