@@ -95,7 +95,7 @@ def generate_marketplace_payout(
     if has_charge_account:
         client_ref = transaction.payout_reference or transaction.reference
     elif (
-        transaction.channel == "decathlon"
+        transaction.channel in ("decathlon", "leroy_merlin")
         and transaction.special_type == "SUBSCRIPTION"
         and transaction.payout_reference
     ):
