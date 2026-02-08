@@ -23,8 +23,8 @@ REQUIRED_COLUMNS = [
     "Montant",
 ]
 
-KNOWN_LINE_TYPES = {"Montant", "Frais de port", "Commission", "Taxe sur la commission", "Paiement", "Abonnement"}
-ORDER_LINE_TYPES = {"Montant", "Frais de port", "Commission", "Taxe sur la commission"}
+KNOWN_LINE_TYPES = {"Montant", "Frais de port", "Commission", "Taxe sur la commission", "Paiement", "Abonnement", "Taxe sur commande", "Taxe sur frais de port", "Taxe sur abonnement"}
+ORDER_LINE_TYPES = {"Montant", "Frais de port", "Commission", "Taxe sur la commission", "Taxe sur commande", "Taxe sur frais de port"}
 
 DATE_FORMAT = "%Y-%m-%d"
 
@@ -43,18 +43,15 @@ TYPE_ALIASES: dict[str, str] = {
     "Remboursement de frais de port": "Frais de port",
     "Remboursement de commission": "Commission",
     "Remboursement de taxe sur commission": "Taxe sur la commission",
-    # Lignes de taxe Leroy Merlin — ignorées car la TVA est recalculée
+    # Lignes de taxe explicite Leroy Merlin
     "Taxe sur commande": "Taxe sur commande",
     "Taxe sur frais de port": "Taxe sur frais de port",
     "Taxe sur abonnement": "Taxe sur abonnement",
-    # Remboursements de taxe Leroy Merlin — même traitement (ignorées)
+    # Remboursements de taxe Leroy Merlin
     "Remboursement de taxe sur commande": "Taxe sur commande",
     "Remboursement de taxe sur frais de port": "Taxe sur frais de port",
     "Remboursement de taxe sur abonnement": "Taxe sur abonnement",
 }
-
-# Types de taxe explicite (Leroy Merlin) — ignorées si le parser calcule la TVA
-TAX_LINE_TYPES = {"Taxe sur commande", "Taxe sur frais de port", "Taxe sur abonnement"}
 
 # Mapping nom de pays (Canal de diffusion) → code alpha2
 COUNTRY_NAME_TO_ALPHA2: dict[str, str] = {
@@ -137,13 +134,6 @@ class MiraklParser(BaseParser):
         self.validate_columns(df, REQUIRED_COLUMNS)
 
         anomalies: list[Anomaly] = []
-
-        # Filtrer les lignes de taxe explicite (Leroy Merlin) — la TVA est
-        # recalculée par le parser, ces lignes ne doivent pas être agrégées.
-        tax_mask = df["Type"].isin(TAX_LINE_TYPES)
-        if tax_mask.any():
-            logger.info("Canal %s : %d lignes de taxe explicite ignorées", self.channel, int(tax_mask.sum()))
-        df = df[~tax_mask].copy()
 
         # Convert Montant to numeric
         original_montant = df["Montant"].copy()
@@ -315,11 +305,23 @@ class MiraklParser(BaseParser):
                 shipping_tva = round(shipping_ttc_raw - shipping_ht, 2)
                 amount_ttc = round(amount_ttc_raw + shipping_ttc_raw, 2)
             else:
-                # Montants CSV = HT → calculer TVA et TTC
+                # Montants CSV = HT
                 amount_ht = round(abs(montant_sum), 2)
                 shipping_ht = round(abs(frais_port_sum), 2)
-                amount_tva = round(amount_ht * tva_rate / 100, 2)
-                shipping_tva = round(shipping_ht * tva_rate / 100, 2)
+
+                # Utiliser les montants de taxe explicite du CSV si disponibles
+                taxe_produit_sum = float(group.loc[group["Type"] == "Taxe sur commande", "Montant"].sum())
+                taxe_port_sum = float(group.loc[group["Type"] == "Taxe sur frais de port", "Montant"].sum())
+
+                if taxe_produit_sum != 0.0 or taxe_port_sum != 0.0:
+                    # TVA explicite (Leroy Merlin) : montants exacts du CSV
+                    amount_tva = round(abs(taxe_produit_sum), 2)
+                    shipping_tva = round(abs(taxe_port_sum), 2)
+                else:
+                    # Pas de taxe explicite : recalculer (fallback)
+                    amount_tva = round(amount_ht * tva_rate / 100, 2)
+                    shipping_tva = round(shipping_ht * tva_rate / 100, 2)
+
                 amount_ttc = round(amount_ht + shipping_ht + amount_tva + shipping_tva, 2)
 
             commission_ht = round(commission_sum, 2)
