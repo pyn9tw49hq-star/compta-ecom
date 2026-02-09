@@ -16,7 +16,7 @@ from compta_ecom.controls.matching_checker import MatchingChecker
 from compta_ecom.controls.vat_checker import VatChecker
 from compta_ecom.engine import generate_entries
 from compta_ecom.exporters.excel import export, print_summary
-from compta_ecom.models import AccountingEntry, Anomaly, NoResultError, ParseError, ParseResult
+from compta_ecom.models import AccountingEntry, Anomaly, NormalizedTransaction, NoResultError, ParseError, ParseResult
 from compta_ecom.parsers import ShopifyParser
 from compta_ecom.parsers.base import BaseParser
 from compta_ecom.parsers.manomano import ManoManoParser
@@ -75,7 +75,7 @@ class PipelineOrchestrator:
         self,
         files: dict[str, bytes],
         config: AppConfig,
-    ) -> tuple[list[AccountingEntry], list[Anomaly], dict[str, dict[str, int] | dict[str, float]]]:
+    ) -> tuple[list[AccountingEntry], list[Anomaly], dict[str, object]]:
         """Exécute le pipeline à partir de fichiers en mémoire.
 
         Args:
@@ -112,7 +112,7 @@ class PipelineOrchestrator:
             )
 
         entries, all_anomalies = self._process_parse_results(all_parse_results, config)
-        summary = self._build_summary(entries, all_parse_results)
+        summary = self._build_summary(entries, all_parse_results, config)
 
         return entries, all_anomalies, summary
 
@@ -145,21 +145,24 @@ class PipelineOrchestrator:
 
         return entries, all_anomalies
 
-    @staticmethod
     def _build_summary(
+        self,
         entries: list[AccountingEntry],
         all_parse_results: list[ParseResult],
-    ) -> dict[str, dict[str, int] | dict[str, float]]:
-        """Construit le résumé : transactions par canal, écritures par type, totaux."""
+        config: AppConfig,
+    ) -> dict[str, object]:
+        """Construit le résumé : transactions par canal, écritures par type, totaux, KPIs financiers."""
         # Transactions par canal (unique par reference + channel)
         seen_refs: set[tuple[str, str]] = set()
         transactions_par_canal: Counter[str] = Counter()
+        unique_txs: list[NormalizedTransaction] = []
         for pr in all_parse_results:
             for t in pr.transactions:
                 key = (t.reference, t.channel)
                 if key not in seen_refs:
                     seen_refs.add(key)
                     transactions_par_canal[t.channel] += 1
+                    unique_txs.append(t)
 
         # Écritures par type
         ecritures_par_type: Counter[str] = Counter(e.entry_type for e in entries)
@@ -168,10 +171,126 @@ class PipelineOrchestrator:
         total_debit = round(sum(e.debit for e in entries), 2)
         total_credit = round(sum(e.credit for e in entries), 2)
 
+        # --- KPIs financiers (accumulateurs par canal) ---
+        ca_ht: dict[str, float] = {}
+        ca_ttc: dict[str, float] = {}
+        refund_ht: dict[str, float] = {}
+        refund_ttc: dict[str, float] = {}
+        refund_nb: dict[str, int] = {}
+        sales_nb: dict[str, int] = {}
+        comm_ht: dict[str, float] = {}
+        comm_ttc: dict[str, float] = {}
+        tva_col: dict[str, float] = {}
+
+        for t in unique_txs:
+            if t.special_type is not None:
+                continue
+            c = t.channel
+            # Initialise les accumulateurs pour ce canal
+            if c not in ca_ht:
+                ca_ht[c] = ca_ttc[c] = 0.0
+                refund_ht[c] = refund_ttc[c] = 0.0
+                refund_nb[c] = sales_nb[c] = 0
+                comm_ht[c] = comm_ttc[c] = 0.0
+                tva_col[c] = 0.0
+
+            if t.type == "sale":
+                sales_nb[c] += 1
+                ca_ht[c] += t.amount_ht + t.shipping_ht
+                ca_ttc[c] += t.amount_ttc
+                tva_col[c] += t.amount_tva + t.shipping_tva
+            elif t.type == "refund":
+                refund_nb[c] += 1
+                refund_ht[c] += abs(t.amount_ht + t.shipping_ht)
+                refund_ttc[c] += abs(t.amount_ttc)
+
+            # Commissions : toutes transactions normales (ventes + remboursements)
+            comm_ttc[c] += abs(t.commission_ttc)
+            if t.commission_ht is not None:
+                comm_ht[c] += abs(t.commission_ht)
+
+        # Arrondi financier systématique (round(x, 2))
+        channels = sorted(ca_ht.keys())
+        for c in channels:
+            ca_ht[c] = round(ca_ht[c], 2)
+            ca_ttc[c] = round(ca_ttc[c], 2)
+            refund_ht[c] = round(refund_ht[c], 2)
+            refund_ttc[c] = round(refund_ttc[c], 2)
+            comm_ht[c] = round(comm_ht[c], 2)
+            comm_ttc[c] = round(comm_ttc[c], 2)
+            tva_col[c] = round(tva_col[c], 2)
+
+        # Construction des dicts de sortie
+        ca_par_canal = {c: {"ht": ca_ht[c], "ttc": ca_ttc[c]} for c in channels}
+        remboursements_par_canal = {
+            c: {"count": refund_nb[c], "ht": refund_ht[c], "ttc": refund_ttc[c]}
+            for c in channels
+        }
+        taux_remboursement_par_canal = {
+            c: round(refund_nb[c] / sales_nb[c] * 100, 1) if sales_nb[c] > 0 else 0.0
+            for c in channels
+        }
+        commissions_par_canal = {c: {"ht": comm_ht[c], "ttc": comm_ttc[c]} for c in channels}
+        net_vendeur_par_canal = {
+            c: round(ca_ttc[c] - comm_ttc[c] - refund_ttc[c], 2)
+            for c in channels
+        }
+        tva_collectee_par_canal = {c: tva_col[c] for c in channels}
+
+        # Répartition géographique (ventes uniquement)
+        def resolve_country(code: str) -> str:
+            """Résout un country_code numérique en nom de pays via vat_table."""
+            entry = config.vat_table.get(code)
+            if entry:
+                return str(entry["name"])
+            return f"Pays inconnu ({code})"
+
+        geo_g_count: dict[str, int] = {}
+        geo_g_ca: dict[str, float] = {}
+        geo_c_count: dict[str, dict[str, int]] = {}
+        geo_c_ca: dict[str, dict[str, float]] = {}
+
+        for t in unique_txs:
+            if t.special_type is not None or t.type != "sale":
+                continue
+            country = resolve_country(t.country_code)
+            canal = t.channel
+
+            # Global
+            geo_g_count[country] = geo_g_count.get(country, 0) + 1
+            geo_g_ca[country] = geo_g_ca.get(country, 0.0) + t.amount_ttc
+
+            # Par canal
+            if canal not in geo_c_count:
+                geo_c_count[canal] = {}
+                geo_c_ca[canal] = {}
+            geo_c_count[canal][country] = geo_c_count[canal].get(country, 0) + 1
+            geo_c_ca[canal][country] = geo_c_ca[canal].get(country, 0.0) + t.amount_ttc
+
+        repartition_geo_globale = {
+            country: {"count": geo_g_count[country], "ca_ttc": round(geo_g_ca[country], 2)}
+            for country in sorted(geo_g_ca, key=lambda p: geo_g_ca[p], reverse=True)
+        }
+        repartition_geo_par_canal = {
+            canal: {
+                country: {"count": geo_c_count[canal][country], "ca_ttc": round(geo_c_ca[canal][country], 2)}
+                for country in sorted(geo_c_ca[canal], key=lambda p: geo_c_ca[canal][p], reverse=True)
+            }
+            for canal in sorted(geo_c_count)
+        }
+
         return {
             "transactions_par_canal": dict(transactions_par_canal),
             "ecritures_par_type": dict(ecritures_par_type),
             "totaux": {"debit": total_debit, "credit": total_credit},
+            "ca_par_canal": ca_par_canal,
+            "remboursements_par_canal": remboursements_par_canal,
+            "taux_remboursement_par_canal": taux_remboursement_par_canal,
+            "commissions_par_canal": commissions_par_canal,
+            "net_vendeur_par_canal": net_vendeur_par_canal,
+            "tva_collectee_par_canal": tva_collectee_par_canal,
+            "repartition_geo_globale": repartition_geo_globale,
+            "repartition_geo_par_canal": repartition_geo_par_canal,
         }
 
     @staticmethod

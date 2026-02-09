@@ -25,6 +25,14 @@ export interface Summary {
   transactions_par_canal: Record<string, number>;
   ecritures_par_type: Record<string, number>;
   totaux: { debit: number; credit: number };
+  ca_par_canal: Record<string, { ht: number; ttc: number }>;
+  remboursements_par_canal: Record<string, { count: number; ht: number; ttc: number }>;
+  taux_remboursement_par_canal: Record<string, number>;
+  commissions_par_canal: Record<string, { ht: number; ttc: number }>;
+  net_vendeur_par_canal: Record<string, number>;
+  tva_collectee_par_canal: Record<string, number>;
+  repartition_geo_globale: Record<string, { count: number; ca_ttc: number }>;
+  repartition_geo_par_canal: Record<string, Record<string, { count: number; ca_ttc: number }>>;
 }
 
 export interface ProcessResponse {

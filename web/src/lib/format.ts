@@ -19,6 +19,18 @@ export function formatCount(n: number): string {
   return countFormatter.format(n);
 }
 
+const percentFormatter = new Intl.NumberFormat("fr-FR", {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+});
+
+/**
+ * Format a number as a French-locale percentage (e.g. "12,5 %").
+ */
+export function formatPercent(n: number): string {
+  return `${percentFormatter.format(n)} %`;
+}
+
 /**
  * Format an ISO date string "YYYY-MM-DD" to French "DD/MM/YYYY".
  */

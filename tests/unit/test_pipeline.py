@@ -265,3 +265,233 @@ class TestPipelineCheckersIntegration:
         assert len(all_anomalies) == 2
         assert all_anomalies[0].type == "unknown_country"
         assert all_anomalies[1].type == "orphan_refund"
+
+
+def _make_kpi_config() -> AppConfig:
+    """Config avec 2 canaux et 2 pays pour les tests KPI."""
+    return AppConfig(
+        clients={"shopify": "411SHOPIFY", "manomano": "411MANOMANO"},
+        fournisseurs={},
+        psp={"card": PspConfig(compte="51150007", commission="62700002")},
+        transit="58000000",
+        banque="51200000",
+        comptes_speciaux={},
+        comptes_vente_prefix="707",
+        canal_codes={"shopify": "01", "manomano": "02"},
+        comptes_tva_prefix="4457",
+        vat_table={
+            "250": {"name": "France", "rate": 20.0, "alpha2": "FR"},
+            "056": {"name": "Belgique", "rate": 21.0, "alpha2": "BE"},
+        },
+        alpha2_to_numeric={"FR": "250", "BE": "056"},
+        channels={
+            "shopify": ChannelConfig(
+                files={"sales": "Ventes Shopify*.csv"},
+                encoding="utf-8",
+                separator=",",
+            ),
+            "manomano": ChannelConfig(
+                files={"sales": "CA_ManoMano*.csv"},
+                encoding="utf-8",
+                separator=";",
+            ),
+        },
+    )
+
+
+def _build_kpi_test_data() -> (
+    tuple[list[AccountingEntry], list[ParseResult], AppConfig]
+):
+    """Jeu de données multi-canal, multi-pays, avec ventes/remboursements/adjustment."""
+    config = _make_kpi_config()
+
+    # --- Shopify : 2 ventes (FR + BE) + 1 remboursement (FR) ---
+    tx_shopify_sale_fr = _make_tx(
+        reference="#S001", channel="shopify", type="sale",
+        amount_ht=100.0, amount_tva=20.0, amount_ttc=120.0,
+        shipping_ht=10.0, shipping_tva=2.0,
+        country_code="250", commission_ttc=-3.6, commission_ht=-3.0,
+    )
+    tx_shopify_sale_be = _make_tx(
+        reference="#S002", channel="shopify", type="sale",
+        amount_ht=200.0, amount_tva=42.0, amount_ttc=242.0,
+        shipping_ht=15.0, shipping_tva=3.15,
+        country_code="056", commission_ttc=-7.26, commission_ht=-6.05,
+    )
+    tx_shopify_refund_fr = _make_tx(
+        reference="#S003", channel="shopify", type="refund",
+        amount_ht=-50.0, amount_tva=-10.0, amount_ttc=-60.0,
+        shipping_ht=0.0, shipping_tva=0.0,
+        country_code="250", commission_ttc=1.8, commission_ht=1.5,
+    )
+
+    # --- ManoMano : 1 vente (FR) + 1 ADJUSTMENT (exclue des KPIs) ---
+    tx_mano_sale_fr = _make_tx(
+        reference="#M001", channel="manomano", type="sale",
+        amount_ht=80.0, amount_tva=16.0, amount_ttc=96.0,
+        shipping_ht=5.0, shipping_tva=1.0,
+        country_code="250", commission_ttc=-12.0, commission_ht=-10.0,
+    )
+    tx_mano_adjustment = _make_tx(
+        reference="#M002", channel="manomano", type="sale",
+        amount_ht=5.0, amount_tva=1.0, amount_ttc=6.0,
+        shipping_ht=0.0, shipping_tva=0.0,
+        country_code="250", commission_ttc=0.0, commission_ht=None,
+        special_type="ADJUSTMENT",
+    )
+
+    parse_results = [
+        ParseResult(
+            transactions=[tx_shopify_sale_fr, tx_shopify_sale_be, tx_shopify_refund_fr],
+            payouts=[], anomalies=[], channel="shopify",
+        ),
+        ParseResult(
+            transactions=[tx_mano_sale_fr, tx_mano_adjustment],
+            payouts=[], anomalies=[], channel="manomano",
+        ),
+    ]
+
+    entries = [
+        _make_entry(entry_type="sale", debit=0.0, credit=120.0),
+        _make_entry(entry_type="sale", debit=0.0, credit=242.0),
+        _make_entry(entry_type="settlement", debit=116.4, credit=0.0),
+    ]
+
+    return entries, parse_results, config
+
+
+class TestBuildSummaryKPIs:
+    """Tests pour les KPIs financiers de _build_summary() (AC 1-12)."""
+
+    def test_ca_par_canal(self) -> None:
+        """CA HT et TTC par canal — ventes uniquement, special_type exclues (AC2, AC12)."""
+        entries, parse_results, config = _build_kpi_test_data()
+        summary = PipelineOrchestrator()._build_summary(entries, parse_results, config)
+
+        ca = summary["ca_par_canal"]
+        # Shopify: HT = (100+10) + (200+15) = 325, TTC = 120 + 242 = 362
+        assert ca["shopify"] == {"ht": 325.0, "ttc": 362.0}
+        # ManoMano: HT = 80+5 = 85, TTC = 96 (ADJUSTMENT exclue)
+        assert ca["manomano"] == {"ht": 85.0, "ttc": 96.0}
+
+    def test_remboursements_par_canal(self) -> None:
+        """Remboursements count + montants en valeur absolue (AC3, AC12)."""
+        entries, parse_results, config = _build_kpi_test_data()
+        summary = PipelineOrchestrator()._build_summary(entries, parse_results, config)
+
+        remb = summary["remboursements_par_canal"]
+        # Shopify: 1 refund, HT=abs(-50+0)=50, TTC=abs(-60)=60
+        assert remb["shopify"] == {"count": 1, "ht": 50.0, "ttc": 60.0}
+        # ManoMano: 0 refunds
+        assert remb["manomano"] == {"count": 0, "ht": 0.0, "ttc": 0.0}
+
+    def test_taux_remboursement_par_canal(self) -> None:
+        """Taux de remboursement = nb_refunds / nb_sales * 100 (AC4)."""
+        entries, parse_results, config = _build_kpi_test_data()
+        summary = PipelineOrchestrator()._build_summary(entries, parse_results, config)
+
+        taux = summary["taux_remboursement_par_canal"]
+        # Shopify: 1 refund / 2 sales = 50.0%
+        assert taux["shopify"] == 50.0
+        # ManoMano: 0 / 1 = 0.0%
+        assert taux["manomano"] == 0.0
+
+    def test_commissions_par_canal(self) -> None:
+        """Commissions en valeur absolue, toutes transactions normales (AC5)."""
+        entries, parse_results, config = _build_kpi_test_data()
+        summary = PipelineOrchestrator()._build_summary(entries, parse_results, config)
+
+        comm = summary["commissions_par_canal"]
+        # Shopify: TTC = |−3.6|+|−7.26|+|1.8| = 12.66, HT = |−3|+|−6.05|+|1.5| = 10.55
+        assert comm["shopify"] == {"ht": 10.55, "ttc": 12.66}
+        # ManoMano: TTC = |−12| = 12, HT = |−10| = 10
+        assert comm["manomano"] == {"ht": 10.0, "ttc": 12.0}
+
+    def test_net_vendeur_par_canal(self) -> None:
+        """Net vendeur = CA TTC − |Commissions TTC| − Remboursements TTC (AC6)."""
+        entries, parse_results, config = _build_kpi_test_data()
+        summary = PipelineOrchestrator()._build_summary(entries, parse_results, config)
+
+        net = summary["net_vendeur_par_canal"]
+        # Shopify: 362 − 12.66 − 60 = 289.34
+        assert net["shopify"] == 289.34
+        # ManoMano: 96 − 12 − 0 = 84
+        assert net["manomano"] == 84.0
+
+    def test_tva_collectee_par_canal(self) -> None:
+        """TVA collectée = amount_tva + shipping_tva des ventes (AC7)."""
+        entries, parse_results, config = _build_kpi_test_data()
+        summary = PipelineOrchestrator()._build_summary(entries, parse_results, config)
+
+        tva = summary["tva_collectee_par_canal"]
+        # Shopify: (20+2) + (42+3.15) = 67.15
+        assert tva["shopify"] == 67.15
+        # ManoMano: 16+1 = 17
+        assert tva["manomano"] == 17.0
+
+    def test_repartition_geo_globale(self) -> None:
+        """Répartition géographique globale, triée par CA TTC desc (AC8)."""
+        entries, parse_results, config = _build_kpi_test_data()
+        summary = PipelineOrchestrator()._build_summary(entries, parse_results, config)
+
+        geo = summary["repartition_geo_globale"]
+        # Belgique: count=1, ca_ttc=242 > France: count=2, ca_ttc=216
+        countries = list(geo.keys())
+        assert countries == ["Belgique", "France"]
+        assert geo["Belgique"] == {"count": 1, "ca_ttc": 242.0}
+        assert geo["France"] == {"count": 2, "ca_ttc": 216.0}
+
+    def test_repartition_geo_par_canal(self) -> None:
+        """Répartition géographique par canal, triée par CA TTC desc (AC9)."""
+        entries, parse_results, config = _build_kpi_test_data()
+        summary = PipelineOrchestrator()._build_summary(entries, parse_results, config)
+
+        geo_canal = summary["repartition_geo_par_canal"]
+        # ManoMano: France seulement
+        assert list(geo_canal["manomano"].keys()) == ["France"]
+        assert geo_canal["manomano"]["France"] == {"count": 1, "ca_ttc": 96.0}
+        # Shopify: Belgique (242) > France (120)
+        assert list(geo_canal["shopify"].keys()) == ["Belgique", "France"]
+        assert geo_canal["shopify"]["Belgique"] == {"count": 1, "ca_ttc": 242.0}
+        assert geo_canal["shopify"]["France"] == {"count": 1, "ca_ttc": 120.0}
+
+    def test_existing_keys_unchanged(self) -> None:
+        """Les 3 clés existantes restent intactes (AC11)."""
+        entries, parse_results, config = _build_kpi_test_data()
+        summary = PipelineOrchestrator()._build_summary(entries, parse_results, config)
+
+        # transactions_par_canal: shopify=3, manomano=2 (incl. ADJUSTMENT)
+        assert summary["transactions_par_canal"]["shopify"] == 3
+        assert summary["transactions_par_canal"]["manomano"] == 2
+        # ecritures_par_type
+        assert summary["ecritures_par_type"]["sale"] == 2
+        assert summary["ecritures_par_type"]["settlement"] == 1
+        # totaux
+        assert summary["totaux"]["debit"] == 116.4
+        assert summary["totaux"]["credit"] == 362.0
+
+    def test_special_type_excluded_from_kpis(self) -> None:
+        """Les transactions special_type sont exclues des KPIs (AC12)."""
+        entries, parse_results, config = _build_kpi_test_data()
+        summary = PipelineOrchestrator()._build_summary(entries, parse_results, config)
+
+        # ManoMano ADJUSTMENT (6 TTC) ne doit pas être dans le CA
+        assert summary["ca_par_canal"]["manomano"]["ttc"] == 96.0
+
+    def test_unknown_country_fallback(self) -> None:
+        """Country code inconnu → 'Pays inconnu (code)' (Dev Notes)."""
+        config = _make_kpi_config()
+        tx = _make_tx(
+            reference="#U001", channel="shopify", type="sale",
+            amount_ht=50.0, amount_tva=10.0, amount_ttc=60.0,
+            shipping_ht=0.0, shipping_tva=0.0,
+            country_code="999", commission_ttc=-1.5, commission_ht=-1.25,
+        )
+        parse_results = [
+            ParseResult(transactions=[tx], payouts=[], anomalies=[], channel="shopify"),
+        ]
+        entries = [_make_entry()]
+
+        summary = PipelineOrchestrator()._build_summary(entries, parse_results, config)
+        geo = summary["repartition_geo_globale"]
+        assert "Pays inconnu (999)" in geo

@@ -3,8 +3,7 @@
 import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { getChannelMeta } from "@/lib/channels";
-import { formatCurrency } from "@/lib/format";
-import { formatCount } from "@/lib/format";
+import { formatCurrency, formatCount, formatPercent } from "@/lib/format";
 import type { Summary, Entry, Anomaly } from "@/lib/types";
 
 // --- Constants ---
@@ -38,6 +37,19 @@ const SEVERITY_META: Record<string, SeverityMeta> = {
   },
 };
 
+/**
+ * Badge class for refund rate: green < 5%, orange 5–10%, red > 10%.
+ */
+function getRefundRateBadgeClass(rate: number): string {
+  if (rate < 5) {
+    return "bg-green-100 text-green-800 border-green-300 dark:bg-green-900 dark:text-green-200 dark:border-green-700";
+  }
+  if (rate <= 10) {
+    return "bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-900 dark:text-orange-200 dark:border-orange-700";
+  }
+  return "bg-red-100 text-red-800 border-red-300 dark:bg-red-900 dark:text-red-200 dark:border-red-700";
+}
+
 // --- Component ---
 
 interface StatsBoardProps {
@@ -66,6 +78,20 @@ export default function StatsBoard({ summary, entries, anomalies }: StatsBoardPr
     }
     return counts;
   }, [anomalies]);
+
+  const kpiChannels = useMemo(
+    () => Object.keys(summary.ca_par_canal),
+    [summary.ca_par_canal],
+  );
+
+  const kpiTotals = useMemo(() => {
+    const caTtc = kpiChannels.reduce((s, c) => s + summary.ca_par_canal[c].ttc, 0);
+    const rembTtc = kpiChannels.reduce((s, c) => s + summary.remboursements_par_canal[c].ttc, 0);
+    const commTtc = kpiChannels.reduce((s, c) => s + summary.commissions_par_canal[c].ttc, 0);
+    const net = kpiChannels.reduce((s, c) => s + summary.net_vendeur_par_canal[c], 0);
+    const taux = caTtc > 0 ? Math.round(rembTtc / caTtc * 1000) / 10 : 0;
+    return { caTtc, rembTtc, commTtc, net, taux };
+  }, [kpiChannels, summary]);
 
   return (
     <div className="space-y-6">
@@ -175,6 +201,170 @@ export default function StatsBoard({ summary, entries, anomalies }: StatsBoardPr
             })}
           </div>
         )}
+      </section>
+
+      {/* ====================================================== */}
+      {/* Synthèse financière par canal (AC15-19)                 */}
+      {/* ====================================================== */}
+
+      <h2 className="text-lg font-bold mt-8">Synthèse financière par canal</h2>
+
+      <section>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b">
+                <th scope="col" className="text-left py-2 font-medium">Canal</th>
+                <th scope="col" className="text-right py-2 font-medium">CA TTC</th>
+                <th scope="col" className="text-right py-2 font-medium">Remb. TTC</th>
+                <th scope="col" className="text-right py-2 font-medium">Taux remb.</th>
+                <th scope="col" className="text-right py-2 font-medium">Commissions TTC</th>
+                <th scope="col" className="text-right py-2 font-medium">Net vendeur</th>
+              </tr>
+            </thead>
+            <tbody>
+              {kpiChannels.map((canal) => {
+                const meta = getChannelMeta(canal);
+                const taux = summary.taux_remboursement_par_canal[canal];
+                return (
+                  <tr key={canal} className="border-b">
+                    <th scope="row" className="text-left py-2 font-normal align-top">
+                      <details>
+                        <summary className="cursor-pointer list-none">
+                          <Badge variant="outline" className={meta.badgeClass}>
+                            {meta.label}
+                          </Badge>
+                        </summary>
+                        <div className="mt-2 text-xs text-muted-foreground space-y-1 pl-1">
+                          <div>CA HT : {formatCurrency(summary.ca_par_canal[canal].ht)} €</div>
+                          <div>TVA collectée : {formatCurrency(summary.tva_collectee_par_canal[canal])} €</div>
+                          <div>Commission HT : {formatCurrency(summary.commissions_par_canal[canal].ht)} €</div>
+                          <div>Remboursement HT : {formatCurrency(summary.remboursements_par_canal[canal].ht)} €</div>
+                        </div>
+                      </details>
+                    </th>
+                    <td className="text-right py-2 align-top">{formatCurrency(summary.ca_par_canal[canal].ttc)} €</td>
+                    <td className="text-right py-2 align-top">{formatCurrency(summary.remboursements_par_canal[canal].ttc)} €</td>
+                    <td className="text-right py-2 align-top">
+                      <Badge variant="outline" className={getRefundRateBadgeClass(taux)}>
+                        {formatPercent(taux)}
+                      </Badge>
+                    </td>
+                    <td className="text-right py-2 align-top">{formatCurrency(summary.commissions_par_canal[canal].ttc)} €</td>
+                    <td className="text-right py-2 align-top font-semibold text-emerald-700 dark:text-emerald-300">
+                      {formatCurrency(summary.net_vendeur_par_canal[canal])} €
+                    </td>
+                  </tr>
+                );
+              })}
+              <tr className="border-t-2">
+                <th scope="row" className="text-left py-2 font-semibold">Total</th>
+                <td className="text-right py-2 font-semibold">{formatCurrency(kpiTotals.caTtc)} €</td>
+                <td className="text-right py-2 font-semibold">{formatCurrency(kpiTotals.rembTtc)} €</td>
+                <td className="text-right py-2">
+                  <Badge variant="outline" className={getRefundRateBadgeClass(kpiTotals.taux)}>
+                    {formatPercent(kpiTotals.taux)}
+                  </Badge>
+                </td>
+                <td className="text-right py-2 font-semibold">{formatCurrency(kpiTotals.commTtc)} €</td>
+                <td className="text-right py-2 font-semibold text-emerald-700 dark:text-emerald-300">
+                  {formatCurrency(kpiTotals.net)} €
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* ====================================================== */}
+      {/* Fiscalité & géographie (AC20-21)                        */}
+      {/* ====================================================== */}
+
+      <h2 className="text-lg font-bold mt-8">Fiscalité &amp; géographie</h2>
+
+      {/* TVA collectée par canal (AC20) */}
+      <section>
+        <h3 className="text-base font-semibold mb-2">TVA collectée par canal</h3>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b">
+              <th scope="col" className="text-left py-2 font-medium">Canal</th>
+              <th scope="col" className="text-right py-2 font-medium">Montant</th>
+            </tr>
+          </thead>
+          <tbody>
+            {kpiChannels.map((canal) => {
+              const meta = getChannelMeta(canal);
+              return (
+                <tr key={canal} className="border-b">
+                  <th scope="row" className="text-left py-2 font-normal">
+                    <Badge variant="outline" className={meta.badgeClass}>
+                      {meta.label}
+                    </Badge>
+                  </th>
+                  <td className="text-right py-2">{formatCurrency(summary.tva_collectee_par_canal[canal])} €</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </section>
+
+      {/* Répartition géographique (AC21) */}
+      <section>
+        <h3 className="text-base font-semibold mb-2">Répartition géographique</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b">
+                <th scope="col" className="text-left py-2 font-medium">Pays</th>
+                <th scope="col" className="text-right py-2 font-medium">Transactions</th>
+                <th scope="col" className="text-right py-2 font-medium">CA TTC</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(summary.repartition_geo_globale).map(([pays, data]) => (
+                <tr key={pays} className="border-b">
+                  <th scope="row" className="text-left py-2 font-normal">{pays}</th>
+                  <td className="text-right py-2">{formatCount(data.count)}</td>
+                  <td className="text-right py-2">{formatCurrency(data.ca_ttc)} €</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {Object.entries(summary.repartition_geo_par_canal).map(([canal, countries]) => {
+          const meta = getChannelMeta(canal);
+          return (
+            <details key={canal} className="mt-2">
+              <summary className="cursor-pointer text-sm font-medium">
+                <Badge variant="outline" className={meta.badgeClass}>
+                  {meta.label}
+                </Badge>
+              </summary>
+              <div className="overflow-x-auto mt-1">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th scope="col" className="text-left py-1 font-medium">Pays</th>
+                      <th scope="col" className="text-right py-1 font-medium">Transactions</th>
+                      <th scope="col" className="text-right py-1 font-medium">CA TTC</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(countries).map(([pays, data]) => (
+                      <tr key={pays} className="border-b">
+                        <th scope="row" className="text-left py-1 font-normal">{pays}</th>
+                        <td className="text-right py-1">{formatCount(data.count)}</td>
+                        <td className="text-right py-1">{formatCurrency(data.ca_ttc)} €</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          );
+        })}
       </section>
     </div>
   );
