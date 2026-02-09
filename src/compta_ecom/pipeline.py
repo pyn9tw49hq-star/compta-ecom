@@ -239,6 +239,9 @@ class PipelineOrchestrator:
                         canal_files[file_key] = BytesIO(matched[0][1])
 
             if canal_files:
-                result[canal] = canal_files
+                # Only dispatch if all required (non-multi_files) keys are present
+                required_keys = {k for k in channel_config.files if k not in multi_files}
+                if required_keys.issubset(canal_files.keys()):
+                    result[canal] = canal_files
 
         return result
