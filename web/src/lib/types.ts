@@ -1,3 +1,5 @@
+import type { ChannelMeta } from "./channels";
+
 export interface Entry {
   date: string;
   journal: string;
@@ -34,4 +36,33 @@ export interface ProcessResponse {
 export interface UploadedFile {
   file: File;
   channel: string | null;
+}
+
+export interface FileSlotConfig {
+  key: string;
+  pattern: string;
+  patternHuman: string;
+  required: boolean;
+  regex: RegExp | null;
+}
+
+export interface ChannelConfig {
+  key: string;
+  meta: ChannelMeta;
+  files: FileSlotConfig[];
+}
+
+export interface FileMatchResult {
+  file: File;
+  channel: string | null;
+  slotKey: string | null;
+  suggestion: string | null;
+}
+
+export interface ChannelStatus {
+  channelKey: string;
+  label: string;
+  requiredCount: number;
+  uploadedRequiredCount: number;
+  isComplete: boolean;
 }

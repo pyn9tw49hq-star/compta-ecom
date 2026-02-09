@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { Loader2 } from "lucide-react";
+import { useState, useCallback, useMemo } from "react";
+import { HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Tabs,
@@ -10,22 +10,75 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import FileDropZone from "@/components/FileDropZone";
+import ChannelDashboard from "@/components/ChannelDashboard";
+import UnmatchedFilesPanel from "@/components/UnmatchedFilesPanel";
+import ValidationBar from "@/components/ValidationBar";
+import HelpDrawer from "@/components/HelpDrawer";
 import EntriesTable from "@/components/EntriesTable";
 import AnomaliesPanel from "@/components/AnomaliesPanel";
 import StatsBoard from "@/components/StatsBoard";
 import DownloadButtons from "@/components/DownloadButtons";
 import { processFiles } from "@/lib/api";
-import type { UploadedFile, ProcessResponse } from "@/lib/types";
+import { CHANNEL_CONFIGS, matchFileToSlot } from "@/lib/channels";
+import type { UploadedFile, ProcessResponse, ChannelStatus, FileSlotConfig } from "@/lib/types";
 
 export default function Home() {
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [result, setResult] = useState<ProcessResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
 
-  const handleFilesChange = useCallback((updated: UploadedFile[]) => {
-    setFiles(updated);
+  const { unmatchedFiles, unmatchedGlobalIndices } = useMemo(() => {
+    const unmatched: UploadedFile[] = [];
+    const indices: number[] = [];
+    files.forEach((f, i) => {
+      const match = matchFileToSlot(f.file.name, CHANNEL_CONFIGS);
+      if (!match) {
+        unmatched.push(f);
+        indices.push(i);
+      }
+    });
+    return { unmatchedFiles: unmatched, unmatchedGlobalIndices: indices };
+  }, [files]);
+
+  const channelStatuses: ChannelStatus[] = useMemo(() => {
+    return CHANNEL_CONFIGS.map((config) => {
+      const requiredSlots = config.files.filter((f) => f.required);
+      const uploadedRequiredCount = requiredSlots.filter(
+        (slot) => slot.regex && files.some((f) => slot.regex!.test(f.file.name))
+      ).length;
+      return {
+        channelKey: config.key,
+        label: config.meta.label,
+        requiredCount: requiredSlots.length,
+        uploadedRequiredCount,
+        isComplete: uploadedRequiredCount === requiredSlots.length,
+      };
+    });
+  }, [files]);
+
+  const missingSlots = useMemo(() => {
+    const missing: { channel: string; slot: FileSlotConfig }[] = [];
+    for (const config of CHANNEL_CONFIGS) {
+      for (const slot of config.files) {
+        if (!slot.required || !slot.regex) continue;
+        const isFilled = files.some((f) => slot.regex!.test(f.file.name));
+        if (!isFilled) {
+          missing.push({ channel: config.key, slot });
+        }
+      }
+    }
+    return missing;
+  }, [files]);
+
+  const handleAddFiles = useCallback((newFiles: UploadedFile[]) => {
+    setFiles((prev) => [...prev, ...newFiles]);
     setError(null);
+  }, []);
+
+  const handleRemoveFile = useCallback((index: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
   const handleProcess = useCallback(async () => {
@@ -46,21 +99,52 @@ export default function Home() {
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
-      <h1 className="text-2xl font-bold mb-6">
-        compta-ecom — Générateur d&apos;écritures comptables
-      </h1>
+      <HelpDrawer isOpen={isHelpOpen} onOpenChange={setIsHelpOpen} />
 
-      <FileDropZone onFilesChange={handleFilesChange} />
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold">
+          compta-ecom — Générateur d&apos;écritures comptables
+        </h1>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setIsHelpOpen(true)}
+          aria-label="Aide sur les formats de fichiers"
+        >
+          <HelpCircle className="h-4 w-4 mr-1.5" />
+          Aide
+        </Button>
+      </div>
+
+      <FileDropZone files={files} onAddFiles={handleAddFiles} />
 
       <div className="mt-4">
-        <Button
-          onClick={handleProcess}
-          disabled={files.length === 0 || loading}
-          className="w-full sm:w-auto"
-        >
-          {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Générer les écritures
-        </Button>
+        <ChannelDashboard
+          files={files}
+          channelConfig={CHANNEL_CONFIGS}
+          onRemoveFile={handleRemoveFile}
+        />
+      </div>
+
+      <div className="mt-4">
+        <UnmatchedFilesPanel
+          unmatchedFiles={unmatchedFiles}
+          channelConfig={CHANNEL_CONFIGS}
+          missingSlots={missingSlots}
+          onRemoveFile={(unmatchedIndex) => {
+            handleRemoveFile(unmatchedGlobalIndices[unmatchedIndex]);
+          }}
+          onOpenHelp={() => setIsHelpOpen(true)}
+        />
+      </div>
+
+      <div className="mt-4">
+        <ValidationBar
+          channelStatuses={channelStatuses}
+          hasFiles={files.length > 0}
+          isLoading={loading}
+          onGenerate={handleProcess}
+        />
       </div>
 
       {error && (

@@ -6,6 +6,7 @@ import {
   FileQuestion,
   type LucideIcon,
 } from "lucide-react";
+import type { FileSlotConfig, ChannelConfig } from "./types";
 
 /**
  * Channel detection patterns — mirror of channels.yaml (backend).
@@ -92,4 +93,144 @@ export function getChannelMeta(channel: string | null): ChannelMeta {
     return CHANNEL_META[channel];
   }
   return UNKNOWN_CHANNEL_META;
+}
+
+/**
+ * Declarative configuration of expected files per channel.
+ * Mirrors channels.yaml (backend source of truth).
+ */
+export const CHANNEL_CONFIGS: ChannelConfig[] = [
+  {
+    key: "shopify",
+    meta: CHANNEL_META.shopify,
+    files: [
+      {
+        key: "sales",
+        pattern: "Ventes Shopify*.csv",
+        patternHuman: '"Ventes Shopify [...].csv"',
+        required: true,
+        regex: /^Ventes Shopify.*\.csv$/i,
+      },
+      {
+        key: "transactions",
+        pattern: "Transactions Shopify*.csv",
+        patternHuman: '"Transactions Shopify [...].csv"',
+        required: true,
+        regex: /^Transactions Shopify.*\.csv$/i,
+      },
+      {
+        key: "payouts",
+        pattern: "Détails versements*.csv",
+        patternHuman: '"Détails versements [...].csv"',
+        required: true,
+        regex: /^D[ée]tails versements.*\.csv$/i,
+      },
+      {
+        key: "payout_details",
+        pattern: "Detail transactions par versements/*.csv",
+        patternHuman: '"Detail transactions par versements/[...].csv"',
+        required: false,
+        regex: null,
+      },
+    ],
+  },
+  {
+    key: "manomano",
+    meta: CHANNEL_META.manomano,
+    files: [
+      {
+        key: "ca",
+        pattern: "CA Manomano*.csv",
+        patternHuman: '"CA Manomano [...].csv"',
+        required: true,
+        regex: /^CA Manomano.*\.csv$/i,
+      },
+      {
+        key: "payouts",
+        pattern: "Detail versement Manomano*.csv",
+        patternHuman: '"Detail versement Manomano [...].csv"',
+        required: true,
+        regex: /^Detail versement Manomano.*\.csv$/i,
+      },
+    ],
+  },
+  {
+    key: "decathlon",
+    meta: CHANNEL_META.decathlon,
+    files: [
+      {
+        key: "data",
+        pattern: "Decathlon*.csv",
+        patternHuman: '"Decathlon [...].csv"',
+        required: true,
+        regex: /^Decathlon.*\.csv$/i,
+      },
+    ],
+  },
+  {
+    key: "leroy_merlin",
+    meta: CHANNEL_META.leroy_merlin,
+    files: [
+      {
+        key: "data",
+        pattern: "Leroy Merlin*.csv",
+        patternHuman: '"Leroy Merlin [...].csv"',
+        required: true,
+        regex: /^Leroy Merlin.*\.csv$/i,
+      },
+    ],
+  },
+];
+
+/**
+ * Keywords used by suggestRename to identify a probable channel from a filename.
+ */
+export const CHANNEL_KEYWORDS: Record<string, string[]> = {
+  shopify: ["shopify", "ventes shopify", "transactions shopify", "versements"],
+  manomano: ["manomano", "mano"],
+  decathlon: ["decathlon", "deca"],
+  leroy_merlin: ["leroy", "merlin", "leroy merlin"],
+};
+
+/**
+ * Match a filename to a specific channel and file slot.
+ * Returns the channel key and slot key, or null if no match.
+ * Slots with regex=null are skipped (e.g. payout_details — SF-3).
+ */
+export function matchFileToSlot(
+  filename: string,
+  configs: ChannelConfig[],
+): { channel: string; slotKey: string } | null {
+  const basename = filename.split("/").pop() ?? filename;
+  for (const config of configs) {
+    for (const slot of config.files) {
+      if (slot.regex === null) continue;
+      if (slot.regex.test(basename)) {
+        return { channel: config.key, slotKey: slot.key };
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Suggest a rename for an unrecognized file based on channel keywords.
+ * Returns the patternHuman of the first missing slot for the detected channel,
+ * or null if no keyword match or no missing slot.
+ */
+export function suggestRename(
+  filename: string,
+  missingSlots: { channel: string; slot: FileSlotConfig }[],
+): string | null {
+  const lower = filename.toLowerCase();
+  for (const [channel, keywords] of Object.entries(CHANNEL_KEYWORDS)) {
+    if (keywords.some((kw) => lower.includes(kw))) {
+      const match = missingSlots.find((ms) => ms.channel === channel);
+      if (match) {
+        return match.slot.patternHuman;
+      }
+      return null;
+    }
+  }
+  return null;
 }
