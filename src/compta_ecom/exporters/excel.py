@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from io import BytesIO
 from pathlib import Path
 
 import pandas as pd
@@ -75,6 +76,106 @@ def export(
     with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
         df_entries.to_excel(writer, sheet_name="Écritures", index=False)
         df_anomalies.to_excel(writer, sheet_name="Anomalies", index=False)
+
+
+def _build_dataframes(
+    entries: list[AccountingEntry],
+    anomalies: list[Anomaly],
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Construit les DataFrames écritures et anomalies."""
+    entries_data = [
+        {
+            "date": e.date,
+            "journal": e.journal,
+            "account": e.account,
+            "label": e.label,
+            "debit": e.debit,
+            "credit": e.credit,
+            "piece_number": e.piece_number,
+            "lettrage": e.lettrage,
+            "channel": e.channel,
+            "entry_type": e.entry_type,
+        }
+        for e in entries
+    ]
+    df_entries = pd.DataFrame(entries_data, columns=ENTRIES_COLUMNS)
+
+    anomalies_data = [
+        {
+            "type": a.type,
+            "severity": a.severity,
+            "reference": a.reference,
+            "channel": a.channel,
+            "detail": a.detail,
+            "expected_value": a.expected_value,
+            "actual_value": a.actual_value,
+        }
+        for a in anomalies
+    ]
+    df_anomalies = pd.DataFrame(anomalies_data, columns=ANOMALIES_COLUMNS)
+
+    return df_entries, df_anomalies
+
+
+def export_to_bytes(
+    entries: list[AccountingEntry],
+    anomalies: list[Anomaly],
+    config: AppConfig,
+) -> BytesIO:
+    """Exporte les écritures et anomalies dans un fichier Excel en mémoire."""
+    df_entries, df_anomalies = _build_dataframes(entries, anomalies)
+
+    buffer = BytesIO()
+    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+        df_entries.to_excel(writer, sheet_name="Écritures", index=False)
+        df_anomalies.to_excel(writer, sheet_name="Anomalies", index=False)
+    buffer.seek(0)
+    return buffer
+
+
+def export_csv_to_bytes(entries: list[AccountingEntry]) -> BytesIO:
+    """Exporte les écritures en CSV (UTF-8 BOM) en mémoire."""
+    entries_data = [
+        {
+            "date": e.date,
+            "journal": e.journal,
+            "account": e.account,
+            "label": e.label,
+            "debit": e.debit,
+            "credit": e.credit,
+            "piece_number": e.piece_number,
+            "lettrage": e.lettrage,
+            "channel": e.channel,
+            "entry_type": e.entry_type,
+        }
+        for e in entries
+    ]
+    df = pd.DataFrame(entries_data, columns=ENTRIES_COLUMNS)
+    buffer = BytesIO()
+    df.to_csv(buffer, index=False, encoding="utf-8-sig")
+    buffer.seek(0)
+    return buffer
+
+
+def export_anomalies_csv_to_bytes(anomalies: list[Anomaly]) -> BytesIO:
+    """Exporte les anomalies en CSV (UTF-8 BOM) en mémoire."""
+    anomalies_data = [
+        {
+            "type": a.type,
+            "severity": a.severity,
+            "reference": a.reference,
+            "channel": a.channel,
+            "detail": a.detail,
+            "expected_value": a.expected_value,
+            "actual_value": a.actual_value,
+        }
+        for a in anomalies
+    ]
+    df = pd.DataFrame(anomalies_data, columns=ANOMALIES_COLUMNS)
+    buffer = BytesIO()
+    df.to_csv(buffer, index=False, encoding="utf-8-sig")
+    buffer.seek(0)
+    return buffer
 
 
 def print_summary(

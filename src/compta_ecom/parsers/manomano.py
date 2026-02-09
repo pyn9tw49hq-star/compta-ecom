@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime
 import logging
+from io import BytesIO
 from pathlib import Path
 from typing import Any
 
@@ -75,7 +76,7 @@ class ManoManoParser(BaseParser):
     """Parser pour les fichiers CSV ManoMano."""
 
     def _parse_ca(
-        self, ca_path: Path, config: AppConfig
+        self, ca_path: Path | BytesIO, config: AppConfig
     ) -> tuple[list[dict[str, Any]], list[Anomaly]]:
         """Parse le fichier CA ManoMano.
 
@@ -316,12 +317,10 @@ class ManoManoParser(BaseParser):
 
         return summaries, anomalies
 
-    def parse(self, files: dict[str, Path | list[Path]], config: AppConfig) -> ParseResult:
+    def parse(self, files: dict[str, Path | BytesIO | list[Path | BytesIO]], config: AppConfig) -> ParseResult:
         """Parse les fichiers CSV ManoMano et retourne un ParseResult normalisé."""
         ca_path = files["ca"]
         payouts_path = files["payouts"]
-        assert isinstance(ca_path, Path)
-        assert isinstance(payouts_path, Path)
 
         channel_config = config.channels["manomano"]
 

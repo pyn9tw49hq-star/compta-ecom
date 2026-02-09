@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime
 import logging
+from io import BytesIO
 from pathlib import Path
 from typing import Any
 
@@ -116,7 +117,7 @@ class MiraklParser(BaseParser):
         self.channel = channel
 
     def _read_and_validate(
-        self, data_path: Path, config: AppConfig
+        self, data_path: Path | BytesIO, config: AppConfig
     ) -> tuple[pd.DataFrame, list[Anomaly]]:
         """Lit le CSV, valide les colonnes, convertit les numériques, parse les dates."""
         channel_config = config.channels[self.channel]
@@ -477,11 +478,10 @@ class MiraklParser(BaseParser):
 
         return subs, anomalies
 
-    def parse(self, files: dict[str, Path | list[Path]], config: AppConfig) -> ParseResult:
+    def parse(self, files: dict[str, Path | BytesIO | list[Path | BytesIO]], config: AppConfig) -> ParseResult:
         """Parse les fichiers CSV Mirakl et retourne un ParseResult normalisé."""
         # 1. Read and validate
         data_path = files["data"]
-        assert isinstance(data_path, Path)
         df, anomalies = self._read_and_validate(data_path, config)
 
         if df.empty:

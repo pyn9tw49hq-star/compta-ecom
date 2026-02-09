@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime
 import logging
 import re
+from io import BytesIO
 from pathlib import Path
 from typing import Any
 
@@ -88,7 +89,7 @@ def _extract_vat_rate(tax_name: object) -> float:
 class ShopifyParser(BaseParser):
     """Parser Shopify — 3 fichiers CSV (Ventes, Transactions, Versements PSP)."""
 
-    def parse(self, files: dict[str, Path | list[Path]], config: AppConfig) -> ParseResult:
+    def parse(self, files: dict[str, Path | BytesIO | list[Path | BytesIO]], config: AppConfig) -> ParseResult:
         """Orchestre le parsing des fichiers et le matching."""
         anomalies: list[Anomaly] = []
 
