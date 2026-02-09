@@ -30,7 +30,7 @@ const CHANNEL_PATTERNS: Record<string, RegExp[]> = {
 export interface ChannelMeta {
   label: string;
   icon: LucideIcon;
-  color: string;
+  iconClass: string;
   badgeClass: string;
 }
 
@@ -38,37 +38,39 @@ export const CHANNEL_META: Record<string, ChannelMeta> = {
   shopify: {
     label: "Shopify",
     icon: ShoppingBag,
-    color: "green",
+    iconClass: "text-green-600 dark:text-green-400",
     badgeClass:
-      "bg-green-100 text-green-800 border-green-300 hover:bg-green-100",
+      "bg-green-100 text-green-800 border-green-300 hover:bg-green-100 dark:bg-green-900 dark:text-green-200 dark:border-green-700 dark:hover:bg-green-900",
   },
   manomano: {
     label: "ManoMano",
     icon: Wrench,
-    color: "blue",
-    badgeClass: "bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-100",
+    iconClass: "text-blue-600 dark:text-blue-400",
+    badgeClass:
+      "bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-100 dark:bg-blue-900 dark:text-blue-200 dark:border-blue-700 dark:hover:bg-blue-900",
   },
   decathlon: {
     label: "Décathlon",
     icon: Mountain,
-    color: "orange",
+    iconClass: "text-orange-600 dark:text-orange-400",
     badgeClass:
-      "bg-orange-100 text-orange-800 border-orange-300 hover:bg-orange-100",
+      "bg-orange-100 text-orange-800 border-orange-300 hover:bg-orange-100 dark:bg-orange-900 dark:text-orange-200 dark:border-orange-700 dark:hover:bg-orange-900",
   },
   leroy_merlin: {
     label: "Leroy Merlin",
     icon: Home,
-    color: "purple",
+    iconClass: "text-purple-600 dark:text-purple-400",
     badgeClass:
-      "bg-purple-100 text-purple-800 border-purple-300 hover:bg-purple-100",
+      "bg-purple-100 text-purple-800 border-purple-300 hover:bg-purple-100 dark:bg-purple-900 dark:text-purple-200 dark:border-purple-700 dark:hover:bg-purple-900",
   },
 };
 
 export const UNKNOWN_CHANNEL_META: ChannelMeta = {
   label: "Canal inconnu",
   icon: FileQuestion,
-  color: "gray",
-  badgeClass: "bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-100",
+  iconClass: "text-gray-600 dark:text-gray-400",
+  badgeClass:
+    "bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600",
 };
 
 /**
@@ -86,7 +88,7 @@ export function detectChannel(filename: string): string | null {
 }
 
 /**
- * Get channel display metadata (label, icon, color).
+ * Get channel display metadata (label, icon, badgeClass).
  */
 export function getChannelMeta(channel: string | null): ChannelMeta {
   if (channel && channel in CHANNEL_META) {

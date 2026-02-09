@@ -26,15 +26,15 @@ interface SeverityMeta {
 const SEVERITY_META: Record<string, SeverityMeta> = {
   error: {
     label: "Erreur(s)",
-    badgeClass: "bg-red-100 text-red-800 border-red-300",
+    badgeClass: "bg-red-100 text-red-800 border-red-300 dark:bg-red-900 dark:text-red-200 dark:border-red-700",
   },
   warning: {
     label: "Avertissement(s)",
-    badgeClass: "bg-orange-100 text-orange-800 border-orange-300",
+    badgeClass: "bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-900 dark:text-orange-200 dark:border-orange-700",
   },
   info: {
     label: "Info(s)",
-    badgeClass: "bg-blue-100 text-blue-800 border-blue-300",
+    badgeClass: "bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-900 dark:text-blue-200 dark:border-blue-700",
   },
 };
 
@@ -75,8 +75,8 @@ export default function StatsBoard({ summary, entries, anomalies }: StatsBoardPr
         <div
           className={`rounded-md border p-4 ${
             isBalanced
-              ? "text-green-700 bg-green-50 border-green-300"
-              : "text-red-700 bg-red-50 border-red-300"
+              ? "text-green-700 bg-green-50 border-green-300 dark:text-green-200 dark:bg-green-950 dark:border-green-700"
+              : "text-red-700 bg-red-50 border-red-300 dark:text-red-200 dark:bg-red-950 dark:border-red-700"
           }`}
         >
           <div className="flex items-center justify-between flex-wrap gap-2">
@@ -158,7 +158,7 @@ export default function StatsBoard({ summary, entries, anomalies }: StatsBoardPr
       <section>
         <h3 className="text-base font-semibold mb-2">Anomalies</h3>
         {anomalies.length === 0 ? (
-          <div className="rounded-md border border-green-300 bg-green-50 p-4 text-sm text-green-700">
+          <div className="rounded-md border border-green-300 bg-green-50 p-4 text-sm text-green-700 dark:border-green-700 dark:bg-green-950 dark:text-green-200">
             Aucune anomalie
           </div>
         ) : (

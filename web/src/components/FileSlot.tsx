@@ -32,7 +32,7 @@ const FileSlot = memo(function FileSlot({
   if (matchedFile) {
     return (
       <div className="flex items-center gap-3 py-1.5">
-        <CircleCheck className="h-4 w-4 text-green-600 shrink-0" aria-hidden="true" />
+        <CircleCheck className="h-4 w-4 text-green-600 dark:text-green-400 shrink-0" aria-hidden="true" />
         <span className="text-sm font-medium truncate">{matchedFile.file.name}</span>
         <span className="text-xs text-muted-foreground shrink-0">
           {formatSize(matchedFile.file.size)}
@@ -59,7 +59,7 @@ const FileSlot = memo(function FileSlot({
         <Circle className="h-4 w-4 text-muted-foreground/40 shrink-0" aria-hidden="true" />
         <span className="text-sm text-muted-foreground">{patternHuman}</span>
         {showMissingWarning ? (
-          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300">
+          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950 dark:text-amber-200 dark:border-amber-700">
             MANQUANT
           </Badge>
         ) : (

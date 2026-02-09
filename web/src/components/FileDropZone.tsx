@@ -124,7 +124,7 @@ export default function FileDropZone({ files, onAddFiles }: FileDropZoneProps) {
         <p className="text-sm text-muted-foreground mt-3 text-center">
           {files.length === 1 ? "1 fichier déposé" : `${files.length} fichiers déposés`}
           {unmatchedCount > 0 && (
-            <span className="text-amber-600">
+            <span className="text-amber-600 dark:text-amber-400">
               {" · "}
               {unmatchedCount === 1 ? "1 non reconnu" : `${unmatchedCount} non reconnus`}
             </span>

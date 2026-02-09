@@ -12,13 +12,6 @@ interface HelpDrawerProps {
   onOpenChange: (open: boolean) => void;
 }
 
-const ICON_COLOR_CLASS: Record<string, string> = {
-  green: "text-green-600",
-  blue: "text-blue-600",
-  orange: "text-orange-600",
-  purple: "text-purple-600",
-};
-
 /**
  * Non-modal side drawer listing file naming conventions per channel.
  * Content is static — derived from CHANNEL_CONFIGS, independent of upload state.
@@ -45,7 +38,6 @@ export default function HelpDrawer({ isOpen, onOpenChange }: HelpDrawerProps) {
 
         {CHANNEL_CONFIGS.map((config) => {
           const Icon = config.meta.icon;
-          const iconColor = ICON_COLOR_CLASS[config.meta.color] ?? "text-gray-600";
           const requiredFiles = config.files.filter((f) => f.required);
           const optionalFiles = config.files.filter((f) => !f.required);
           const fileCount = requiredFiles.length;
@@ -54,7 +46,7 @@ export default function HelpDrawer({ isOpen, onOpenChange }: HelpDrawerProps) {
           return (
             <div key={config.key} className="mb-4">
               <div className="flex items-center gap-2 font-semibold text-sm mb-2">
-                <Icon className={`h-4 w-4 ${iconColor}`} aria-hidden="true" />
+                <Icon className={`h-4 w-4 ${config.meta.iconClass}`} aria-hidden="true" />
                 <span className="uppercase">{config.meta.label}</span>
                 <span className="font-normal text-muted-foreground">
                   ({fileCount} {fileWord})

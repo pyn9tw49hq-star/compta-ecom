@@ -13,6 +13,7 @@ import FileDropZone from "@/components/FileDropZone";
 import ChannelDashboard from "@/components/ChannelDashboard";
 import UnmatchedFilesPanel from "@/components/UnmatchedFilesPanel";
 import ValidationBar from "@/components/ValidationBar";
+import ThemeToggle from "@/components/ThemeToggle";
 import HelpDrawer from "@/components/HelpDrawer";
 import EntriesTable from "@/components/EntriesTable";
 import AnomaliesPanel from "@/components/AnomaliesPanel";
@@ -105,15 +106,12 @@ export default function Home() {
         <h1 className="text-2xl font-bold">
           compta-ecom — Générateur d&apos;écritures comptables
         </h1>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setIsHelpOpen(true)}
-          aria-label="Aide sur les formats de fichiers"
-        >
-          <HelpCircle className="h-4 w-4 mr-1.5" />
-          Aide
-        </Button>
+        <div className="flex items-center gap-1">
+          <ThemeToggle />
+          <Button variant="outline" size="icon" onClick={() => setIsHelpOpen(true)} aria-label="Aide sur les formats de fichiers">
+            <HelpCircle className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       <FileDropZone files={files} onAddFiles={handleAddFiles} />
@@ -150,7 +148,7 @@ export default function Home() {
       {error && (
         <div
           role="alert"
-          className="mt-4 rounded-md border border-red-300 bg-red-50 p-4 text-sm text-red-800"
+          className="mt-4 rounded-md border border-red-300 bg-red-50 p-4 text-sm text-red-800 dark:border-red-700 dark:bg-red-950 dark:text-red-200"
         >
           {error}
         </div>

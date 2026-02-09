@@ -192,7 +192,7 @@ export default function DownloadButtons({
       {error && (
         <div
           role="alert"
-          className="mt-2 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800"
+          className="mt-2 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-700 dark:bg-red-950 dark:text-red-200"
         >
           {error}
         </div>

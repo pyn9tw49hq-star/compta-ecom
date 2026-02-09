@@ -56,7 +56,7 @@ export default function ValidationBar({
           completeChannels.map((channel) => (
             <div
               key={channel.channelKey}
-              className="flex items-center gap-1.5 text-sm text-green-700"
+              className="flex items-center gap-1.5 text-sm text-green-700 dark:text-green-300"
             >
               ✅ {channel.label} sera traité
             </div>
@@ -67,7 +67,7 @@ export default function ValidationBar({
             {completeChannels.map((channel) => (
               <div
                 key={channel.channelKey}
-                className="flex items-center gap-1.5 text-sm text-green-700"
+                className="flex items-center gap-1.5 text-sm text-green-700 dark:text-green-300"
               >
                 ✅ {channel.label} sera traité
               </div>
@@ -82,7 +82,7 @@ export default function ValidationBar({
               return (
                 <div
                   key={channel.channelKey}
-                  className="flex items-center gap-1.5 text-sm text-amber-700"
+                  className="flex items-center gap-1.5 text-sm text-amber-700 dark:text-amber-300"
                 >
                   ⚠ {channel.label} sera ignoré ({missingText})
                 </div>

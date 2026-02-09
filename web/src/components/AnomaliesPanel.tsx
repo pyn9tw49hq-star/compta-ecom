@@ -17,19 +17,19 @@ interface SeverityMeta {
 const SEVERITY_META: Record<string, SeverityMeta> = {
   error: {
     label: "Erreur",
-    badgeClass: "bg-red-100 text-red-800 border-red-300",
+    badgeClass: "bg-red-100 text-red-800 border-red-300 dark:bg-red-900 dark:text-red-200 dark:border-red-700",
     borderClass: "border-red-500",
     order: 0,
   },
   warning: {
     label: "Avertissement",
-    badgeClass: "bg-orange-100 text-orange-800 border-orange-300",
+    badgeClass: "bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-900 dark:text-orange-200 dark:border-orange-700",
     borderClass: "border-orange-500",
     order: 1,
   },
   info: {
     label: "Info",
-    badgeClass: "bg-blue-100 text-blue-800 border-blue-300",
+    badgeClass: "bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-900 dark:text-blue-200 dark:border-blue-700",
     borderClass: "border-blue-500",
     order: 2,
   },
@@ -159,7 +159,7 @@ export default function AnomaliesPanel({ anomalies }: AnomaliesPanelProps) {
     return (
       <div
         role="status"
-        className="rounded-md border border-green-300 bg-green-50 p-6 text-center text-sm text-green-700"
+        className="rounded-md border border-green-300 bg-green-50 p-6 text-center text-sm text-green-700 dark:border-green-700 dark:bg-green-950 dark:text-green-200"
       >
         Aucune anomalie détectée
       </div>

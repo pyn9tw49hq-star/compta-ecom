@@ -87,7 +87,7 @@ const ChannelCard = memo(function ChannelCard({
         className="flex w-full items-center gap-3 rounded-md px-3 py-2 hover:bg-muted/50 transition-colors"
         aria-expanded={isExpanded}
       >
-        <Icon className={`h-5 w-5 text-${meta.color}-600 shrink-0`} aria-hidden="true" />
+        <Icon className={`h-5 w-5 ${meta.iconClass} shrink-0`} aria-hidden="true" />
         <span className="font-semibold">{meta.label}</span>
         <span className="text-sm text-muted-foreground">
           {isActive
@@ -95,12 +95,12 @@ const ChannelCard = memo(function ChannelCard({
             : `${requiredSlots.length} obligatoires${optionalSlots.length > 0 ? ` + ${optionalSlots.length} optionnel` : ""}`}
         </span>
         {isComplete && isActive && (
-          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
+          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300 dark:bg-green-950 dark:text-green-200 dark:border-green-700">
             Complet
           </Badge>
         )}
         {!isComplete && isActive && (
-          <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300">
+          <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900 dark:text-amber-200 dark:border-amber-700">
             Incomplet
           </Badge>
         )}
@@ -160,10 +160,10 @@ const ChannelCard = memo(function ChannelCard({
         )}
 
         {hasPartialFiles && (
-          <div className="rounded-md border border-amber-300 bg-amber-50 p-3 mt-2">
+          <div className="rounded-md border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950 p-3 mt-2">
             <div className="flex items-start gap-2">
-              <CircleAlert className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" aria-hidden="true" />
-              <p className="text-sm text-amber-800">
+              <CircleAlert className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" aria-hidden="true" />
+              <p className="text-sm text-amber-800 dark:text-amber-200">
                 {missingRequiredPatterns.length === 1
                   ? `Il manque 1 fichier obligatoire pour traiter ${meta.label}. Ajoutez un fichier nommé ${missingRequiredPatterns[0]}.`
                   : `Il manque ${missingRequiredPatterns.length} fichiers obligatoires pour traiter ${meta.label}. Ajoutez des fichiers nommés ${missingRequiredPatterns.join(", ")}.`}

@@ -1,3 +1,4 @@
+import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { axe } from "vitest-axe";
@@ -7,6 +8,15 @@ import * as api from "@/lib/api";
 vi.mock("@/lib/api", () => ({
   processFiles: vi.fn(),
   downloadExcel: vi.fn(),
+}));
+
+vi.mock("next-themes", () => ({
+  useTheme: () => ({
+    theme: "system",
+    resolvedTheme: "light",
+    setTheme: vi.fn(),
+  }),
+  ThemeProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 const mockProcessFiles = vi.mocked(api.processFiles);
@@ -330,6 +340,27 @@ describe("Page Integration", () => {
         createMockFile("random.csv"),
       ]);
     });
+
+    const results = await axe(container);
+    expect(results).toHaveNoViolations();
+  });
+
+  // --- Dark mode tests (7.1) ---
+
+  it("renders ThemeToggle in header", () => {
+    render(<Home />);
+
+    expect(
+      screen.getByRole("button", { name: /Changer le thème/i })
+    ).toBeInTheDocument();
+  });
+
+  it("has no axe violations in dark mode", async () => {
+    const { container } = render(
+      <div className="dark">
+        <Home />
+      </div>
+    );
 
     const results = await axe(container);
     expect(results).toHaveNoViolations();

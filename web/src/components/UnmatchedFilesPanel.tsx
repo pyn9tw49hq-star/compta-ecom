@@ -48,9 +48,9 @@ export default function UnmatchedFilesPanel({
       : `${unmatchedFiles.length} fichiers non reconnus`;
 
   return (
-    <Card className="border-amber-300 bg-amber-50 text-amber-700 p-4">
+    <Card className="border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200 p-4">
       <div className="flex items-center gap-2 font-semibold text-sm mb-3">
-        <CircleAlert className="h-4 w-4 text-amber-600" aria-hidden="true" />
+        <CircleAlert className="h-4 w-4 text-amber-600 dark:text-amber-400" aria-hidden="true" />
         {headerText}
       </div>
 
@@ -63,10 +63,10 @@ export default function UnmatchedFilesPanel({
 
         return (
           <div key={`${file.file.name}-${index}`}>
-            {index > 0 && <hr className="border-amber-200 my-1" />}
+            {index > 0 && <hr className="border-amber-200 dark:border-amber-800 my-1" />}
             <div className="flex items-start gap-3 py-2">
               <FileQuestion
-                className="h-5 w-5 text-amber-600 mt-0.5 shrink-0"
+                className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0"
                 aria-hidden="true"
               />
               <div className="flex-1 min-w-0">
@@ -89,7 +89,7 @@ export default function UnmatchedFilesPanel({
                 size="sm"
                 onClick={() => onRemoveFile(index)}
                 aria-label={`Retirer ${file.file.name}`}
-                className="shrink-0 text-amber-700 hover:text-amber-900 hover:bg-amber-100"
+                className="shrink-0 text-amber-700 hover:text-amber-900 hover:bg-amber-100 dark:text-amber-300 dark:hover:text-amber-100 dark:hover:bg-amber-900"
               >
                 <X className="h-4 w-4 mr-1" />
                 Retirer
@@ -102,7 +102,7 @@ export default function UnmatchedFilesPanel({
       <Button
         variant="link"
         onClick={onOpenHelp}
-        className="text-amber-800 hover:text-amber-900 underline p-0 h-auto text-sm mt-3"
+        className="text-amber-800 hover:text-amber-900 dark:text-amber-200 dark:hover:text-amber-100 underline p-0 h-auto text-sm mt-3"
       >
         Voir les formats de noms attendus
       </Button>
