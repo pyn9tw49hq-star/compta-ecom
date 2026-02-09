@@ -79,19 +79,22 @@ export default function StatsBoard({ summary, entries, anomalies }: StatsBoardPr
     return counts;
   }, [anomalies]);
 
+  const hasKpis = !!summary.ca_par_canal;
+
   const kpiChannels = useMemo(
-    () => Object.keys(summary.ca_par_canal),
-    [summary.ca_par_canal],
+    () => (hasKpis ? Object.keys(summary.ca_par_canal) : []),
+    [hasKpis, summary.ca_par_canal],
   );
 
   const kpiTotals = useMemo(() => {
+    if (!hasKpis) return { caTtc: 0, rembTtc: 0, commTtc: 0, net: 0, taux: 0 };
     const caTtc = kpiChannels.reduce((s, c) => s + summary.ca_par_canal[c].ttc, 0);
     const rembTtc = kpiChannels.reduce((s, c) => s + summary.remboursements_par_canal[c].ttc, 0);
     const commTtc = kpiChannels.reduce((s, c) => s + summary.commissions_par_canal[c].ttc, 0);
     const net = kpiChannels.reduce((s, c) => s + summary.net_vendeur_par_canal[c], 0);
     const taux = caTtc > 0 ? Math.round(rembTtc / caTtc * 1000) / 10 : 0;
     return { caTtc, rembTtc, commTtc, net, taux };
-  }, [kpiChannels, summary]);
+  }, [hasKpis, kpiChannels, summary]);
 
   return (
     <div className="space-y-6">
@@ -206,6 +209,8 @@ export default function StatsBoard({ summary, entries, anomalies }: StatsBoardPr
       {/* ====================================================== */}
       {/* Synthèse financière par canal (AC15-19)                 */}
       {/* ====================================================== */}
+
+      {hasKpis && (<>
 
       <h2 className="text-lg font-bold mt-8">Synthèse financière par canal</h2>
 
@@ -366,6 +371,8 @@ export default function StatsBoard({ summary, entries, anomalies }: StatsBoardPr
           );
         })}
       </section>
+
+      </>)}
     </div>
   );
 }
