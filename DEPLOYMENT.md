@@ -4,8 +4,8 @@
 
 | Service | URL | Plateforme |
 |---------|-----|------------|
-| Backend API | `<YOUR-RENDER-URL>` | Render (Free) |
-| Frontend Web | `<YOUR-VERCEL-URL>` | Vercel (Hobby) |
+| Backend API | `https://compta-ecom.onrender.com` | Render (Free) |
+| Frontend Web | `https://compta-ecom-alpha.vercel.app` | Vercel (Hobby) |
 
 ## Variables d'environnement
 
@@ -13,14 +13,14 @@
 
 | Variable | Valeur | Description |
 |----------|--------|-------------|
-| `CORS_ORIGINS` | `<YOUR-VERCEL-URL>` | Domaine frontend autorisé (CORS). Plusieurs domaines séparés par virgule. |
+| `CORS_ORIGINS` | `https://compta-ecom-alpha.vercel.app` | Domaine frontend autorisé (CORS). Plusieurs domaines séparés par virgule. |
 | `CONFIG_DIR` | `./config` | Répertoire des fichiers YAML de configuration (optionnel, valeur par défaut). |
 
 ### Frontend — Vercel
 
 | Variable | Valeur | Description |
 |----------|--------|-------------|
-| `NEXT_PUBLIC_API_URL` | `<YOUR-RENDER-URL>` | URL du backend. Injectée au build-time (préfixe `NEXT_PUBLIC_`). |
+| `NEXT_PUBLIC_API_URL` | `https://compta-ecom.onrender.com` | URL du backend. Injectée au build-time (préfixe `NEXT_PUBLIC_`). |
 
 ## Premier déploiement — Step by step
 
@@ -50,7 +50,7 @@
    - **Root Directory** : `compta-ecom/web`
    - **Build Command** : `npm run build`
    - **Node.js Version** : 20.x
-3. Ajouter la variable d'environnement `NEXT_PUBLIC_API_URL` = `<YOUR-RENDER-URL>`
+3. Ajouter la variable d'environnement `NEXT_PUBLIC_API_URL` = `https://compta-ecom.onrender.com`
 4. Lancer le déploiement. Vérifier que la page d'accueil s'affiche.
 
 ### 3. Mettre à jour CORS sur Render
@@ -89,7 +89,7 @@ Le free tier Render met le service en veille après **15 minutes d'inactivité**
 
 - Le frontend affiche un spinner pendant l'attente
 - Budget total (cold start + traitement) : < 60s (NFR12)
-- Cold start mesuré : `<TO-MEASURE>` secondes
+- Cold start mesuré : `~30` secondes
 
 ## Coût
 

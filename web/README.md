@@ -4,7 +4,7 @@ Interface web Next.js pour le traitement comptable e-commerce.
 
 ## URL de production
 
-`<YOUR-VERCEL-URL>` (ex: `https://compta-ecom.vercel.app`)
+`https://compta-ecom-alpha.vercel.app` (ex: `https://compta-ecom.vercel.app`)
 
 ## Déploiement Vercel
 
@@ -27,7 +27,7 @@ Interface web Next.js pour le traitement comptable e-commerce.
 
 | Variable | Description | Valeur production |
 |----------|-------------|-------------------|
-| `NEXT_PUBLIC_API_URL` | URL du backend Render | `<YOUR-RENDER-URL>` |
+| `NEXT_PUBLIC_API_URL` | URL du backend Render | `https://compta-ecom.onrender.com` |
 
 En développement local, cette variable n'est pas définie — le fallback `http://localhost:8000` dans `src/lib/api.ts` est utilisé automatiquement.
 

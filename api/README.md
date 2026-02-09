@@ -4,7 +4,7 @@ API REST FastAPI pour le traitement comptable e-commerce.
 
 ## URL de production
 
-`<YOUR-RENDER-URL>` (ex: `https://compta-ecom-api.onrender.com`)
+`https://compta-ecom.onrender.com` (ex: `https://compta-ecom-api.onrender.com`)
 
 ## Déploiement Render
 
@@ -29,7 +29,7 @@ API REST FastAPI pour le traitement comptable e-commerce.
 
 | Variable | Description | Valeur production |
 |----------|-------------|-------------------|
-| `CORS_ORIGINS` | Origines autorisées (séparées par virgule) | `<YOUR-VERCEL-URL>` |
+| `CORS_ORIGINS` | Origines autorisées (séparées par virgule) | `https://compta-ecom-alpha.vercel.app` |
 | `CONFIG_DIR` | Répertoire des fichiers YAML | `./config` (défaut) |
 
 ### Re-déploiement
