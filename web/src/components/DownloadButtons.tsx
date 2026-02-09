@@ -41,8 +41,11 @@ function triggerDownload(blob: Blob, filename: string): void {
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
+  document.body.removeChild(a);
+  // Delay revocation so the browser has time to start the download
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 const ENTRY_CSV_HEADERS = [
@@ -123,8 +126,8 @@ export default function DownloadButtons({
       });
       triggerDownload(entriesBlob, `ecritures-${dateSuffix}.csv`);
 
-      // Anomalies CSV — slight delay for browser to process first download
-      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      // Anomalies CSV — delay for browser to process first download (Safari needs ~500ms)
+      await new Promise<void>((resolve) => setTimeout(resolve, 500));
 
       const anomalyRows = anomalies.map((a) => [
         a.type,

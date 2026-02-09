@@ -236,7 +236,7 @@ describe("DownloadButtons", () => {
         fireEvent.click(
           screen.getByRole("button", { name: /Télécharger CSV/i }),
         );
-        await new Promise((r) => setTimeout(r, 10));
+        await new Promise((r) => setTimeout(r, 600));
       });
 
       // Two createObjectURL calls (entries + anomalies)
@@ -256,7 +256,7 @@ describe("DownloadButtons", () => {
         fireEvent.click(
           screen.getByRole("button", { name: /Télécharger CSV/i }),
         );
-        await new Promise((r) => setTimeout(r, 10));
+        await new Promise((r) => setTimeout(r, 600));
       });
 
       // BOM (UTF-8: EF BB BF)
@@ -286,7 +286,7 @@ describe("DownloadButtons", () => {
         fireEvent.click(
           screen.getByRole("button", { name: /Télécharger CSV/i }),
         );
-        await new Promise((r) => setTimeout(r, 10));
+        await new Promise((r) => setTimeout(r, 600));
       });
 
       // BOM (UTF-8: EF BB BF)
