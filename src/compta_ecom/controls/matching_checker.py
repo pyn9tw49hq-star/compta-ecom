@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime
 import logging
 
 from compta_ecom.config.loader import AppConfig
@@ -30,6 +31,7 @@ class MatchingChecker:
             anomalies.extend(MatchingChecker._check_payout_coverage(tx))
 
         anomalies.extend(MatchingChecker._check_refund_matching(transactions))
+        anomalies.extend(MatchingChecker._check_payment_delay(transactions))
 
         return anomalies
 
@@ -115,6 +117,42 @@ class MatchingChecker:
                         ),
                         expected_value="vente correspondante",
                         actual_value="aucune",
+                    )
+                )
+
+        return anomalies
+
+    @staticmethod
+    def _check_payment_delay(
+        transactions: list[NormalizedTransaction],
+    ) -> list[Anomaly]:
+        """Signale les factures marketplace sans règlement depuis >= 20 jours."""
+        marketplace_channels = {"decathlon", "leroy_merlin"}
+        today = datetime.date.today()
+        delay_threshold = 20
+
+        anomalies: list[Anomaly] = []
+        for tx in transactions:
+            if tx.special_type is not None:
+                continue
+            if tx.type != "sale" or tx.channel not in marketplace_channels:
+                continue
+            if tx.payout_date is not None:
+                continue
+            days_elapsed = (today - tx.date).days
+            if days_elapsed >= delay_threshold:
+                anomalies.append(
+                    Anomaly(
+                        type="payment_delay",
+                        severity="warning",
+                        reference=tx.reference,
+                        channel=tx.channel,
+                        detail=(
+                            f"Facture du {tx.date.isoformat()} sans règlement "
+                            f"depuis {days_elapsed} jours"
+                        ),
+                        expected_value=f"<= {delay_threshold} jours",
+                        actual_value=f"{days_elapsed} jours",
                     )
                 )
 

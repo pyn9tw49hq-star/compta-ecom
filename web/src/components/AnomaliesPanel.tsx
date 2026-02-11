@@ -41,6 +41,7 @@ const ANOMALY_TYPE_LABELS: Record<string, string> = {
   amount_mismatch: "Écart de montant",
   balance_error: "Déséquilibre débit/crédit",
   missing_payout: "Reversement manquant",
+  payment_delay: "Retard de règlement",
   orphan_settlement: "Règlement orphelin",
   orphan_refund: "Remboursement orphelin",
   lettrage_511_unbalanced: "Lettrage 511 déséquilibré",
@@ -255,32 +256,79 @@ export default function AnomaliesPanel({ anomalies }: AnomaliesPanelProps) {
         )}
       </div>
 
-      {/* Anomaly cards */}
+      {/* Anomaly cards — missing_payout grouped by canal, rest flat */}
       <div className="space-y-2">
-        {sortedAnomalies.map((anomaly, i) => {
-          const meta = getSeverityMeta(anomaly.severity);
-          const channelMeta = getChannelMeta(anomaly.canal);
+        {(() => {
+          const missingPayouts = sortedAnomalies.filter((a) => a.type === "missing_payout");
+          const others = sortedAnomalies.filter((a) => a.type !== "missing_payout");
+
+          // Group missing_payout by canal
+          const groupedByCanal = new Map<string, Anomaly[]>();
+          for (const a of missingPayouts) {
+            const group = groupedByCanal.get(a.canal) ?? [];
+            group.push(a);
+            groupedByCanal.set(a.canal, group);
+          }
+
           return (
-            <div
-              key={i}
-              className={`rounded-md border border-l-4 ${meta.borderClass} bg-card p-3`}
-            >
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <Badge variant="outline" className={meta.badgeClass}>
-                  {meta.label}
-                </Badge>
-                <span>{getTypeLabel(anomaly.type)}</span>
-                <Badge variant="outline" className={channelMeta.badgeClass}>
-                  {channelMeta.label}
-                </Badge>
-                <span className="text-muted-foreground">{anomaly.reference}</span>
-              </div>
-              <div className="mt-1 text-sm text-muted-foreground pl-1">
-                {anomaly.detail}
-              </div>
-            </div>
+            <>
+              {/* Grouped missing_payout sections */}
+              {Array.from(groupedByCanal.entries()).map(([canal, group]) => {
+                const channelMeta = getChannelMeta(canal);
+                const meta = getSeverityMeta(group[0].severity);
+                return (
+                  <details key={`mp-${canal}`} className={`rounded-md border border-l-4 ${meta.borderClass} bg-card`}>
+                    <summary className="cursor-pointer p-3 flex items-center gap-2 text-sm font-medium">
+                      <Badge variant="outline" className={meta.badgeClass}>
+                        {meta.label}
+                      </Badge>
+                      <Badge variant="outline" className={channelMeta.badgeClass}>
+                        {channelMeta.label}
+                      </Badge>
+                      <span>
+                        {group.length} {group.length > 1 ? "reversements manquants" : "reversement manquant"}
+                      </span>
+                    </summary>
+                    <div className="px-3 pb-3 space-y-1">
+                      {group.map((anomaly, i) => (
+                        <div key={i} className="text-sm text-muted-foreground pl-1 py-1 border-t first:border-t-0">
+                          <span className="font-medium text-foreground">{anomaly.reference}</span>
+                          {" — "}{anomaly.detail}
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                );
+              })}
+
+              {/* Other anomalies — flat list */}
+              {others.map((anomaly, i) => {
+                const meta = getSeverityMeta(anomaly.severity);
+                const channelMeta = getChannelMeta(anomaly.canal);
+                return (
+                  <div
+                    key={`other-${i}`}
+                    className={`rounded-md border border-l-4 ${meta.borderClass} bg-card p-3`}
+                  >
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <Badge variant="outline" className={meta.badgeClass}>
+                        {meta.label}
+                      </Badge>
+                      <span>{getTypeLabel(anomaly.type)}</span>
+                      <Badge variant="outline" className={channelMeta.badgeClass}>
+                        {channelMeta.label}
+                      </Badge>
+                      <span className="text-muted-foreground">{anomaly.reference}</span>
+                    </div>
+                    <div className="mt-1 text-sm text-muted-foreground pl-1">
+                      {anomaly.detail}
+                    </div>
+                  </div>
+                );
+              })}
+            </>
           );
-        })}
+        })()}
       </div>
     </div>
   );
