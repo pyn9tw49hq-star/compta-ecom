@@ -28,7 +28,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(
-    title="compta-ecom API",
+    title="MAPP E-COMMERCE API",
     description="API REST pour le traitement comptable e-commerce multi-canal.",
     lifespan=lifespan,
 )

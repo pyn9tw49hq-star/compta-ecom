@@ -15,7 +15,7 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "compta-ecom — Générateur d'écritures comptables",
+  title: "MAPP E-COMMERCE — Générateur d'écritures comptables",
   description:
     "Interface web pour générer automatiquement les écritures comptables à partir de fichiers CSV de ventes e-commerce.",
 };

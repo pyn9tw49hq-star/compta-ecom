@@ -104,7 +104,7 @@ export default function Home() {
 
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">
-          compta-ecom — Générateur d&apos;écritures comptables
+          MAPP E-COMMERCE — Générateur d&apos;écritures comptables
         </h1>
         <div className="flex items-center gap-1">
           <ThemeToggle />
