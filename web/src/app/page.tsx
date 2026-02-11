@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,8 +19,10 @@ import EntriesTable from "@/components/EntriesTable";
 import AnomaliesPanel from "@/components/AnomaliesPanel";
 import StatsBoard from "@/components/StatsBoard";
 import DownloadButtons from "@/components/DownloadButtons";
+import AccountSettingsPanel, { hasAccountValidationErrors } from "@/components/AccountSettingsPanel";
 import PeriodFilter from "@/components/PeriodFilter";
-import { processFiles } from "@/lib/api";
+import { useAccountOverrides } from "@/hooks/useAccountOverrides";
+import { processFiles, fetchDefaults } from "@/lib/api";
 import { CHANNEL_CONFIGS, matchFileToSlot } from "@/lib/channels";
 import { DEFAULT_PRESET, getPresetRange } from "@/lib/datePresets";
 import { computeSummary } from "@/lib/computeSummary";
@@ -34,6 +36,17 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [dateRange, setDateRange] = useState<DateRange>(() => getPresetRange(DEFAULT_PRESET));
+  const account = useAccountOverrides();
+
+  // Fetch defaults on mount
+  useEffect(() => {
+    fetchDefaults()
+      .then((d) => account.setDefaults(d))
+      .catch(() => {
+        // Defaults unavailable — panel will stay hidden
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const { unmatchedFiles, unmatchedGlobalIndices } = useMemo(() => {
     const unmatched: UploadedFile[] = [];
@@ -120,6 +133,11 @@ export default function Home() {
     setFiles((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
+  const accountHasErrors = useMemo(
+    () => hasAccountValidationErrors(account),
+    [account],
+  );
+
   const handleProcess = useCallback(async () => {
     if (files.length === 0) return;
     setLoading(true);
@@ -127,14 +145,17 @@ export default function Home() {
     setResult(null);
 
     try {
-      const response = await processFiles(files.map((f) => f.file));
+      const response = await processFiles(
+        files.map((f) => f.file),
+        account.modifiedCount > 0 ? account.overrides : undefined,
+      );
       setResult(response);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erreur inconnue");
     } finally {
       setLoading(false);
     }
-  }, [files]);
+  }, [files, account.overrides, account.modifiedCount]);
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
@@ -175,11 +196,16 @@ export default function Home() {
       </div>
 
       <div className="mt-4">
+        <AccountSettingsPanel account={account} />
+      </div>
+
+      <div className="mt-4">
         <ValidationBar
           channelStatuses={channelStatuses}
           hasFiles={files.length > 0}
           isLoading={loading}
           onGenerate={handleProcess}
+          disabled={accountHasErrors}
         />
       </div>
 
@@ -206,6 +232,7 @@ export default function Home() {
               files={files.map((f) => f.file)}
               entries={result.entries}
               anomalies={result.anomalies}
+              overrides={account.modifiedCount > 0 ? account.overrides : undefined}
             />
           </div>
           <PeriodFilter dateRange={dateRange} onChange={setDateRange} />

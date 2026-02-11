@@ -7,17 +7,6 @@ from collections import defaultdict
 
 from compta_ecom.models import AccountingEntry, BalanceError
 
-JOURNAL_REGLEMENT = "RG"
-JOURNAL_ACHATS = "AC"
-
-JOURNAUX_VENTE: dict[str, str] = {
-    "shopify": "VE",
-    "manomano": "MM",
-    "decathlon": "DEC",
-    "leroy_merlin": "LM",
-}
-
-
 def build_account(
     prefix: str, channel_code: str | None, country_code: str
 ) -> str:

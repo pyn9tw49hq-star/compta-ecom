@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from compta_ecom.config.loader import AppConfig
 from compta_ecom.engine.accounts import (
-    JOURNAUX_VENTE,
     build_account,
     build_shipping_account,
     resolve_shipping_zone,
@@ -23,7 +22,7 @@ def generate_sale_entries(
     client_lettrage = transaction.reference
     if transaction.channel in ("decathlon", "leroy_merlin") and transaction.payout_reference:
         client_lettrage = transaction.payout_reference
-    entries = _build_entries(transaction, accounts, amounts, client_lettrage)
+    entries = _build_entries(transaction, accounts, amounts, config, client_lettrage)
     verify_balance(entries)
     return entries
 
@@ -61,10 +60,11 @@ def _build_entries(
     transaction: NormalizedTransaction,
     accounts: dict[str, str],
     amounts: dict[str, float],
+    config: AppConfig,
     client_lettrage: str = "",
 ) -> list[AccountingEntry]:
     canal_display = transaction.channel.replace("_", " ").title()
-    journal = JOURNAUX_VENTE[transaction.channel]
+    journal = config.journaux_vente[transaction.channel]
     is_sale = transaction.type == "sale"
     label_prefix = "Vente" if is_sale else "Avoir"
     label = f"{label_prefix} {transaction.reference} {canal_display}"

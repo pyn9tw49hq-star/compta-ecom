@@ -8,6 +8,13 @@ import * as api from "@/lib/api";
 vi.mock("@/lib/api", () => ({
   processFiles: vi.fn(),
   downloadExcel: vi.fn(),
+  fetchDefaults: vi.fn().mockResolvedValue({
+    clients: { shopify: "411SHOPIFY", manomano: "411MANO", decathlon: "CDECATHLON", leroy_merlin: "411LM" },
+    fournisseurs: { manomano: "FMANO", decathlon: "FDECATHLON", leroy_merlin: "FADEO" },
+    charges: { commissions: { decathlon: "62220800", leroy_merlin: "62220900" }, abonnements: { decathlon: "61311112", leroy_merlin: "61311113" } },
+    tva_deductible: "44566001",
+    journaux: { ventes: { shopify: "VE", manomano: "MM", decathlon: "DEC", leroy_merlin: "LM" }, achats: "AC", reglement: "RG" },
+  }),
 }));
 
 vi.mock("next-themes", () => ({

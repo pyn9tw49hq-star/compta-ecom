@@ -6,10 +6,10 @@ import type { Entry, Anomaly } from "@/lib/types";
 
 // --- Mock downloadExcel ---
 
-const mockDownloadExcel = vi.fn<(files: File[]) => Promise<Blob>>();
+const mockDownloadExcel = vi.fn<(...args: unknown[]) => Promise<Blob>>();
 
 vi.mock("@/lib/api", () => ({
-  downloadExcel: (...args: [File[]]) => mockDownloadExcel(...args),
+  downloadExcel: (...args: unknown[]) => mockDownloadExcel(...args),
 }));
 
 // --- Mock URL.createObjectURL / revokeObjectURL ---
@@ -184,7 +184,7 @@ describe("DownloadButtons", () => {
         );
       });
 
-      expect(mockDownloadExcel).toHaveBeenCalledWith(MOCK_FILES);
+      expect(mockDownloadExcel).toHaveBeenCalledWith(MOCK_FILES, undefined);
       expect(mockCreateObjectURL).toHaveBeenCalled();
     });
 

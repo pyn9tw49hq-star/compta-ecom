@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from compta_ecom.config.loader import AppConfig
-from compta_ecom.engine.accounts import JOURNAL_ACHATS, JOURNAL_REGLEMENT, verify_balance
+from compta_ecom.engine.accounts import verify_balance
 from compta_ecom.models import AccountingEntry, NormalizedTransaction
 
 
@@ -34,7 +34,7 @@ def generate_marketplace_commission(
 
     counterpart_account = charge_account or config.fournisseurs[transaction.channel]
     client_account = config.clients[transaction.channel]
-    journal = JOURNAL_ACHATS if charge_account is not None else JOURNAL_REGLEMENT
+    journal = config.journal_achats if charge_account is not None else config.journal_reglement
 
     canal_display = transaction.channel.replace("_", " ").title()
     label_prefix = "Commission" if transaction.type == "sale" else "Remb. commission"

@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 
 from compta_ecom.config.loader import AppConfig
-from compta_ecom.engine.accounts import JOURNAL_ACHATS, JOURNAL_REGLEMENT, verify_balance
+from compta_ecom.engine.accounts import verify_balance
 from compta_ecom.models import AccountingEntry, NormalizedTransaction, PayoutSummary
 
 logger = logging.getLogger(__name__)
@@ -89,7 +89,7 @@ def generate_marketplace_payout(
     has_charge_account = (
         transaction.special_type == "SUBSCRIPTION" and "abonnement" in charges_mp
     )
-    journal = JOURNAL_ACHATS if has_charge_account else JOURNAL_REGLEMENT
+    journal = config.journal_achats if has_charge_account else config.journal_reglement
     tva_deductible_account = charges_mp.get("tva_deductible")
     default_lettrage = transaction.reference
 
@@ -272,7 +272,7 @@ def generate_marketplace_payout_from_summary(
     entries = [
         AccountingEntry(
             date=payout.payout_date,
-            journal=JOURNAL_REGLEMENT,
+            journal=config.journal_reglement,
             account=transit_account,
             label=label,
             debit=amount,
@@ -284,7 +284,7 @@ def generate_marketplace_payout_from_summary(
         ),
         AccountingEntry(
             date=payout.payout_date,
-            journal=JOURNAL_REGLEMENT,
+            journal=config.journal_reglement,
             account=client_account,
             label=label,
             debit=0.0,

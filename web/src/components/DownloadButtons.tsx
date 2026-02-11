@@ -4,12 +4,13 @@ import { useState } from "react";
 import { Download, FileDown, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { downloadExcel } from "@/lib/api";
-import type { Entry, Anomaly } from "@/lib/types";
+import type { AccountOverrides, Entry, Anomaly } from "@/lib/types";
 
 interface DownloadButtonsProps {
   files: File[];
   entries: Entry[];
   anomalies: Anomaly[];
+  overrides?: AccountOverrides;
 }
 
 /** Return today's date as YYYY-MM-DD. */
@@ -73,6 +74,7 @@ export default function DownloadButtons({
   files,
   entries,
   anomalies,
+  overrides,
 }: DownloadButtonsProps) {
   const [downloadingExcel, setDownloadingExcel] = useState(false);
   const [downloadingCsv, setDownloadingCsv] = useState(false);
@@ -84,7 +86,7 @@ export default function DownloadButtons({
     setError(null);
     setDownloadingExcel(true);
     try {
-      const blob = await downloadExcel(files);
+      const blob = await downloadExcel(files, overrides);
       triggerDownload(blob, `ecritures-${getDateSuffix()}.xlsx`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "";

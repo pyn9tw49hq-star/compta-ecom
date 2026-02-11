@@ -62,6 +62,36 @@ export interface ProcessResponse {
   country_names: Record<string, string>;
 }
 
+export interface AccountDefaults {
+  clients: Record<string, string>;
+  fournisseurs: Record<string, string>;
+  charges: {
+    commissions: Record<string, string>;
+    abonnements: Record<string, string>;
+  };
+  tva_deductible: string;
+  journaux: {
+    ventes: Record<string, string>;
+    achats: string;
+    reglement: string;
+  };
+}
+
+export type AccountOverrides = {
+  clients?: Record<string, string>;
+  fournisseurs?: Record<string, string>;
+  charges?: {
+    commissions?: Record<string, string>;
+    abonnements?: Record<string, string>;
+  };
+  tva_deductible?: string;
+  journaux?: {
+    ventes?: Record<string, string>;
+    achats?: string;
+    reglement?: string;
+  };
+};
+
 export interface UploadedFile {
   file: File;
   channel: string | null;

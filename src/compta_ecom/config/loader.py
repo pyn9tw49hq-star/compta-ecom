@@ -68,6 +68,16 @@ class AppConfig:
     # Comptes de charge marketplace (commission/abonnement directement en charge)
     comptes_charges_marketplace: dict[str, dict[str, str]] = field(default_factory=dict)
 
+    # Journaux
+    journaux_vente: dict[str, str] = field(
+        default_factory=lambda: {
+            "shopify": "VE", "manomano": "MM",
+            "decathlon": "DEC", "leroy_merlin": "LM",
+        }
+    )
+    journal_achats: str = "AC"
+    journal_reglement: str = "RG"
+
     # Matching
     matching_tolerance: float = 0.01
 
@@ -106,6 +116,9 @@ def _validate_chart(data: dict[str, object]) -> tuple[
     str,
     dict[str, str],
     dict[str, dict[str, str]],
+    dict[str, str],
+    str,
+    str,
 ]:
     """Valide et extrait le plan comptable."""
     context = "chart_of_accounts.yaml"
@@ -175,6 +188,17 @@ def _validate_chart(data: dict[str, object]) -> tuple[
             )
         comptes_charges_marketplace[str(chan)] = {str(k): str(v) for k, v in chan_data.items()}
 
+    # Journaux
+    journaux_raw = data.get("journaux", {})
+    if not isinstance(journaux_raw, dict):
+        raise ConfigError(f"'journaux' doit être un mapping dans {context}")
+    ventes_raw = journaux_raw.get("ventes", {})
+    if not isinstance(ventes_raw, dict):
+        raise ConfigError(f"'journaux.ventes' doit être un mapping dans {context}")
+    journaux_vente: dict[str, str] = {str(k): str(v) for k, v in ventes_raw.items()}
+    journal_achats = str(journaux_raw.get("achats", "AC"))
+    journal_reglement = str(journaux_raw.get("reglement", "RG"))
+
     return (
         {str(k): str(v) for k, v in clients.items()},
         {str(k): str(v) for k, v in fournisseurs.items()},
@@ -188,6 +212,9 @@ def _validate_chart(data: dict[str, object]) -> tuple[
         port_prefix,
         zones_port,
         comptes_charges_marketplace,
+        journaux_vente,
+        journal_achats,
+        journal_reglement,
     )
 
 
@@ -349,7 +376,7 @@ def load_config(config_dir: Path) -> AppConfig:
     vat_data = _load_yaml(config_dir / "vat_table.yaml")
     channels_data = _load_yaml(config_dir / "channels.yaml")
 
-    clients, fournisseurs, psp, transit, banque, comptes_speciaux, prefix, canal_codes, tva_prefix, port_prefix, zones_port, comptes_charges_marketplace = _validate_chart(chart_data)
+    clients, fournisseurs, psp, transit, banque, comptes_speciaux, prefix, canal_codes, tva_prefix, port_prefix, zones_port, comptes_charges_marketplace, journaux_vente, journal_achats, journal_reglement = _validate_chart(chart_data)
     vat_table = _validate_vat(vat_data)
     channels = _validate_channels(channels_data)
 
@@ -377,6 +404,9 @@ def load_config(config_dir: Path) -> AppConfig:
         alpha2_to_numeric=alpha2_to_numeric,
         channels=channels,
         comptes_charges_marketplace=comptes_charges_marketplace,
+        journaux_vente=journaux_vente,
+        journal_achats=journal_achats,
+        journal_reglement=journal_reglement,
         matching_tolerance=matching_tolerance,
     )
 

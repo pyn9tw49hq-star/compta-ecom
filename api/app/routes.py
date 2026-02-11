@@ -1,17 +1,20 @@
-"""Endpoints de l'API : /api/process, /api/download/excel, /api/health."""
+"""Endpoints de l'API : /api/process, /api/download/excel, /api/defaults, /api/health."""
 
 from __future__ import annotations
 
 import datetime
+import json
 import logging
 
-from fastapi import APIRouter, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
+from pydantic import ValidationError
 
 from compta_ecom.exporters.excel import export_to_bytes
 from compta_ecom.models import BalanceError, ConfigError, NoResultError, ParseError
 from compta_ecom.pipeline import PipelineOrchestrator
 
+from .overrides import apply_overrides
 from .serializers import serialize_response
 
 logger = logging.getLogger(__name__)
@@ -51,12 +54,31 @@ async def _validate_and_read_files(
     return files_dict
 
 
+def _resolve_config(request: Request, overrides_json: str | None) -> object:
+    """Parse optional overrides JSON and apply to config."""
+    config = request.app.state.config
+    if overrides_json:
+        try:
+            overrides_dict = json.loads(overrides_json)
+        except json.JSONDecodeError as e:
+            raise HTTPException(status_code=422, detail=f"JSON overrides invalide : {e}")
+        try:
+            config = apply_overrides(config, overrides_dict)
+        except ValidationError as e:
+            raise HTTPException(status_code=422, detail=f"Overrides invalides : {e}")
+    return config
+
+
 @router.post("/api/process")
-async def process(request: Request, files: list[UploadFile]) -> JSONResponse:
+async def process(
+    request: Request,
+    files: list[UploadFile],
+    overrides: str | None = Form(None),
+) -> JSONResponse:
     """Upload CSV → JSON (entries, anomalies, summary)."""
     files_dict = await _validate_and_read_files(files)
 
-    config = request.app.state.config
+    config = _resolve_config(request, overrides)
     pipeline = PipelineOrchestrator()
 
     try:
@@ -84,11 +106,15 @@ async def process(request: Request, files: list[UploadFile]) -> JSONResponse:
 
 
 @router.post("/api/download/excel")
-async def download_excel(request: Request, files: list[UploadFile]) -> StreamingResponse:
+async def download_excel(
+    request: Request,
+    files: list[UploadFile],
+    overrides: str | None = Form(None),
+) -> StreamingResponse:
     """Upload CSV → fichier .xlsx en téléchargement."""
     files_dict = await _validate_and_read_files(files)
 
-    config = request.app.state.config
+    config = _resolve_config(request, overrides)
     pipeline = PipelineOrchestrator()
 
     try:
@@ -113,6 +139,39 @@ async def download_excel(request: Request, files: list[UploadFile]) -> Streaming
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.get("/api/defaults")
+async def defaults(request: Request) -> JSONResponse:
+    """Retourne les valeurs par défaut du plan comptable et des journaux."""
+    config = request.app.state.config
+
+    # Comptes de charges : commissions + abonnements
+    charges: dict[str, dict[str, str]] = {"commissions": {}, "abonnements": {}}
+    for chan, chan_charges in config.comptes_charges_marketplace.items():
+        if "commission" in chan_charges:
+            charges["commissions"][chan] = chan_charges["commission"]
+        if "abonnement" in chan_charges:
+            charges["abonnements"][chan] = chan_charges["abonnement"]
+
+    # TVA déductible (prendre la première valeur trouvée)
+    tva_deductible = ""
+    for chan_charges in config.comptes_charges_marketplace.values():
+        if "tva_deductible" in chan_charges:
+            tva_deductible = chan_charges["tva_deductible"]
+            break
+
+    return JSONResponse(content={
+        "clients": config.clients,
+        "fournisseurs": config.fournisseurs,
+        "charges": charges,
+        "tva_deductible": tva_deductible,
+        "journaux": {
+            "ventes": config.journaux_vente,
+            "achats": config.journal_achats,
+            "reglement": config.journal_reglement,
+        },
+    })
 
 
 @router.get("/api/health")

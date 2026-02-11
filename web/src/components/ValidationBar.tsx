@@ -9,6 +9,7 @@ interface ValidationBarProps {
   hasFiles: boolean;
   isLoading: boolean;
   onGenerate: () => void;
+  disabled?: boolean;
 }
 
 type ValidationState = "no-files" | "all-complete" | "partial" | "none-complete";
@@ -18,6 +19,7 @@ export default function ValidationBar({
   hasFiles,
   isLoading,
   onGenerate,
+  disabled = false,
 }: ValidationBarProps) {
   const activeChannels = channelStatuses.filter(
     (s) => s.uploadedRequiredCount > 0,
@@ -36,7 +38,7 @@ export default function ValidationBar({
           ? "partial"
           : "none-complete";
 
-  const isDisabled = !hasFiles || isLoading || !hasCompleteChannel;
+  const isDisabled = !hasFiles || isLoading || !hasCompleteChannel || disabled;
 
   return (
     <div className="rounded-lg border p-4 space-y-3">

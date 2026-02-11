@@ -49,3 +49,12 @@ comptes_charges_marketplace:
     commission: "62220900"
     abonnement: "61311113"
     tva_deductible: "44566001"
+
+journaux:
+  ventes:
+    shopify: "VE"
+    manomano: "MM"
+    decathlon: "DEC"
+    leroy_merlin: "LM"
+  achats: "AC"
+  reglement: "RG"

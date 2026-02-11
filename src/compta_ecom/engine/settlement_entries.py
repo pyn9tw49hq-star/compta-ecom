@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from compta_ecom.config.loader import AppConfig
-from compta_ecom.engine.accounts import JOURNAL_REGLEMENT, verify_balance
+from compta_ecom.engine.accounts import verify_balance
 from compta_ecom.models import AccountingEntry, NormalizedTransaction
 
 
@@ -42,7 +42,7 @@ def generate_settlement_entries(
         entries.append(
             AccountingEntry(
                 date=transaction.date,
-                journal=JOURNAL_REGLEMENT,
+                journal=config.journal_reglement,
                 account=psp_config.compte,
                 label=label,
                 debit=net if net > 0 else 0.0,
@@ -59,7 +59,7 @@ def generate_settlement_entries(
         entries.append(
             AccountingEntry(
                 date=transaction.date,
-                journal=JOURNAL_REGLEMENT,
+                journal=config.journal_reglement,
                 account=commission_account,
                 label=label,
                 debit=commission if commission > 0 else 0.0,
@@ -76,7 +76,7 @@ def generate_settlement_entries(
         entries.append(
             AccountingEntry(
                 date=transaction.date,
-                journal=JOURNAL_REGLEMENT,
+                journal=config.journal_reglement,
                 account=client_account,
                 label=label,
                 debit=abs(total_411) if total_411 < 0 else 0.0,
