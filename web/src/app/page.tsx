@@ -167,7 +167,7 @@ export default function Home() {
         </h1>
         <div className="flex items-center gap-1">
           <ThemeToggle />
-          <Button variant="outline" size="icon" onClick={() => setIsHelpOpen((prev) => !prev)} aria-label="Aide sur les formats de fichiers">
+          <Button variant="outline" size="icon" onPointerDown={(e) => e.stopPropagation()} onClick={() => setIsHelpOpen((prev) => !prev)} aria-label="Aide sur les formats de fichiers">
             <HelpCircle className="h-4 w-4" />
           </Button>
         </div>

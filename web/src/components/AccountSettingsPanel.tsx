@@ -81,8 +81,8 @@ const GROUPS: GroupDef[] = [
     regex: RE_CODE_JOURNAL, // Default for journals; TVA uses RE_COMPTE_CHARGE
     sections: [
       {
-        subtitle: "TVA D\u00c9DUCTIBLE",
-        fields: [{ label: "TVA d\u00e9ductible", path: "tva_deductible" }],
+        subtitle: "TVA DÉDUCTIBLE",
+        fields: [{ label: "TVA déductible", path: "tva_deductible" }],
       },
       {
         subtitle: "CODES JOURNAUX",
@@ -92,7 +92,7 @@ const GROUPS: GroupDef[] = [
           { label: "Ventes Decathlon", path: "journaux.ventes.decathlon" },
           { label: "Ventes Leroy Merlin", path: "journaux.ventes.leroy_merlin" },
           { label: "Achats", path: "journaux.achats" },
-          { label: "R\u00e8glement", path: "journaux.reglement" },
+          { label: "Règlement", path: "journaux.reglement" },
         ],
       },
     ],
@@ -154,8 +154,8 @@ function AccountField({ label, path, regex, account }: AccountFieldProps) {
               type="button"
               onClick={() => account.resetField(path)}
               className="absolute right-1.5 top-1/2 -translate-y-1/2 text-primary hover:text-primary/80 text-sm"
-              aria-label={`R\u00e9initialiser ${label}`}
-              title={`R\u00e9initialiser \u00e0 ${defaultValue}`}
+              aria-label={`Réinitialiser ${label}`}
+              title={`Réinitialiser à ${defaultValue}`}
             >
               ●
             </button>
@@ -164,7 +164,7 @@ function AccountField({ label, path, regex, account }: AccountFieldProps) {
       </div>
       {modified && (
         <span className="text-[10px] text-muted-foreground ml-[8.5rem]">
-          d\u00e9faut : {defaultValue}
+          défaut : {defaultValue}
         </span>
       )}
       {!isValid && value !== "" && (
@@ -218,8 +218,8 @@ export default function AccountSettingsPanel({
 
   const subtitle =
     account.modifiedCount === 0
-      ? "Valeurs par d\u00e9faut actives"
-      : `${account.modifiedCount} valeur${account.modifiedCount > 1 ? "s" : ""} personnalis\u00e9e${account.modifiedCount > 1 ? "s" : ""}`;
+      ? "Valeurs par défaut actives"
+      : `${account.modifiedCount} valeur${account.modifiedCount > 1 ? "s" : ""} personnalisée${account.modifiedCount > 1 ? "s" : ""}`;
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
@@ -244,7 +244,7 @@ export default function AccountSettingsPanel({
             <span
               className={`text-muted-foreground transition-transform ${isOpen ? "rotate-90" : ""}`}
             >
-              \u25b8
+              ▸
             </span>
           </div>
         </button>
@@ -281,7 +281,7 @@ export default function AccountSettingsPanel({
               {showResetConfirm ? (
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-muted-foreground">
-                    R\u00e9initialiser toutes les valeurs ?
+                    Réinitialiser toutes les valeurs ?
                   </span>
                   <Button
                     variant="destructive"
@@ -309,7 +309,7 @@ export default function AccountSettingsPanel({
                   className="gap-1.5"
                 >
                   <RotateCcw className="h-3 w-3" />
-                  R\u00e9initialiser les valeurs par d\u00e9faut
+                  Réinitialiser les valeurs par défaut
                 </Button>
               )}
             </div>
@@ -321,7 +321,7 @@ export default function AccountSettingsPanel({
               className="text-xs text-red-500 dark:text-red-400"
             >
               Certains champs ont un format invalide. Corrigez-les avant de
-              g\u00e9n\u00e9rer.
+              générer.
             </p>
           )}
         </div>
