@@ -76,3 +76,43 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* react-day-picker v9 — force design-token colours for dark mode.
+   !important needed because rdp's style.css loads after globals.css
+   (imported in the component) and wins at equal specificity. */
+.rdp-root {
+  --rdp-accent-color: hsl(var(--primary)) !important;
+  --rdp-accent-background-color: hsl(var(--accent)) !important;
+  --rdp-range_middle-background-color: hsl(var(--accent)) !important;
+  --rdp-range_middle-color: hsl(var(--accent-foreground)) !important;
+  --rdp-range_start-color: hsl(var(--primary-foreground)) !important;
+  --rdp-range_end-color: hsl(var(--primary-foreground)) !important;
+  --rdp-range_start-date-background-color: hsl(var(--primary)) !important;
+  --rdp-range_end-date-background-color: hsl(var(--primary)) !important;
+  --rdp-selected-border: 2px solid hsl(var(--primary)) !important;
+  --rdp-today-color: hsl(var(--primary)) !important;
+  color: hsl(var(--popover-foreground));
+}
+.rdp-day_button {
+  color: inherit !important;
+}
+.rdp-chevron {
+  fill: hsl(var(--foreground)) !important;
+}
+.rdp-range_start .rdp-day_button,
+.rdp-range_end .rdp-day_button {
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+.rdp-range_middle {
+  background-color: hsl(var(--accent)) !important;
+}
+.rdp-range_middle .rdp-day_button {
+  color: hsl(var(--accent-foreground)) !important;
+}
+.rdp-today:not(.rdp-outside) {
+  color: hsl(var(--primary)) !important;
+}
+.rdp-outside {
+  opacity: 0.4 !important;
+}

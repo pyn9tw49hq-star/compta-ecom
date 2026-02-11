@@ -125,9 +125,9 @@ export default function FlashPdfButton({
                 <Checkbox.Root
                   checked={sections[sec.key]}
                   onCheckedChange={() => toggleSection(sec.key)}
-                  className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border border-input bg-background data-[state=checked]:bg-foreground data-[state=checked]:text-background"
+                  className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border border-input bg-background duration-0 data-[state=checked]:bg-foreground data-[state=checked]:text-background"
                 >
-                  <Checkbox.Indicator>
+                  <Checkbox.Indicator className="duration-0">
                     <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
                       <path
                         d="M2 5L4 7L8 3"
