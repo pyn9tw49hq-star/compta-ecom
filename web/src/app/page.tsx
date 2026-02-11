@@ -19,6 +19,7 @@ import EntriesTable from "@/components/EntriesTable";
 import AnomaliesPanel from "@/components/AnomaliesPanel";
 import StatsBoard from "@/components/StatsBoard";
 import DownloadButtons from "@/components/DownloadButtons";
+import FlashPdfButton from "@/components/FlashPdfButton";
 import AccountSettingsPanel, { hasAccountValidationErrors } from "@/components/AccountSettingsPanel";
 import PeriodFilter from "@/components/PeriodFilter";
 import { useAccountOverrides } from "@/hooks/useAccountOverrides";
@@ -37,6 +38,7 @@ export default function Home() {
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const isHelpButtonClickRef = useRef(false);
   const [dateRange, setDateRange] = useState<DateRange>(() => getPresetRange(DEFAULT_PRESET));
+  const [htTtcMode, setHtTtcMode] = useState<"ht" | "ttc">("ttc");
   const account = useAccountOverrides();
 
   // Fetch defaults on mount
@@ -241,12 +243,22 @@ export default function Home() {
               </TabsTrigger>
               <TabsTrigger value="resume">Résumé</TabsTrigger>
             </TabsList>
-            <DownloadButtons
-              files={files.map((f) => f.file)}
-              entries={result.entries}
-              anomalies={result.anomalies}
-              overrides={account.modifiedCount > 0 ? account.overrides : undefined}
-            />
+            <div className="flex gap-2 flex-wrap">
+              <DownloadButtons
+                files={files.map((f) => f.file)}
+                entries={result.entries}
+                anomalies={result.anomalies}
+                overrides={account.modifiedCount > 0 ? account.overrides : undefined}
+              />
+              {filteredSummary && (
+                <FlashPdfButton
+                  summary={filteredSummary}
+                  dateRange={dateRange}
+                  htTtcMode={htTtcMode}
+                  countryNames={result.country_names ?? {}}
+                />
+              )}
+            </div>
           </div>
           <PeriodFilter dateRange={dateRange} onChange={setDateRange} />
           <TabsContent value="ecritures">
@@ -257,7 +269,7 @@ export default function Home() {
           </TabsContent>
           <TabsContent value="resume">
             {filteredSummary && (
-              <StatsBoard summary={filteredSummary} entries={result.entries} anomalies={filteredAnomalies} />
+              <StatsBoard summary={filteredSummary} entries={result.entries} anomalies={filteredAnomalies} htTtcMode={htTtcMode} onHtTtcModeChange={setHtTtcMode} />
             )}
           </TabsContent>
         </Tabs>

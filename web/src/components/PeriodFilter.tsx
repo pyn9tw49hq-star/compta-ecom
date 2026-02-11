@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/style.css";
 import * as Popover from "@radix-ui/react-popover";
 import * as ToggleGroup from "@radix-ui/react-toggle-group";
-import { Calendar, X } from "lucide-react";
+import { Calendar, X, ChevronLeft, ChevronRight } from "lucide-react";
 import type { DateRange } from "@/lib/datePresets";
 import {
   DEFAULT_PRESET,
@@ -21,14 +21,25 @@ interface PeriodFilterProps {
   onChange: (range: DateRange) => void;
 }
 
+type ViewMode = "days" | "months" | "years";
+
+const MONTH_NAMES = [
+  "Janv.", "Févr.", "Mars", "Avr.", "Mai", "Juin",
+  "Juil.", "Août", "Sept.", "Oct.", "Nov.", "Déc.",
+];
+
 /**
- * Period filter: preset toggle buttons + custom calendar picker.
+ * Period filter: preset toggle buttons + custom calendar picker with drill-down.
  */
 export default function PeriodFilter({ dateRange, onChange }: PeriodFilterProps) {
   const [activePreset, setActivePreset] = useState<PresetKey>(DEFAULT_PRESET);
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [customFrom, setCustomFrom] = useState<Date | undefined>(undefined);
   const [customTo, setCustomTo] = useState<Date | undefined>(undefined);
+
+  // Drill-down state
+  const [viewMode, setViewMode] = useState<ViewMode>("days");
+  const [browseMonth, setBrowseMonth] = useState<Date>(new Date());
 
   const handlePresetChange = (value: string) => {
     if (!value || value === "custom") return;
@@ -53,6 +64,37 @@ export default function PeriodFilter({ dateRange, onChange }: PeriodFilterProps)
     setCustomTo(undefined);
     onChange(getPresetRange(DEFAULT_PRESET));
   };
+
+  const handlePopoverOpen = useCallback((open: boolean) => {
+    setPopoverOpen(open);
+    if (open) setViewMode("days");
+  }, []);
+
+  // Drill-down handlers
+  const handleCaptionClick = useCallback(() => {
+    setViewMode("months");
+  }, []);
+
+  const handleMonthSelect = useCallback((monthIndex: number) => {
+    const d = new Date(browseMonth);
+    d.setMonth(monthIndex);
+    setBrowseMonth(d);
+    setViewMode("days");
+  }, [browseMonth]);
+
+  const handleYearSelect = useCallback((year: number) => {
+    const d = new Date(browseMonth);
+    d.setFullYear(year);
+    setBrowseMonth(d);
+    setViewMode("months");
+  }, [browseMonth]);
+
+  const handleYearHeaderClick = useCallback(() => {
+    setViewMode("years");
+  }, []);
+
+  const browseYear = browseMonth.getFullYear();
+  const decadeStart = Math.floor(browseYear / 10) * 10;
 
   const formatShort = (d: Date) => format(d, "dd/MM/yyyy", { locale: fr });
 
@@ -83,7 +125,7 @@ export default function PeriodFilter({ dateRange, onChange }: PeriodFilterProps)
           )}
         </ToggleGroup.Root>
 
-        <Popover.Root open={popoverOpen} onOpenChange={setPopoverOpen}>
+        <Popover.Root open={popoverOpen} onOpenChange={handlePopoverOpen}>
           <Popover.Trigger asChild>
             <button
               type="button"
@@ -104,31 +146,164 @@ export default function PeriodFilter({ dateRange, onChange }: PeriodFilterProps)
               sideOffset={8}
               align="start"
             >
-              <DayPicker
-                mode="range"
-                locale={fr}
-                selected={
-                  customFrom && customTo
-                    ? { from: customFrom, to: customTo }
-                    : customFrom
-                      ? { from: customFrom, to: undefined }
-                      : undefined
-                }
-                onSelect={(range) => {
-                  setCustomFrom(range?.from ?? undefined);
-                  setCustomTo(range?.to ?? undefined);
-                }}
-              />
-              <div className="mt-2 flex justify-end">
-                <button
-                  type="button"
-                  disabled={!customFrom || !customTo}
-                  onClick={handleApplyCustom}
-                  className="rounded-md bg-foreground px-4 py-1.5 text-sm font-medium text-background disabled:opacity-50"
-                >
-                  Appliquer
-                </button>
-              </div>
+              {viewMode === "days" && (
+                <>
+                  <DayPicker
+                    mode="range"
+                    locale={fr}
+                    month={browseMonth}
+                    onMonthChange={setBrowseMonth}
+                    selected={
+                      customFrom && customTo
+                        ? { from: customFrom, to: customTo }
+                        : customFrom
+                          ? { from: customFrom, to: undefined }
+                          : undefined
+                    }
+                    onSelect={(range) => {
+                      setCustomFrom(range?.from ?? undefined);
+                      setCustomTo(range?.to ?? undefined);
+                    }}
+                    components={{
+                      MonthCaption: ({ calendarMonth }) => (
+                        <div className="flex items-center justify-center">
+                          <button
+                            type="button"
+                            onClick={handleCaptionClick}
+                            className="text-sm font-medium hover:text-foreground/70 transition-colors cursor-pointer capitalize"
+                          >
+                            {format(calendarMonth.date, "LLLL yyyy", { locale: fr })}
+                          </button>
+                        </div>
+                      ),
+                    }}
+                  />
+                  <div className="mt-2 flex justify-end">
+                    <button
+                      type="button"
+                      disabled={!customFrom || !customTo}
+                      onClick={handleApplyCustom}
+                      className="rounded-md bg-foreground px-4 py-1.5 text-sm font-medium text-background disabled:opacity-50"
+                    >
+                      Appliquer
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {viewMode === "months" && (
+                <div className="w-[280px]">
+                  <div className="flex items-center justify-between mb-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const d = new Date(browseMonth);
+                        d.setFullYear(d.getFullYear() - 1);
+                        setBrowseMonth(d);
+                      }}
+                      className="p-1 rounded hover:bg-muted transition-colors"
+                      aria-label="Année précédente"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleYearHeaderClick}
+                      className="text-sm font-semibold hover:text-foreground/70 transition-colors cursor-pointer"
+                    >
+                      {browseYear}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const d = new Date(browseMonth);
+                        d.setFullYear(d.getFullYear() + 1);
+                        setBrowseMonth(d);
+                      }}
+                      className="p-1 rounded hover:bg-muted transition-colors"
+                      aria-label="Année suivante"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {MONTH_NAMES.map((name, i) => {
+                      const isCurrent =
+                        browseMonth.getMonth() === i &&
+                        browseMonth.getFullYear() === browseYear;
+                      return (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => handleMonthSelect(i)}
+                          className={`rounded-md px-2 py-2 text-sm transition-colors ${
+                            isCurrent
+                              ? "bg-foreground text-background font-semibold"
+                              : "hover:bg-muted text-foreground"
+                          }`}
+                        >
+                          {name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {viewMode === "years" && (
+                <div className="w-[280px]">
+                  <div className="flex items-center justify-between mb-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const d = new Date(browseMonth);
+                        d.setFullYear(d.getFullYear() - 10);
+                        setBrowseMonth(d);
+                      }}
+                      className="p-1 rounded hover:bg-muted transition-colors"
+                      aria-label="Décennie précédente"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </button>
+                    <span className="text-sm font-semibold">
+                      {decadeStart} - {decadeStart + 11}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const d = new Date(browseMonth);
+                        d.setFullYear(d.getFullYear() + 10);
+                        setBrowseMonth(d);
+                      }}
+                      className="p-1 rounded hover:bg-muted transition-colors"
+                      aria-label="Décennie suivante"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {Array.from({ length: 12 }, (_, i) => decadeStart + i).map(
+                      (year) => {
+                        const isCurrent = browseYear === year;
+                        return (
+                          <button
+                            key={year}
+                            type="button"
+                            onClick={() => handleYearSelect(year)}
+                            className={`rounded-md px-2 py-2 text-sm transition-colors ${
+                              isCurrent
+                                ? "bg-foreground text-background font-semibold"
+                                : "hover:bg-muted text-foreground"
+                            }`}
+                          >
+                            {year}
+                          </button>
+                        );
+                      },
+                    )}
+                  </div>
+                </div>
+              )}
             </Popover.Content>
           </Popover.Portal>
         </Popover.Root>

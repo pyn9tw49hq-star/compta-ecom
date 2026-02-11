@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { getChannelMeta } from "@/lib/channels";
 import { formatCurrency, formatCount, formatPercent } from "@/lib/format";
@@ -56,14 +56,16 @@ interface StatsBoardProps {
   summary: Summary;
   entries: Entry[];
   anomalies: Anomaly[];
+  htTtcMode: "ht" | "ttc";
+  onHtTtcModeChange: (mode: "ht" | "ttc") => void;
 }
 
 /**
  * Dashboard showing key processing metrics: balance, transactions per channel,
  * entries by type, and anomaly counts by severity.
  */
-export default function StatsBoard({ summary, entries, anomalies }: StatsBoardProps) {
-  const [isHtMode, setIsHtMode] = useState(false);
+export default function StatsBoard({ summary, entries, anomalies, htTtcMode, onHtTtcModeChange }: StatsBoardProps) {
+  const isHtMode = htTtcMode === "ht";
   const isBalanced = Math.abs(summary.totaux.debit - summary.totaux.credit) < 0.01;
   const ecart = Math.abs(summary.totaux.debit - summary.totaux.credit);
 
@@ -222,7 +224,7 @@ export default function StatsBoard({ summary, entries, anomalies }: StatsBoardPr
         <div className="inline-flex rounded-md border" role="group" aria-label="Affichage TTC ou HT">
           <button
             type="button"
-            onClick={() => setIsHtMode(false)}
+            onClick={() => onHtTtcModeChange("ttc")}
             className={`px-3 py-1 text-sm font-medium rounded-l-md transition-colors ${
               !isHtMode
                 ? "bg-foreground text-background"
@@ -233,7 +235,7 @@ export default function StatsBoard({ summary, entries, anomalies }: StatsBoardPr
           </button>
           <button
             type="button"
-            onClick={() => setIsHtMode(true)}
+            onClick={() => onHtTtcModeChange("ht")}
             className={`px-3 py-1 text-sm font-medium rounded-r-md border-l transition-colors ${
               isHtMode
                 ? "bg-foreground text-background"

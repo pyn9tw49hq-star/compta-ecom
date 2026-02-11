@@ -1,8 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { axe } from "vitest-axe";
 import StatsBoard from "@/components/StatsBoard";
 import type { Summary, Entry, Anomaly } from "@/lib/types";
+
+const htTtcProps = { htTtcMode: "ttc" as const, onHtTtcModeChange: vi.fn() };
 
 // --- Mock data ---
 
@@ -143,6 +145,7 @@ describe("StatsBoard", () => {
           summary={MOCK_SUMMARY}
           entries={MOCK_ENTRIES}
           anomalies={MOCK_ANOMALIES}
+          {...htTtcProps}
         />,
       );
 
@@ -157,6 +160,7 @@ describe("StatsBoard", () => {
           summary={MOCK_SUMMARY}
           entries={MOCK_ENTRIES}
           anomalies={MOCK_ANOMALIES}
+          {...htTtcProps}
         />,
       );
 
@@ -170,6 +174,7 @@ describe("StatsBoard", () => {
           summary={MOCK_SUMMARY}
           entries={MOCK_ENTRIES}
           anomalies={MOCK_ANOMALIES}
+          {...htTtcProps}
         />,
       );
 
@@ -185,6 +190,7 @@ describe("StatsBoard", () => {
           summary={MOCK_SUMMARY}
           entries={MOCK_ENTRIES}
           anomalies={MOCK_ANOMALIES}
+          {...htTtcProps}
         />,
       );
 
@@ -198,6 +204,7 @@ describe("StatsBoard", () => {
           summary={MOCK_SUMMARY}
           entries={MOCK_ENTRIES}
           anomalies={MOCK_ANOMALIES}
+          {...htTtcProps}
         />,
       );
 
@@ -215,6 +222,7 @@ describe("StatsBoard", () => {
           summary={MOCK_SUMMARY}
           entries={MOCK_ENTRIES}
           anomalies={MOCK_ANOMALIES}
+          {...htTtcProps}
         />,
       );
 
@@ -232,6 +240,7 @@ describe("StatsBoard", () => {
           summary={MOCK_SUMMARY}
           entries={MOCK_ENTRIES}
           anomalies={MOCK_ANOMALIES}
+          {...htTtcProps}
         />,
       );
 
@@ -250,6 +259,7 @@ describe("StatsBoard", () => {
           summary={MOCK_SUMMARY}
           entries={MOCK_ENTRIES}
           anomalies={MOCK_ANOMALIES}
+          {...htTtcProps}
         />,
       );
 
@@ -269,6 +279,7 @@ describe("StatsBoard", () => {
           summary={unbalanced}
           entries={MOCK_ENTRIES}
           anomalies={MOCK_ANOMALIES}
+          {...htTtcProps}
         />,
       );
 
@@ -286,6 +297,7 @@ describe("StatsBoard", () => {
           summary={MOCK_SUMMARY}
           entries={MOCK_ENTRIES}
           anomalies={MOCK_ANOMALIES}
+          {...htTtcProps}
         />,
       );
 
@@ -303,6 +315,7 @@ describe("StatsBoard", () => {
           summary={MOCK_SUMMARY}
           entries={MOCK_ENTRIES}
           anomalies={MOCK_ANOMALIES}
+          {...htTtcProps}
         />,
       );
 
@@ -318,6 +331,7 @@ describe("StatsBoard", () => {
           summary={MOCK_SUMMARY}
           entries={MOCK_ENTRIES}
           anomalies={[]}
+          {...htTtcProps}
         />,
       );
 
@@ -332,6 +346,7 @@ describe("StatsBoard", () => {
           summary={MOCK_SUMMARY}
           entries={MOCK_ENTRIES}
           anomalies={MOCK_ANOMALIES}
+          {...htTtcProps}
         />,
       );
       const results = await axe(container);
@@ -346,7 +361,7 @@ describe("StatsBoard", () => {
   describe("Synthèse financière par canal (AC15-19)", () => {
     it("displays h2 heading 'Synthèse financière par canal'", () => {
       render(
-        <StatsBoard summary={MOCK_SUMMARY} entries={MOCK_ENTRIES} anomalies={MOCK_ANOMALIES} />,
+        <StatsBoard summary={MOCK_SUMMARY} entries={MOCK_ENTRIES} anomalies={MOCK_ANOMALIES} {...htTtcProps} />,
       );
       expect(
         screen.getByRole("heading", { name: "Synthèse financière par canal", level: 2 }),
@@ -355,7 +370,7 @@ describe("StatsBoard", () => {
 
     it("displays consolidated table column headings (AC16)", () => {
       render(
-        <StatsBoard summary={MOCK_SUMMARY} entries={MOCK_ENTRIES} anomalies={MOCK_ANOMALIES} />,
+        <StatsBoard summary={MOCK_SUMMARY} entries={MOCK_ENTRIES} anomalies={MOCK_ANOMALIES} {...htTtcProps} />,
       );
       expect(screen.getAllByText("CA TTC").length).toBeGreaterThanOrEqual(1);
       expect(screen.getByText("Remb. TTC")).toBeInTheDocument();
@@ -366,7 +381,7 @@ describe("StatsBoard", () => {
 
     it("displays formatted amounts per channel in the table (AC16, AC23)", () => {
       render(
-        <StatsBoard summary={MOCK_SUMMARY} entries={MOCK_ENTRIES} anomalies={MOCK_ANOMALIES} />,
+        <StatsBoard summary={MOCK_SUMMARY} entries={MOCK_ENTRIES} anomalies={MOCK_ANOMALIES} {...htTtcProps} />,
       );
       // Shopify CA TTC = 45000 → "45 000,00 €"
       expect(screen.getAllByText(/45\s*000,00\s*€/).length).toBeGreaterThanOrEqual(1);
@@ -376,7 +391,7 @@ describe("StatsBoard", () => {
 
     it("displays a Total row in the consolidated table (AC16)", () => {
       render(
-        <StatsBoard summary={MOCK_SUMMARY} entries={MOCK_ENTRIES} anomalies={MOCK_ANOMALIES} />,
+        <StatsBoard summary={MOCK_SUMMARY} entries={MOCK_ENTRIES} anomalies={MOCK_ANOMALIES} {...htTtcProps} />,
       );
       // Total CA TTC = 61500 → "61 500,00"
       expect(screen.getByText(/61\s*500,00/)).toBeInTheDocument();
@@ -386,7 +401,7 @@ describe("StatsBoard", () => {
 
     it("renders expansion detail with HT/TVA content (AC18)", () => {
       render(
-        <StatsBoard summary={MOCK_SUMMARY} entries={MOCK_ENTRIES} anomalies={MOCK_ANOMALIES} />,
+        <StatsBoard summary={MOCK_SUMMARY} entries={MOCK_ENTRIES} anomalies={MOCK_ANOMALIES} {...htTtcProps} />,
       );
       // Detail content is in the DOM (inside <details>)
       expect(screen.getAllByText(/CA HT/).length).toBeGreaterThanOrEqual(1);
@@ -397,7 +412,7 @@ describe("StatsBoard", () => {
 
     it("displays green badge for refund rate < 5% (AC19)", () => {
       render(
-        <StatsBoard summary={MOCK_SUMMARY} entries={MOCK_ENTRIES} anomalies={MOCK_ANOMALIES} />,
+        <StatsBoard summary={MOCK_SUMMARY} entries={MOCK_ENTRIES} anomalies={MOCK_ANOMALIES} {...htTtcProps} />,
       );
       // Shopify taux = 2.7% → green badge
       const badge = screen.getByText(/2,7\s*%/);
@@ -406,7 +421,7 @@ describe("StatsBoard", () => {
 
     it("displays orange badge for refund rate 5–10% (AC19)", () => {
       render(
-        <StatsBoard summary={MOCK_SUMMARY} entries={MOCK_ENTRIES} anomalies={MOCK_ANOMALIES} />,
+        <StatsBoard summary={MOCK_SUMMARY} entries={MOCK_ENTRIES} anomalies={MOCK_ANOMALIES} {...htTtcProps} />,
       );
       // ManoMano taux = 6.7% → orange badge
       const badge = screen.getByText(/6,7\s*%/);
@@ -415,7 +430,7 @@ describe("StatsBoard", () => {
 
     it("displays red badge for refund rate > 10% (AC19)", () => {
       render(
-        <StatsBoard summary={MOCK_SUMMARY} entries={MOCK_ENTRIES} anomalies={MOCK_ANOMALIES} />,
+        <StatsBoard summary={MOCK_SUMMARY} entries={MOCK_ENTRIES} anomalies={MOCK_ANOMALIES} {...htTtcProps} />,
       );
       // Decathlon taux = 15.0% → red badge
       const badge = screen.getByText(/15,0\s*%/);
@@ -424,7 +439,7 @@ describe("StatsBoard", () => {
 
     it("highlights Net vendeur column with distinctive CSS (AC17)", () => {
       const { container } = render(
-        <StatsBoard summary={MOCK_SUMMARY} entries={MOCK_ENTRIES} anomalies={MOCK_ANOMALIES} />,
+        <StatsBoard summary={MOCK_SUMMARY} entries={MOCK_ENTRIES} anomalies={MOCK_ANOMALIES} {...htTtcProps} />,
       );
       // Net vendeur cells have text-emerald-700 class
       const emeraldCells = container.querySelectorAll(".text-emerald-700");
@@ -435,7 +450,7 @@ describe("StatsBoard", () => {
   describe("Fiscalité & géographie (AC20-21)", () => {
     it("displays h2 heading 'Fiscalité & géographie'", () => {
       render(
-        <StatsBoard summary={MOCK_SUMMARY} entries={MOCK_ENTRIES} anomalies={MOCK_ANOMALIES} />,
+        <StatsBoard summary={MOCK_SUMMARY} entries={MOCK_ENTRIES} anomalies={MOCK_ANOMALIES} {...htTtcProps} />,
       );
       expect(
         screen.getByRole("heading", { name: /Fiscalité.*géographie/, level: 2 }),
@@ -444,7 +459,7 @@ describe("StatsBoard", () => {
 
     it("displays TVA collectée par canal section (AC20)", () => {
       render(
-        <StatsBoard summary={MOCK_SUMMARY} entries={MOCK_ENTRIES} anomalies={MOCK_ANOMALIES} />,
+        <StatsBoard summary={MOCK_SUMMARY} entries={MOCK_ENTRIES} anomalies={MOCK_ANOMALIES} {...htTtcProps} />,
       );
       expect(
         screen.getByRole("heading", { name: "TVA collectée par canal", level: 3 }),
@@ -455,7 +470,7 @@ describe("StatsBoard", () => {
 
     it("displays global geographic table (AC21)", () => {
       render(
-        <StatsBoard summary={MOCK_SUMMARY} entries={MOCK_ENTRIES} anomalies={MOCK_ANOMALIES} />,
+        <StatsBoard summary={MOCK_SUMMARY} entries={MOCK_ENTRIES} anomalies={MOCK_ANOMALIES} {...htTtcProps} />,
       );
       expect(
         screen.getByRole("heading", { name: "Répartition géographique", level: 3 }),
@@ -467,7 +482,7 @@ describe("StatsBoard", () => {
 
     it("displays per-channel geographic detail (AC21)", () => {
       render(
-        <StatsBoard summary={MOCK_SUMMARY} entries={MOCK_ENTRIES} anomalies={MOCK_ANOMALIES} />,
+        <StatsBoard summary={MOCK_SUMMARY} entries={MOCK_ENTRIES} anomalies={MOCK_ANOMALIES} {...htTtcProps} />,
       );
       // Per-canal geo sections exist as collapsible <details>
       // France CA TTC in shopify geo = 35000 → "35 000,00"
@@ -478,7 +493,7 @@ describe("StatsBoard", () => {
   describe("Existing sections unchanged (AC25)", () => {
     it("keeps the 4 original sections in first position", () => {
       const { container } = render(
-        <StatsBoard summary={MOCK_SUMMARY} entries={MOCK_ENTRIES} anomalies={MOCK_ANOMALIES} />,
+        <StatsBoard summary={MOCK_SUMMARY} entries={MOCK_ENTRIES} anomalies={MOCK_ANOMALIES} {...htTtcProps} />,
       );
       const sections = container.querySelectorAll("section");
       // First 4 sections: Équilibre, Transactions, Écritures, Anomalies
