@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,6 +35,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const isHelpButtonClickRef = useRef(false);
   const [dateRange, setDateRange] = useState<DateRange>(() => getPresetRange(DEFAULT_PRESET));
   const account = useAccountOverrides();
 
@@ -159,7 +160,10 @@ export default function Home() {
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
-      <HelpDrawer isOpen={isHelpOpen} onOpenChange={setIsHelpOpen} />
+      <HelpDrawer isOpen={isHelpOpen} onOpenChange={(open) => {
+        if (isHelpButtonClickRef.current) return;
+        setIsHelpOpen(open);
+      }} />
 
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">
@@ -167,7 +171,16 @@ export default function Home() {
         </h1>
         <div className="flex items-center gap-1">
           <ThemeToggle />
-          <Button variant="outline" size="icon" onPointerDown={(e) => e.stopPropagation()} onClick={() => setIsHelpOpen((prev) => !prev)} aria-label="Aide sur les formats de fichiers">
+          <Button
+            variant="outline"
+            size="icon"
+            onPointerDown={() => { isHelpButtonClickRef.current = true; }}
+            onClick={() => {
+              setIsHelpOpen((prev) => !prev);
+              requestAnimationFrame(() => { isHelpButtonClickRef.current = false; });
+            }}
+            aria-label="Aide sur les formats de fichiers"
+          >
             <HelpCircle className="h-4 w-4" />
           </Button>
         </div>
