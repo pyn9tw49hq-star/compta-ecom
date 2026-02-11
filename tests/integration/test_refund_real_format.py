@@ -62,7 +62,7 @@ class TestRealFormatParsing:
 
     def test_refund_reference(self, real_format_refund: NormalizedTransaction) -> None:
         """Référence du remboursement correcte."""
-        assert real_format_refund.reference == "DECREAL002-R3740677"
+        assert real_format_refund.reference == "DECREAL002"
 
     def test_refund_amounts(self, real_format_refund: NormalizedTransaction) -> None:
         """Montants du remboursement (CSV TTC / 1.20 = HT)."""

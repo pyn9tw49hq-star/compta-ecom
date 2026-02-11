@@ -54,12 +54,12 @@ class TestSameOrderNumberParsing:
         sales = [t for t in transactions_same_order if t.type == "sale"]
         assert sales[0].reference == "DECR001"
 
-    def test_refund_has_suffixed_reference(
+    def test_refund_has_original_reference(
         self, transactions_same_order: list[NormalizedTransaction]
     ) -> None:
-        """Le remboursement a une référence suffixée avec l'ID remboursement."""
+        """Le remboursement conserve la référence commande originale (pas de suffixe -R)."""
         refunds = [t for t in transactions_same_order if t.type == "refund"]
-        assert refunds[0].reference == "DECR001-R3010051"
+        assert refunds[0].reference == "DECR001"
 
     def test_sale_amounts_positive(
         self, transactions_same_order: list[NormalizedTransaction]

@@ -216,15 +216,9 @@ class MiraklParser(BaseParser):
             if has_refund_id and isinstance(group_key, tuple):
                 order_ref, refund_id = group_key
                 order_ref_clean = str(order_ref).strip()
-                # Si ID remboursement présent, ajouter un suffixe à la référence
-                if refund_id and str(refund_id).strip():
-                    # Nettoyer l'ID remboursement (supprimer espaces et .0 si float converti en str)
-                    refund_id_clean = str(refund_id).strip()
-                    if refund_id_clean.endswith(".0"):
-                        refund_id_clean = refund_id_clean[:-2]
-                    ref_str = f"{order_ref_clean}-R{refund_id_clean}"
-                else:
-                    ref_str = order_ref_clean
+                # Toujours utiliser la ref commande d'origine — le refund_id
+                # ne sert qu'au groupby pour séparer les lignes, jamais dans la ref.
+                ref_str = order_ref_clean
             else:
                 ref_str = str(group_key).strip()
 
