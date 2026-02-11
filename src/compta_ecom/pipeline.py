@@ -153,13 +153,13 @@ class PipelineOrchestrator:
         config: AppConfig,
     ) -> dict[str, object]:
         """Construit le résumé : transactions par canal, écritures par type, totaux, KPIs financiers."""
-        # Transactions par canal (unique par reference + channel)
-        seen_refs: set[tuple[str, str]] = set()
+        # Transactions par canal (unique par reference + channel + type)
+        seen_refs: set[tuple[str, str, str]] = set()
         transactions_par_canal: Counter[str] = Counter()
         unique_txs: list[NormalizedTransaction] = []
         for pr in all_parse_results:
             for t in pr.transactions:
-                key = (t.reference, t.channel)
+                key = (t.reference, t.channel, t.type)
                 if key not in seen_refs:
                     seen_refs.add(key)
                     transactions_par_canal[t.channel] += 1
@@ -346,12 +346,12 @@ class PipelineOrchestrator:
     def _deduplicate_transactions(
         all_parse_results: list[ParseResult],
     ) -> list[NormalizedTransaction]:
-        """Déduplique les transactions par (reference, channel)."""
-        seen: set[tuple[str, str]] = set()
+        """Déduplique les transactions par (reference, channel, type)."""
+        seen: set[tuple[str, str, str]] = set()
         unique: list[NormalizedTransaction] = []
         for pr in all_parse_results:
             for t in pr.transactions:
-                key = (t.reference, t.channel)
+                key = (t.reference, t.channel, t.type)
                 if key not in seen:
                     seen.add(key)
                     unique.append(t)
