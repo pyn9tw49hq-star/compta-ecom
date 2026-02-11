@@ -438,8 +438,8 @@ class TestBuildSummaryKPIs:
         # Belgique: count=1, ca_ttc=242 > France: count=2, ca_ttc=216
         countries = list(geo.keys())
         assert countries == ["Belgique", "France"]
-        assert geo["Belgique"] == {"count": 1, "ca_ttc": 242.0}
-        assert geo["France"] == {"count": 2, "ca_ttc": 216.0}
+        assert geo["Belgique"] == {"count": 1, "ca_ttc": 242.0, "ca_ht": 215.0}
+        assert geo["France"] == {"count": 2, "ca_ttc": 216.0, "ca_ht": 195.0}
 
     def test_repartition_geo_par_canal(self) -> None:
         """Répartition géographique par canal, triée par CA TTC desc (AC9)."""
@@ -449,11 +449,11 @@ class TestBuildSummaryKPIs:
         geo_canal = summary["repartition_geo_par_canal"]
         # ManoMano: France seulement
         assert list(geo_canal["manomano"].keys()) == ["France"]
-        assert geo_canal["manomano"]["France"] == {"count": 1, "ca_ttc": 96.0}
+        assert geo_canal["manomano"]["France"] == {"count": 1, "ca_ttc": 96.0, "ca_ht": 85.0}
         # Shopify: Belgique (242) > France (120)
         assert list(geo_canal["shopify"].keys()) == ["Belgique", "France"]
-        assert geo_canal["shopify"]["Belgique"] == {"count": 1, "ca_ttc": 242.0}
-        assert geo_canal["shopify"]["France"] == {"count": 1, "ca_ttc": 120.0}
+        assert geo_canal["shopify"]["Belgique"] == {"count": 1, "ca_ttc": 242.0, "ca_ht": 215.0}
+        assert geo_canal["shopify"]["France"] == {"count": 1, "ca_ttc": 120.0, "ca_ht": 110.0}
 
     def test_existing_keys_unchanged(self) -> None:
         """Les 3 clés existantes restent intactes (AC11)."""

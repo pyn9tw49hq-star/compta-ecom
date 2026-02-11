@@ -282,12 +282,11 @@ export default function StatsBoard({ summary, entries, anomalies }: StatsBoardPr
       </section>
 
       {/* ====================================================== */}
-      {/* Fiscalité & géographie (AC20-21)                        */}
+      {/* Fiscalité (AC20)                                        */}
       {/* ====================================================== */}
 
-      <h2 className="text-lg font-bold mt-8">Fiscalité &amp; géographie</h2>
+      <h2 className="text-lg font-bold mt-8">Fiscalité</h2>
 
-      {/* TVA collectée par canal (AC20) */}
       <section>
         <h3 className="text-base font-semibold mb-2">TVA collectée par canal</h3>
         <table className="w-full text-sm">
@@ -315,16 +314,20 @@ export default function StatsBoard({ summary, entries, anomalies }: StatsBoardPr
         </table>
       </section>
 
-      {/* Répartition géographique (AC21) */}
+      {/* ====================================================== */}
+      {/* Répartition géographique (AC21)                         */}
+      {/* ====================================================== */}
+
+      <h2 className="text-lg font-bold mt-8">Répartition géographique</h2>
+
       <section>
-        <h3 className="text-base font-semibold mb-2">Répartition géographique</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b">
                 <th scope="col" className="text-left py-2 font-medium">Pays</th>
                 <th scope="col" className="text-right py-2 font-medium">Transactions</th>
-                <th scope="col" className="text-right py-2 font-medium">CA TTC</th>
+                <th scope="col" className="text-right py-2 font-medium">CA HT</th>
               </tr>
             </thead>
             <tbody>
@@ -332,7 +335,7 @@ export default function StatsBoard({ summary, entries, anomalies }: StatsBoardPr
                 <tr key={pays} className="border-b">
                   <th scope="row" className="text-left py-2 font-normal">{pays}</th>
                   <td className="text-right py-2">{formatCount(data.count)}</td>
-                  <td className="text-right py-2">{formatCurrency(data.ca_ttc)} €</td>
+                  <td className="text-right py-2">{formatCurrency(data.ca_ht)} €</td>
                 </tr>
               ))}
             </tbody>
@@ -353,7 +356,7 @@ export default function StatsBoard({ summary, entries, anomalies }: StatsBoardPr
                     <tr className="border-b">
                       <th scope="col" className="text-left py-1 font-medium">Pays</th>
                       <th scope="col" className="text-right py-1 font-medium">Transactions</th>
-                      <th scope="col" className="text-right py-1 font-medium">CA TTC</th>
+                      <th scope="col" className="text-right py-1 font-medium">CA HT</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -361,7 +364,7 @@ export default function StatsBoard({ summary, entries, anomalies }: StatsBoardPr
                       <tr key={pays} className="border-b">
                         <th scope="row" className="text-left py-1 font-normal">{pays}</th>
                         <td className="text-right py-1">{formatCount(data.count)}</td>
-                        <td className="text-right py-1">{formatCurrency(data.ca_ttc)} €</td>
+                        <td className="text-right py-1">{formatCurrency(data.ca_ht)} €</td>
                       </tr>
                     ))}
                   </tbody>

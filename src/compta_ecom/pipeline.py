@@ -246,35 +246,41 @@ class PipelineOrchestrator:
             return f"Pays inconnu ({code})"
 
         geo_g_count: dict[str, int] = {}
-        geo_g_ca: dict[str, float] = {}
+        geo_g_ca_ttc: dict[str, float] = {}
+        geo_g_ca_ht: dict[str, float] = {}
         geo_c_count: dict[str, dict[str, int]] = {}
-        geo_c_ca: dict[str, dict[str, float]] = {}
+        geo_c_ca_ttc: dict[str, dict[str, float]] = {}
+        geo_c_ca_ht: dict[str, dict[str, float]] = {}
 
         for t in unique_txs:
             if t.special_type is not None or t.type != "sale":
                 continue
             country = resolve_country(t.country_code)
             canal = t.channel
+            tx_ca_ht = t.amount_ht + t.shipping_ht
 
             # Global
             geo_g_count[country] = geo_g_count.get(country, 0) + 1
-            geo_g_ca[country] = geo_g_ca.get(country, 0.0) + t.amount_ttc
+            geo_g_ca_ttc[country] = geo_g_ca_ttc.get(country, 0.0) + t.amount_ttc
+            geo_g_ca_ht[country] = geo_g_ca_ht.get(country, 0.0) + tx_ca_ht
 
             # Par canal
             if canal not in geo_c_count:
                 geo_c_count[canal] = {}
-                geo_c_ca[canal] = {}
+                geo_c_ca_ttc[canal] = {}
+                geo_c_ca_ht[canal] = {}
             geo_c_count[canal][country] = geo_c_count[canal].get(country, 0) + 1
-            geo_c_ca[canal][country] = geo_c_ca[canal].get(country, 0.0) + t.amount_ttc
+            geo_c_ca_ttc[canal][country] = geo_c_ca_ttc[canal].get(country, 0.0) + t.amount_ttc
+            geo_c_ca_ht[canal][country] = geo_c_ca_ht[canal].get(country, 0.0) + tx_ca_ht
 
         repartition_geo_globale = {
-            country: {"count": geo_g_count[country], "ca_ttc": round(geo_g_ca[country], 2)}
-            for country in sorted(geo_g_ca, key=lambda p: geo_g_ca[p], reverse=True)
+            country: {"count": geo_g_count[country], "ca_ttc": round(geo_g_ca_ttc[country], 2), "ca_ht": round(geo_g_ca_ht[country], 2)}
+            for country in sorted(geo_g_ca_ttc, key=lambda p: geo_g_ca_ttc[p], reverse=True)
         }
         repartition_geo_par_canal = {
             canal: {
-                country: {"count": geo_c_count[canal][country], "ca_ttc": round(geo_c_ca[canal][country], 2)}
-                for country in sorted(geo_c_ca[canal], key=lambda p: geo_c_ca[canal][p], reverse=True)
+                country: {"count": geo_c_count[canal][country], "ca_ttc": round(geo_c_ca_ttc[canal][country], 2), "ca_ht": round(geo_c_ca_ht[canal][country], 2)}
+                for country in sorted(geo_c_ca_ttc[canal], key=lambda p: geo_c_ca_ttc[canal][p], reverse=True)
             }
             for canal in sorted(geo_c_count)
         }
