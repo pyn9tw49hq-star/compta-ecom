@@ -19,8 +19,12 @@ import EntriesTable from "@/components/EntriesTable";
 import AnomaliesPanel from "@/components/AnomaliesPanel";
 import StatsBoard from "@/components/StatsBoard";
 import DownloadButtons from "@/components/DownloadButtons";
+import PeriodFilter from "@/components/PeriodFilter";
 import { processFiles } from "@/lib/api";
 import { CHANNEL_CONFIGS, matchFileToSlot } from "@/lib/channels";
+import { DEFAULT_PRESET, getPresetRange } from "@/lib/datePresets";
+import { computeSummary } from "@/lib/computeSummary";
+import type { DateRange } from "@/lib/datePresets";
 import type { UploadedFile, ProcessResponse, ChannelStatus, FileSlotConfig } from "@/lib/types";
 
 export default function Home() {
@@ -29,6 +33,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [dateRange, setDateRange] = useState<DateRange>(() => getPresetRange(DEFAULT_PRESET));
 
   const { unmatchedFiles, unmatchedGlobalIndices } = useMemo(() => {
     const unmatched: UploadedFile[] = [];
@@ -72,6 +77,39 @@ export default function Home() {
     }
     return missing;
   }, [files]);
+
+  // --- Period filtering ---
+  const filteredTransactions = useMemo(() => {
+    if (!result) return [];
+    return result.transactions.filter((t) => {
+      const d = new Date(t.date + "T00:00:00");
+      return d >= dateRange.from && d <= dateRange.to;
+    });
+  }, [result, dateRange]);
+
+  const filteredRefSet = useMemo(() => {
+    const set = new Set<string>();
+    for (const t of filteredTransactions) {
+      set.add(`${t.reference}|${t.channel}`);
+    }
+    return set;
+  }, [filteredTransactions]);
+
+  const filteredSummary = useMemo(() => {
+    if (!result) return null;
+    const countryMap = result.country_names ?? {};
+    return computeSummary(filteredTransactions, result.entries, countryMap);
+  }, [result, filteredTransactions]);
+
+  const filteredAnomalies = useMemo(() => {
+    if (!result) return [];
+    return result.anomalies.filter((a) => {
+      // Structural anomalies (no reference or no canal) are always shown
+      if (!a.reference || !a.canal) return true;
+      // Otherwise, only show if the ref+canal is in the filtered set
+      return filteredRefSet.has(`${a.reference}|${a.canal}`);
+    });
+  }, [result, filteredRefSet]);
 
   const handleAddFiles = useCallback((newFiles: UploadedFile[]) => {
     setFiles((prev) => [...prev, ...newFiles]);
@@ -160,7 +198,7 @@ export default function Home() {
             <TabsList>
               <TabsTrigger value="ecritures">Écritures</TabsTrigger>
               <TabsTrigger value="anomalies">
-                Anomalies{result.anomalies.length > 0 && ` (${result.anomalies.length})`}
+                Anomalies{filteredAnomalies.length > 0 && ` (${filteredAnomalies.length})`}
               </TabsTrigger>
               <TabsTrigger value="resume">Résumé</TabsTrigger>
             </TabsList>
@@ -170,14 +208,17 @@ export default function Home() {
               anomalies={result.anomalies}
             />
           </div>
+          <PeriodFilter dateRange={dateRange} onChange={setDateRange} />
           <TabsContent value="ecritures">
             <EntriesTable entries={result.entries} />
           </TabsContent>
           <TabsContent value="anomalies">
-            <AnomaliesPanel anomalies={result.anomalies} />
+            <AnomaliesPanel anomalies={filteredAnomalies} />
           </TabsContent>
           <TabsContent value="resume">
-            <StatsBoard summary={result.summary} entries={result.entries} anomalies={result.anomalies} />
+            {filteredSummary && (
+              <StatsBoard summary={filteredSummary} entries={result.entries} anomalies={filteredAnomalies} />
+            )}
           </TabsContent>
         </Tabs>
       )}

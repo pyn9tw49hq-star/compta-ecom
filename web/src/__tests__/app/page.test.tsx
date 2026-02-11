@@ -45,7 +45,7 @@ describe("Page Integration", () => {
   it("renders page title and help button", () => {
     render(<Home />);
 
-    expect(screen.getByText(/compta-ecom/)).toBeInTheDocument();
+    expect(screen.getByText(/MAPP E-COMMERCE/)).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /aide/i })
     ).toBeInTheDocument();
@@ -209,6 +209,25 @@ describe("Page Integration", () => {
         ecritures_par_type: { vente: 1 },
         totaux: { debit: 100, credit: 100 },
       },
+      transactions: [
+        {
+          reference: "1001",
+          channel: "shopify",
+          date: "2026-01-15",
+          type: "sale" as const,
+          amount_ht: 83.33,
+          amount_tva: 16.67,
+          amount_ttc: 100,
+          shipping_ht: 0,
+          shipping_tva: 0,
+          tva_rate: 20,
+          country_code: "FR",
+          commission_ttc: 0,
+          commission_ht: 0,
+          special_type: null,
+        },
+      ],
+      country_names: { FR: "France" },
     };
     mockProcessFiles.mockResolvedValueOnce(mockResponse);
 
@@ -275,7 +294,7 @@ describe("Page Integration", () => {
     const mockResponse = {
       entries: [
         {
-          date: "2026-01-15",
+          date: "2026-02-15",
           journal: "VE",
           compte: "411000",
           libelle: "Vente",
@@ -301,6 +320,25 @@ describe("Page Integration", () => {
         ecritures_par_type: { vente: 1 },
         totaux: { debit: 50, credit: 50 },
       },
+      transactions: [
+        {
+          reference: "REF1",
+          channel: "decathlon",
+          date: "2026-02-15",
+          type: "sale" as const,
+          amount_ht: 41.67,
+          amount_tva: 8.33,
+          amount_ttc: 50,
+          shipping_ht: 0,
+          shipping_tva: 0,
+          tva_rate: 20,
+          country_code: "FR",
+          commission_ttc: 0,
+          commission_ht: 0,
+          special_type: null,
+        },
+      ],
+      country_names: { FR: "France" },
     };
     mockProcessFiles.mockResolvedValueOnce(mockResponse);
 

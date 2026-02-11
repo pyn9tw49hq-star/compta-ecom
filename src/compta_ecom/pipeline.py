@@ -75,7 +75,7 @@ class PipelineOrchestrator:
         self,
         files: dict[str, bytes],
         config: AppConfig,
-    ) -> tuple[list[AccountingEntry], list[Anomaly], dict[str, object]]:
+    ) -> tuple[list[AccountingEntry], list[Anomaly], dict[str, object], list[NormalizedTransaction]]:
         """Exécute le pipeline à partir de fichiers en mémoire.
 
         Args:
@@ -83,7 +83,7 @@ class PipelineOrchestrator:
             config: Configuration de l'application.
 
         Returns:
-            Tuple (écritures, anomalies, résumé).
+            Tuple (écritures, anomalies, résumé, transactions_uniques).
         """
         canal_dispatch = self._detect_files_from_buffers(files, config.channels)
 
@@ -113,8 +113,9 @@ class PipelineOrchestrator:
 
         entries, all_anomalies = self._process_parse_results(all_parse_results, config)
         summary = self._build_summary(entries, all_parse_results, config)
+        unique_txs = self._deduplicate_transactions(all_parse_results)
 
-        return entries, all_anomalies, summary
+        return entries, all_anomalies, summary, unique_txs
 
     def _process_parse_results(
         self,
@@ -340,6 +341,21 @@ class PipelineOrchestrator:
             "repartition_geo_par_canal": repartition_geo_par_canal,
             "tva_par_pays_par_canal": tva_par_pays_par_canal_out,
         }
+
+    @staticmethod
+    def _deduplicate_transactions(
+        all_parse_results: list[ParseResult],
+    ) -> list[NormalizedTransaction]:
+        """Déduplique les transactions par (reference, channel)."""
+        seen: set[tuple[str, str]] = set()
+        unique: list[NormalizedTransaction] = []
+        for pr in all_parse_results:
+            for t in pr.transactions:
+                key = (t.reference, t.channel)
+                if key not in seen:
+                    seen.add(key)
+                    unique.append(t)
+        return unique
 
     @staticmethod
     def _detect_files(

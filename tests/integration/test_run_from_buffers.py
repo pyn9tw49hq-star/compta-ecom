@@ -86,7 +86,7 @@ class TestRunFromBuffersVsRun:
         files_bytes: dict[str, bytes] = {
             name: content.encode("utf-8") for name, content in test_data.items()
         }
-        entries_buf, anomalies_buf, summary = orchestrator.run_from_buffers(files_bytes, config)
+        entries_buf, anomalies_buf, summary, _txs = orchestrator.run_from_buffers(files_bytes, config)
 
         return entries_buf, anomalies_buf, summary, output_path
 

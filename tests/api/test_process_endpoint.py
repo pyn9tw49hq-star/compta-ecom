@@ -12,14 +12,16 @@ FIXTURES = Path(__file__).parent.parent / "fixtures"
 
 
 def test_process_shopify_returns_200(client, shopify_files):
-    """Upload Shopify → 200 avec entries, anomalies, summary."""
+    """Upload Shopify → 200 avec entries, anomalies, summary, transactions."""
     response = client.post("/api/process", files=shopify_files)
     assert response.status_code == 200
     data = response.json()
     assert "entries" in data
     assert "anomalies" in data
     assert "summary" in data
+    assert "transactions" in data
     assert len(data["entries"]) > 0
+    assert len(data["transactions"]) > 0
 
 
 def test_process_shopify_entry_fields(client, shopify_files):
@@ -85,7 +87,7 @@ def test_process_shopify_coherence_with_pipeline(client, shopify_files):
         "versements.csv": (FIXTURES / "shopify" / "versements.csv").read_bytes(),
     }
     pipeline = PipelineOrchestrator()
-    entries, anomalies, summary = pipeline.run_from_buffers(files_dict, config)
+    entries, anomalies, summary, _txs = pipeline.run_from_buffers(files_dict, config)
 
     # Même nombre d'écritures
     assert len(api_data["entries"]) == len(entries)
@@ -94,6 +96,30 @@ def test_process_shopify_coherence_with_pipeline(client, shopify_files):
     # Mêmes totaux
     assert api_data["summary"]["totaux"]["debit"] == summary["totaux"]["debit"]
     assert api_data["summary"]["totaux"]["credit"] == summary["totaux"]["credit"]
+
+
+def test_process_shopify_transaction_fields(client, shopify_files):
+    """Chaque transaction contient les 14 champs attendus."""
+    response = client.post("/api/process", files=shopify_files)
+    data = response.json()
+    expected_keys = {
+        "reference",
+        "channel",
+        "date",
+        "type",
+        "amount_ht",
+        "amount_tva",
+        "amount_ttc",
+        "shipping_ht",
+        "shipping_tva",
+        "tva_rate",
+        "country_code",
+        "commission_ttc",
+        "commission_ht",
+        "special_type",
+    }
+    for tx in data["transactions"]:
+        assert set(tx.keys()) == expected_keys
 
 
 def test_process_date_format_iso(client, shopify_files):

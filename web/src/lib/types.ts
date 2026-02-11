@@ -37,10 +37,29 @@ export interface Summary {
   tva_par_pays_par_canal: Record<string, Record<string, { taux: number; montant: number }[]>>;
 }
 
+export interface Transaction {
+  reference: string;
+  channel: string;
+  date: string; // YYYY-MM-DD
+  type: "sale" | "refund";
+  amount_ht: number;
+  amount_tva: number;
+  amount_ttc: number;
+  shipping_ht: number;
+  shipping_tva: number;
+  tva_rate: number;
+  country_code: string;
+  commission_ttc: number;
+  commission_ht: number | null;
+  special_type: string | null;
+}
+
 export interface ProcessResponse {
   entries: Entry[];
   anomalies: Anomaly[];
   summary: Summary;
+  transactions: Transaction[];
+  country_names: Record<string, string>;
 }
 
 export interface UploadedFile {

@@ -60,7 +60,7 @@ async def process(request: Request, files: list[UploadFile]) -> JSONResponse:
     pipeline = PipelineOrchestrator()
 
     try:
-        entries, anomalies, summary = pipeline.run_from_buffers(files_dict, config)
+        entries, anomalies, summary, transactions = pipeline.run_from_buffers(files_dict, config)
     except ParseError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except NoResultError as e:
@@ -72,7 +72,15 @@ async def process(request: Request, files: list[UploadFile]) -> JSONResponse:
         logger.error("Erreur de configuration : %s", e)
         raise HTTPException(status_code=500, detail="Erreur de configuration interne")
 
-    return JSONResponse(content=serialize_response(entries, anomalies, summary))
+    # Build country_code→name mapping from vat_table for frontend geo display
+    country_names = {
+        code: str(entry["name"])
+        for code, entry in config.vat_table.items()
+    }
+
+    return JSONResponse(content=serialize_response(
+        entries, anomalies, summary, transactions, country_names,
+    ))
 
 
 @router.post("/api/download/excel")
@@ -84,7 +92,7 @@ async def download_excel(request: Request, files: list[UploadFile]) -> Streaming
     pipeline = PipelineOrchestrator()
 
     try:
-        entries, anomalies, _summary = pipeline.run_from_buffers(files_dict, config)
+        entries, anomalies, _summary, _transactions = pipeline.run_from_buffers(files_dict, config)
     except ParseError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except NoResultError as e:
