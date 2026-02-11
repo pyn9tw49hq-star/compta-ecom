@@ -88,17 +88,17 @@ export default function StatsBoard({ summary, entries, anomalies }: StatsBoardPr
   );
 
   const kpiTotals = useMemo(() => {
-    if (!hasKpis) return { caTtc: 0, rembTtc: 0, commTtc: 0, net: 0, taux: 0, caHt: 0, rembHt: 0, commHt: 0, tauxComm: 0 };
+    if (!hasKpis) return { caTtc: 0, caHt: 0, rembTtc: 0, rembHt: 0, commTtc: 0, commHt: 0, net: 0, taux: 0, tauxComm: 0 };
     const caTtc = kpiChannels.reduce((s, c) => s + summary.ca_par_canal[c].ttc, 0);
+    const caHt = kpiChannels.reduce((s, c) => s + summary.ca_par_canal[c].ht, 0);
     const rembTtc = kpiChannels.reduce((s, c) => s + summary.remboursements_par_canal[c].ttc, 0);
+    const rembHt = kpiChannels.reduce((s, c) => s + summary.remboursements_par_canal[c].ht, 0);
     const commTtc = kpiChannels.reduce((s, c) => s + summary.commissions_par_canal[c].ttc, 0);
+    const commHt = kpiChannels.reduce((s, c) => s + summary.commissions_par_canal[c].ht, 0);
     const net = kpiChannels.reduce((s, c) => s + summary.net_vendeur_par_canal[c], 0);
     const taux = caTtc > 0 ? Math.round(rembTtc / caTtc * 1000) / 10 : 0;
-    const caHt = kpiChannels.reduce((s, c) => s + summary.ca_par_canal[c].ht, 0);
-    const rembHt = kpiChannels.reduce((s, c) => s + summary.remboursements_par_canal[c].ht, 0);
-    const commHt = kpiChannels.reduce((s, c) => s + summary.commissions_par_canal[c].ht, 0);
     const tauxComm = caHt > 0 ? Math.round(commHt / caHt * 1000) / 10 : 0;
-    return { caTtc, rembTtc, commTtc, net, taux, caHt, rembHt, commHt, tauxComm };
+    return { caTtc, caHt, rembTtc, rembHt, commTtc, commHt, net, taux, tauxComm };
   }, [hasKpis, kpiChannels, summary]);
 
   return (
@@ -220,8 +220,28 @@ export default function StatsBoard({ summary, entries, anomalies }: StatsBoardPr
       <div className="flex items-center justify-between mt-8">
         <h2 className="text-lg font-bold">Synthèse financière par canal</h2>
         <div className="inline-flex rounded-md border" role="group" aria-label="Affichage TTC ou HT">
-          <button type="button" onClick={() => setIsHtMode(false)} className={`px-3 py-1 text-sm font-medium rounded-l-md transition-colors ${!isHtMode ? "bg-foreground text-background" : "bg-background text-muted-foreground hover:bg-muted"}`}>TTC</button>
-          <button type="button" onClick={() => setIsHtMode(true)} className={`px-3 py-1 text-sm font-medium rounded-r-md border-l transition-colors ${isHtMode ? "bg-foreground text-background" : "bg-background text-muted-foreground hover:bg-muted"}`}>HT</button>
+          <button
+            type="button"
+            onClick={() => setIsHtMode(false)}
+            className={`px-3 py-1 text-sm font-medium rounded-l-md transition-colors ${
+              !isHtMode
+                ? "bg-foreground text-background"
+                : "bg-background text-muted-foreground hover:bg-muted"
+            }`}
+          >
+            TTC
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsHtMode(true)}
+            className={`px-3 py-1 text-sm font-medium rounded-r-md border-l transition-colors ${
+              isHtMode
+                ? "bg-foreground text-background"
+                : "bg-background text-muted-foreground hover:bg-muted"
+            }`}
+          >
+            HT
+          </button>
         </div>
       </div>
 
@@ -242,7 +262,9 @@ export default function StatsBoard({ summary, entries, anomalies }: StatsBoardPr
               {kpiChannels.map((canal) => {
                 const meta = getChannelMeta(canal);
                 const taux = summary.taux_remboursement_par_canal[canal];
-                const commRate = summary.ca_par_canal[canal].ht > 0 ? Math.round(summary.commissions_par_canal[canal].ht / summary.ca_par_canal[canal].ht * 1000) / 10 : 0;
+                const commRate = summary.ca_par_canal[canal].ht > 0
+                  ? Math.round(summary.commissions_par_canal[canal].ht / summary.ca_par_canal[canal].ht * 1000) / 10
+                  : 0;
                 return (
                   <tr key={canal} className="border-b">
                     <th scope="row" className="text-left py-2 font-normal align-top">
@@ -253,30 +275,46 @@ export default function StatsBoard({ summary, entries, anomalies }: StatsBoardPr
                           </Badge>
                         </summary>
                         <div className="mt-2 text-xs text-muted-foreground space-y-1 pl-1">
-                          {isHtMode ? (<>
-                            <div>CA TTC : {formatCurrency(summary.ca_par_canal[canal].ttc)} €</div>
-                            <div>TVA collectée : {formatCurrency(summary.tva_collectee_par_canal[canal])} €</div>
-                            <div>Net vendeur : {formatCurrency(summary.net_vendeur_par_canal[canal])} €</div>
-                          </>) : (<>
-                            <div>CA HT : {formatCurrency(summary.ca_par_canal[canal].ht)} €</div>
-                            <div>TVA collectée : {formatCurrency(summary.tva_collectee_par_canal[canal])} €</div>
-                            <div>Commission HT : {formatCurrency(summary.commissions_par_canal[canal].ht)} €</div>
-                            <div>Remboursement HT : {formatCurrency(summary.remboursements_par_canal[canal].ht)} €</div>
-                          </>)}
+                          {isHtMode ? (
+                            <>
+                              <div>CA TTC : {formatCurrency(summary.ca_par_canal[canal].ttc)} €</div>
+                              <div>TVA collectée : {formatCurrency(summary.tva_collectee_par_canal[canal])} €</div>
+                              <div>Net vendeur : {formatCurrency(summary.net_vendeur_par_canal[canal])} €</div>
+                            </>
+                          ) : (
+                            <>
+                              <div>CA HT : {formatCurrency(summary.ca_par_canal[canal].ht)} €</div>
+                              <div>TVA collectée : {formatCurrency(summary.tva_collectee_par_canal[canal])} €</div>
+                              <div>Commission HT : {formatCurrency(summary.commissions_par_canal[canal].ht)} €</div>
+                              <div>Remboursement HT : {formatCurrency(summary.remboursements_par_canal[canal].ht)} €</div>
+                            </>
+                          )}
                         </div>
                       </details>
                     </th>
-                    <td className="text-right py-2 align-top">{formatCurrency(isHtMode ? summary.ca_par_canal[canal].ht : summary.ca_par_canal[canal].ttc)} €</td>
-                    <td className="text-right py-2 align-top">{formatCurrency(isHtMode ? summary.remboursements_par_canal[canal].ht : summary.remboursements_par_canal[canal].ttc)} €</td>
+                    <td className="text-right py-2 align-top">
+                      {formatCurrency(isHtMode ? summary.ca_par_canal[canal].ht : summary.ca_par_canal[canal].ttc)} €
+                    </td>
+                    <td className="text-right py-2 align-top">
+                      {formatCurrency(isHtMode ? summary.remboursements_par_canal[canal].ht : summary.remboursements_par_canal[canal].ttc)} €
+                    </td>
                     <td className="text-right py-2 align-top">
                       <Badge variant="outline" className={getRefundRateBadgeClass(taux)}>
                         {formatPercent(taux)}
                       </Badge>
                     </td>
-                    <td className="text-right py-2 align-top">{formatCurrency(isHtMode ? summary.commissions_par_canal[canal].ht : summary.commissions_par_canal[canal].ttc)} €</td>
-                    <td className="text-right py-2 align-top font-semibold text-emerald-700 dark:text-emerald-300">
-                      {isHtMode ? formatPercent(commRate) : `${formatCurrency(summary.net_vendeur_par_canal[canal])} €`}
+                    <td className="text-right py-2 align-top">
+                      {formatCurrency(isHtMode ? summary.commissions_par_canal[canal].ht : summary.commissions_par_canal[canal].ttc)} €
                     </td>
+                    {isHtMode ? (
+                      <td className="text-right py-2 align-top font-semibold">
+                        {formatPercent(commRate)}
+                      </td>
+                    ) : (
+                      <td className="text-right py-2 align-top font-semibold text-emerald-700 dark:text-emerald-300">
+                        {formatCurrency(summary.net_vendeur_par_canal[canal])} €
+                      </td>
+                    )}
                   </tr>
                 );
               })}
@@ -290,8 +328,65 @@ export default function StatsBoard({ summary, entries, anomalies }: StatsBoardPr
                   </Badge>
                 </td>
                 <td className="text-right py-2 font-semibold">{formatCurrency(isHtMode ? kpiTotals.commHt : kpiTotals.commTtc)} €</td>
-                <td className="text-right py-2 font-semibold text-emerald-700 dark:text-emerald-300">
-                  {isHtMode ? formatPercent(kpiTotals.tauxComm) : `${formatCurrency(kpiTotals.net)} €`}
+                {isHtMode ? (
+                  <td className="text-right py-2 font-semibold">
+                    {formatPercent(kpiTotals.tauxComm)}
+                  </td>
+                ) : (
+                  <td className="text-right py-2 font-semibold text-emerald-700 dark:text-emerald-300">
+                    {formatCurrency(kpiTotals.net)} €
+                  </td>
+                )}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* ====================================================== */}
+      {/* Ventilation CA : Produits / Frais de port               */}
+      {/* ====================================================== */}
+
+      <h2 className="text-lg font-bold mt-8">Ventilation du CA : Produits / Frais de port</h2>
+
+      <section>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b">
+                <th scope="col" className="text-left py-2 font-medium">Canal</th>
+                <th scope="col" className="text-right py-2 font-medium">CA Produits HT</th>
+                <th scope="col" className="text-right py-2 font-medium">CA Frais de port HT</th>
+                <th scope="col" className="text-right py-2 font-medium">CA Total HT</th>
+              </tr>
+            </thead>
+            <tbody>
+              {kpiChannels.map((canal) => {
+                const meta = getChannelMeta(canal);
+                const v = summary.ventilation_ca_par_canal[canal];
+                return (
+                  <tr key={canal} className="border-b">
+                    <th scope="row" className="text-left py-2 font-normal">
+                      <Badge variant="outline" className={meta.badgeClass}>
+                        {meta.label}
+                      </Badge>
+                    </th>
+                    <td className="text-right py-2">{formatCurrency(v.produits_ht)} €</td>
+                    <td className="text-right py-2">{formatCurrency(v.port_ht)} €</td>
+                    <td className="text-right py-2 font-semibold">{formatCurrency(v.total_ht)} €</td>
+                  </tr>
+                );
+              })}
+              <tr className="border-t-2">
+                <th scope="row" className="text-left py-2 font-semibold">Total</th>
+                <td className="text-right py-2 font-semibold">
+                  {formatCurrency(kpiChannels.reduce((s, c) => s + summary.ventilation_ca_par_canal[c].produits_ht, 0))} €
+                </td>
+                <td className="text-right py-2 font-semibold">
+                  {formatCurrency(kpiChannels.reduce((s, c) => s + summary.ventilation_ca_par_canal[c].port_ht, 0))} €
+                </td>
+                <td className="text-right py-2 font-semibold">
+                  {formatCurrency(kpiTotals.caHt)} €
                 </td>
               </tr>
             </tbody>
@@ -317,14 +412,43 @@ export default function StatsBoard({ summary, entries, anomalies }: StatsBoardPr
           <tbody>
             {kpiChannels.map((canal) => {
               const meta = getChannelMeta(canal);
+              const tvaPays = summary.tva_par_pays_par_canal[canal];
               return (
                 <tr key={canal} className="border-b">
-                  <th scope="row" className="text-left py-2 font-normal">
-                    <Badge variant="outline" className={meta.badgeClass}>
-                      {meta.label}
-                    </Badge>
+                  <th scope="row" className="text-left py-2 font-normal align-top">
+                    <details>
+                      <summary className="cursor-pointer list-none">
+                        <Badge variant="outline" className={meta.badgeClass}>
+                          {meta.label}
+                        </Badge>
+                      </summary>
+                      {tvaPays && (
+                        <div className="overflow-x-auto mt-2">
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="border-b">
+                                <th scope="col" className="text-left py-1 font-medium">Pays</th>
+                                <th scope="col" className="text-right py-1 font-medium">Taux TVA</th>
+                                <th scope="col" className="text-right py-1 font-medium">Montant TVA</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {Object.entries(tvaPays).map(([pays, rows]) =>
+                                rows.map((row, i) => (
+                                  <tr key={`${pays}-${i}`} className="border-b">
+                                    <th scope="row" className="text-left py-1 font-normal">{i === 0 ? pays : ""}</th>
+                                    <td className="text-right py-1">{formatPercent(row.taux)}</td>
+                                    <td className="text-right py-1">{formatCurrency(row.montant)} €</td>
+                                  </tr>
+                                ))
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </details>
                   </th>
-                  <td className="text-right py-2">{formatCurrency(summary.tva_collectee_par_canal[canal])} €</td>
+                  <td className="text-right py-2 align-top">{formatCurrency(summary.tva_collectee_par_canal[canal])} €</td>
                 </tr>
               );
             })}

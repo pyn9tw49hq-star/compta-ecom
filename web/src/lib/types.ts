@@ -31,8 +31,10 @@ export interface Summary {
   commissions_par_canal: Record<string, { ht: number; ttc: number }>;
   net_vendeur_par_canal: Record<string, number>;
   tva_collectee_par_canal: Record<string, number>;
+  ventilation_ca_par_canal: Record<string, { produits_ht: number; port_ht: number; total_ht: number }>;
   repartition_geo_globale: Record<string, { count: number; ca_ttc: number; ca_ht: number }>;
   repartition_geo_par_canal: Record<string, Record<string, { count: number; ca_ttc: number; ca_ht: number }>>;
+  tva_par_pays_par_canal: Record<string, Record<string, { taux: number; montant: number }[]>>;
 }
 
 export interface ProcessResponse {

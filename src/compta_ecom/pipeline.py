@@ -174,6 +174,8 @@ class PipelineOrchestrator:
         # --- KPIs financiers (accumulateurs par canal) ---
         ca_ht: dict[str, float] = {}
         ca_ttc: dict[str, float] = {}
+        prod_ht: dict[str, float] = {}
+        port_ht: dict[str, float] = {}
         refund_ht: dict[str, float] = {}
         refund_ttc: dict[str, float] = {}
         refund_nb: dict[str, int] = {}
@@ -189,6 +191,7 @@ class PipelineOrchestrator:
             # Initialise les accumulateurs pour ce canal
             if c not in ca_ht:
                 ca_ht[c] = ca_ttc[c] = 0.0
+                prod_ht[c] = port_ht[c] = 0.0
                 refund_ht[c] = refund_ttc[c] = 0.0
                 refund_nb[c] = sales_nb[c] = 0
                 comm_ht[c] = comm_ttc[c] = 0.0
@@ -197,6 +200,8 @@ class PipelineOrchestrator:
             if t.type == "sale":
                 sales_nb[c] += 1
                 ca_ht[c] += t.amount_ht + t.shipping_ht
+                prod_ht[c] += t.amount_ht
+                port_ht[c] += t.shipping_ht
                 ca_ttc[c] += t.amount_ttc
                 tva_col[c] += t.amount_tva + t.shipping_tva
             elif t.type == "refund":
@@ -214,6 +219,8 @@ class PipelineOrchestrator:
         for c in channels:
             ca_ht[c] = round(ca_ht[c], 2)
             ca_ttc[c] = round(ca_ttc[c], 2)
+            prod_ht[c] = round(prod_ht[c], 2)
+            port_ht[c] = round(port_ht[c], 2)
             refund_ht[c] = round(refund_ht[c], 2)
             refund_ttc[c] = round(refund_ttc[c], 2)
             comm_ht[c] = round(comm_ht[c], 2)
@@ -236,6 +243,10 @@ class PipelineOrchestrator:
             for c in channels
         }
         tva_collectee_par_canal = {c: tva_col[c] for c in channels}
+        ventilation_ca_par_canal = {
+            c: {"produits_ht": prod_ht[c], "port_ht": port_ht[c], "total_ht": ca_ht[c]}
+            for c in channels
+        }
 
         # Répartition géographique (ventes uniquement)
         def resolve_country(code: str) -> str:
@@ -251,6 +262,8 @@ class PipelineOrchestrator:
         geo_c_count: dict[str, dict[str, int]] = {}
         geo_c_ca_ttc: dict[str, dict[str, float]] = {}
         geo_c_ca_ht: dict[str, dict[str, float]] = {}
+        # TVA par pays par canal : { canal: { pays: { taux: montant } } }
+        tva_pays_canal: dict[str, dict[str, dict[float, float]]] = {}
 
         for t in unique_txs:
             if t.special_type is not None or t.type != "sale":
@@ -258,6 +271,7 @@ class PipelineOrchestrator:
             country = resolve_country(t.country_code)
             canal = t.channel
             tx_ca_ht = t.amount_ht + t.shipping_ht
+            tx_tva = t.amount_tva + t.shipping_tva
 
             # Global
             geo_g_count[country] = geo_g_count.get(country, 0) + 1
@@ -269,21 +283,47 @@ class PipelineOrchestrator:
                 geo_c_count[canal] = {}
                 geo_c_ca_ttc[canal] = {}
                 geo_c_ca_ht[canal] = {}
+                tva_pays_canal[canal] = {}
             geo_c_count[canal][country] = geo_c_count[canal].get(country, 0) + 1
             geo_c_ca_ttc[canal][country] = geo_c_ca_ttc[canal].get(country, 0.0) + t.amount_ttc
             geo_c_ca_ht[canal][country] = geo_c_ca_ht[canal].get(country, 0.0) + tx_ca_ht
 
+            # TVA par pays par canal
+            if country not in tva_pays_canal[canal]:
+                tva_pays_canal[canal][country] = {}
+            tva_pays_canal[canal][country][t.tva_rate] = (
+                tva_pays_canal[canal][country].get(t.tva_rate, 0.0) + tx_tva
+            )
+
         repartition_geo_globale = {
-            country: {"count": geo_g_count[country], "ca_ttc": round(geo_g_ca_ttc[country], 2), "ca_ht": round(geo_g_ca_ht[country], 2)}
+            country: {
+                "count": geo_g_count[country],
+                "ca_ttc": round(geo_g_ca_ttc[country], 2),
+                "ca_ht": round(geo_g_ca_ht[country], 2),
+            }
             for country in sorted(geo_g_ca_ttc, key=lambda p: geo_g_ca_ttc[p], reverse=True)
         }
         repartition_geo_par_canal = {
             canal: {
-                country: {"count": geo_c_count[canal][country], "ca_ttc": round(geo_c_ca_ttc[canal][country], 2), "ca_ht": round(geo_c_ca_ht[canal][country], 2)}
+                country: {
+                    "count": geo_c_count[canal][country],
+                    "ca_ttc": round(geo_c_ca_ttc[canal][country], 2),
+                    "ca_ht": round(geo_c_ca_ht[canal][country], 2),
+                }
                 for country in sorted(geo_c_ca_ttc[canal], key=lambda p: geo_c_ca_ttc[canal][p], reverse=True)
             }
             for canal in sorted(geo_c_count)
         }
+
+        # TVA par pays par canal — sérialisé avec taux en string pour JSON
+        tva_par_pays_par_canal_out: dict[str, dict[str, list[dict[str, float]]]] = {}
+        for canal in sorted(tva_pays_canal):
+            tva_par_pays_par_canal_out[canal] = {}
+            for country in sorted(tva_pays_canal[canal]):
+                rows = []
+                for rate in sorted(tva_pays_canal[canal][country], reverse=True):
+                    rows.append({"taux": rate, "montant": round(tva_pays_canal[canal][country][rate], 2)})
+                tva_par_pays_par_canal_out[canal][country] = rows
 
         return {
             "transactions_par_canal": dict(transactions_par_canal),
@@ -295,8 +335,10 @@ class PipelineOrchestrator:
             "commissions_par_canal": commissions_par_canal,
             "net_vendeur_par_canal": net_vendeur_par_canal,
             "tva_collectee_par_canal": tva_collectee_par_canal,
+            "ventilation_ca_par_canal": ventilation_ca_par_canal,
             "repartition_geo_globale": repartition_geo_globale,
             "repartition_geo_par_canal": repartition_geo_par_canal,
+            "tva_par_pays_par_canal": tva_par_pays_par_canal_out,
         }
 
     @staticmethod
