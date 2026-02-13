@@ -17,7 +17,7 @@ const CHANNEL_PATTERNS: Record<string, RegExp[]> = {
   shopify: [
     /^Ventes Shopify.*\.csv$/i,
     /^Transactions Shopify.*\.csv$/i,
-    /^D[ée]tails versements.*\.csv$/i,
+    /^D[ée]tails\s+versements.*\.csv$/i,
     /^Total des retours.*\.csv$/i,
   ],
   manomano: [
@@ -79,7 +79,7 @@ export const UNKNOWN_CHANNEL_META: ChannelMeta = {
  * Returns the channel key or null if no match.
  */
 export function detectChannel(filename: string): string | null {
-  const basename = filename.split("/").pop() ?? filename;
+  const basename = (filename.split("/").pop() ?? filename).normalize("NFC");
   for (const [channel, patterns] of Object.entries(CHANNEL_PATTERNS)) {
     if (patterns.some((re) => re.test(basename))) {
       return channel;
@@ -126,7 +126,7 @@ export const CHANNEL_CONFIGS: ChannelConfig[] = [
         pattern: "Détails versements*.csv",
         patternHuman: '"Détails versements [...].csv"',
         required: true,
-        regex: /^D[ée]tails versements.*\.csv$/i,
+        regex: /^D[ée]tails\s+versements.*\.csv$/i,
       },
       {
         key: "payout_details",
@@ -215,7 +215,7 @@ export function matchFileToSlot(
   filename: string,
   configs: ChannelConfig[],
 ): { channel: string; slotKey: string } | null {
-  const basename = filename.split("/").pop() ?? filename;
+  const basename = (filename.split("/").pop() ?? filename).normalize("NFC");
   for (const config of configs) {
     for (const slot of config.files) {
       if (slot.regex === null) continue;
@@ -236,7 +236,7 @@ export function suggestRename(
   filename: string,
   missingSlots: { channel: string; slot: FileSlotConfig }[],
 ): string | null {
-  const lower = filename.toLowerCase();
+  const lower = filename.normalize("NFC").toLowerCase();
   for (const [channel, keywords] of Object.entries(CHANNEL_KEYWORDS)) {
     if (keywords.some((kw) => lower.includes(kw))) {
       const match = missingSlots.find((ms) => ms.channel === channel);

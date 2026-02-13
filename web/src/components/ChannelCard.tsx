@@ -51,7 +51,7 @@ const ChannelCard = memo(function ChannelCard({
       for (const uploaded of uploadedFiles) {
         for (const slot of expectedFiles) {
           if (slot.regex === null) continue;
-          if (slot.regex.test(uploaded.file.name) && !matches.get(slot.key)) {
+          if (slot.regex.test(uploaded.file.name.normalize("NFC")) && !matches.get(slot.key)) {
             matches.set(slot.key, { file: uploaded });
             break;
           }

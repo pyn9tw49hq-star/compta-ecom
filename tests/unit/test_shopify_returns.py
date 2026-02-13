@@ -349,6 +349,9 @@ class TestAccountingRoutingReturnsAvoir:
         # 707 en debit
         vente_entry = next(e for e in entries if e.account.startswith("707"))
         assert vente_entry.debit == 100.0
+        # piece_number avec suffixe "A" (avoir Shopify)
+        for e in entries:
+            assert e.piece_number == "#RET_TESTA"
 
     def test_returns_avoir_with_shipping(self, shopify_config: AppConfig) -> None:
         """returns_avoir avec port → 7085 DEBIT en plus."""
@@ -376,6 +379,9 @@ class TestAccountingRoutingReturnsAvoir:
         port_entries = [e for e in entries if e.account.startswith("7085")]
         assert len(port_entries) == 1
         assert port_entries[0].debit == 10.0
+        # piece_number avec suffixe "A" (avoir Shopify)
+        for e in entries:
+            assert e.piece_number == "#RET_SHIPA"
 
 
 class TestAccountingRoutingRefundSettlement:

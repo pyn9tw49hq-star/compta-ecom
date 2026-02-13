@@ -41,16 +41,21 @@ describe("HelpDrawer", () => {
     expect(screen.getAllByText(/versements/).length).toBeGreaterThanOrEqual(1);
   });
 
-  it("displays optional file marker", () => {
+  it("displays mode explanation for Shopify", () => {
     render(<HelpDrawer isOpen={true} onOpenChange={vi.fn()} />);
 
-    expect(screen.getAllByText("(optionnel)").length).toBeGreaterThanOrEqual(1);
+    expect(
+      screen.getByText(/Choisissez l'un des modes suivants/)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/un seul mode à la fois/)
+    ).toBeInTheDocument();
   });
 
-  it("displays Shopify file count (3 fichiers)", () => {
+  it("displays Shopify mode count (2 modes)", () => {
     render(<HelpDrawer isOpen={true} onOpenChange={vi.fn()} />);
 
-    expect(screen.getByText(/3 fichiers/)).toBeInTheDocument();
+    expect(screen.getByText(/2 modes/)).toBeInTheDocument();
   });
 
   it("displays Décathlon file count singular (1 fichier)", () => {
@@ -87,7 +92,7 @@ describe("HelpDrawer", () => {
     render(<HelpDrawer isOpen={true} onOpenChange={vi.fn()} />);
 
     expect(
-      screen.getByText(/n'importe quel texte/)
+      screen.getByText(/texte optionnel/)
     ).toBeInTheDocument();
   });
 

@@ -68,14 +68,14 @@ export default function Home() {
     return CHANNEL_CONFIGS.map((config) => {
       const requiredSlots = config.files.filter((f) => f.required);
       const uploadedRequiredCount = requiredSlots.filter(
-        (slot) => slot.regex && files.some((f) => slot.regex!.test(f.file.name))
+        (slot) => slot.regex && files.some((f) => slot.regex!.test(f.file.name.normalize("NFC")))
       ).length;
 
       // fileGroups mode: at least one group must have all its slots filled
       if (config.fileGroups) {
         const filledSlotKeys = new Set<string>();
         for (const slot of config.files) {
-          if (slot.regex && files.some((f) => slot.regex!.test(f.file.name))) {
+          if (slot.regex && files.some((f) => slot.regex!.test(f.file.name.normalize("NFC")))) {
             filledSlotKeys.add(slot.key);
           }
         }
@@ -111,7 +111,7 @@ export default function Home() {
     for (const config of CHANNEL_CONFIGS) {
       for (const slot of config.files) {
         if (!slot.required || !slot.regex) continue;
-        const isFilled = files.some((f) => slot.regex!.test(f.file.name));
+        const isFilled = files.some((f) => slot.regex!.test(f.file.name.normalize("NFC")));
         if (!isFilled) {
           missing.push({ channel: config.key, slot });
         }

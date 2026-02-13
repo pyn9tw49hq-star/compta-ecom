@@ -33,15 +33,18 @@ export default function HelpDrawer({ isOpen, onOpenChange }: HelpDrawerProps) {
         </SheetHeader>
 
         <p className="text-sm text-muted-foreground mb-6">
-          [...] = n&apos;importe quel texte (ex&nbsp;: une date, un mois...).
+          [...] = texte optionnel (ex&nbsp;: une date, un mois...).
         </p>
 
         {CHANNEL_CONFIGS.map((config) => {
           const Icon = config.meta.icon;
-          const requiredFiles = config.files.filter((f) => f.required);
-          const optionalFiles = config.files.filter((f) => !f.required);
-          const fileCount = requiredFiles.length;
-          const fileWord = fileCount === 1 ? "fichier" : "fichiers";
+          const hasGroups = !!config.fileGroups;
+          const fileCount = hasGroups
+            ? config.fileGroups!.length
+            : config.files.filter((f) => f.required).length;
+          const fileWord = hasGroups
+            ? (fileCount === 1 ? "mode" : "modes")
+            : (fileCount === 1 ? "fichier" : "fichiers");
 
           return (
             <div key={config.key} className="mb-4">
@@ -52,16 +55,48 @@ export default function HelpDrawer({ isOpen, onOpenChange }: HelpDrawerProps) {
                   ({fileCount} {fileWord})
                 </span>
               </div>
-              <ul className="ml-6 space-y-1 text-sm">
-                {requiredFiles.map((file) => (
-                  <li key={file.key}>&bull; {file.patternHuman}</li>
-                ))}
-                {optionalFiles.map((file) => (
-                  <li key={file.key} className="text-muted-foreground">
-                    + {file.patternHuman} <span className="italic">(optionnel)</span>
-                  </li>
-                ))}
-              </ul>
+              {config.fileGroups ? (
+                <div className="ml-6 space-y-2">
+                  <p className="text-sm text-muted-foreground">Choisissez l&apos;un des modes suivants&nbsp;:</p>
+                  {config.fileGroups.map((group) => {
+                    const groupFiles = config.files.filter((f) => group.slots.includes(f.key) && f.regex !== null);
+                    const otherFiles = config.files.filter(
+                      (f) => !config.fileGroups!.some((g) => g.slots.includes(f.key)) && f.regex !== null
+                    );
+                    return (
+                      <div key={group.label}>
+                        <p className="text-sm font-medium text-muted-foreground mb-1">{group.label}&nbsp;:</p>
+                        <ul className="ml-2 space-y-1 text-sm">
+                          {groupFiles.map((file) => (
+                            <li key={file.key}>&bull; {file.patternHuman}</li>
+                          ))}
+                        </ul>
+                        {otherFiles.length > 0 && group === config.fileGroups![0] && (
+                          <ul className="ml-2 space-y-1 text-sm mt-1">
+                            {otherFiles.map((file) => (
+                              <li key={file.key} className="text-muted-foreground">
+                                + {file.patternHuman} <span className="italic">(optionnel)</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    );
+                  })}
+                  <p className="text-sm italic text-muted-foreground">Vous pouvez utiliser un seul mode à la fois.</p>
+                </div>
+              ) : (
+                <ul className="ml-6 space-y-1 text-sm">
+                  {config.files.filter((f) => f.required).map((file) => (
+                    <li key={file.key}>&bull; {file.patternHuman}</li>
+                  ))}
+                  {config.files.filter((f) => !f.required).map((file) => (
+                    <li key={file.key} className="text-muted-foreground">
+                      + {file.patternHuman} <span className="italic">(optionnel)</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           );
         })}
@@ -70,6 +105,8 @@ export default function HelpDrawer({ isOpen, onOpenChange }: HelpDrawerProps) {
         <ul className="ml-4 space-y-1 text-sm text-muted-foreground">
           <li>&bull; Ventes Shopify Janv 2026.csv</li>
           <li>&bull; Transactions Shopify Février 2026.csv</li>
+          <li>&bull; Détails versements Janvier 2026.csv</li>
+          <li>&bull; Total des retours par commande Février 2026.csv</li>
           <li>&bull; CA Manomano 01-2026.csv</li>
           <li>&bull; Decathlon Mars.csv</li>
           <li>&bull; Leroy Merlin Q1 2026.csv</li>

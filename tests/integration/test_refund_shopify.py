@@ -187,7 +187,14 @@ class TestShopifyRefundCommissionRestituee:
         sale_entries = generate_sale_entries(refund_commission_restituee, sample_config)
         settlement_entries = generate_settlement_entries(refund_commission_restituee, sample_config)
 
-        for e in sale_entries + settlement_entries:
+        # Sale entries (avoir Shopify) : piece_number avec suffixe "A"
+        for e in sale_entries:
+            assert e.piece_number == "#R001A"
+            if e.account.startswith("411"):
+                assert e.lettrage == "#R001"
+
+        # Settlement entries : piece_number sans suffixe
+        for e in settlement_entries:
             assert e.piece_number == "#R001"
             if e.account.startswith("411"):
                 assert e.lettrage == "#R001"
@@ -293,7 +300,14 @@ class TestShopifyRefundCommissionNonRestituee:
         sale_entries = generate_sale_entries(refund_commission_non_restituee, sample_config)
         settlement_entries = generate_settlement_entries(refund_commission_non_restituee, sample_config)
 
-        for e in sale_entries + settlement_entries:
+        # Sale entries (avoir Shopify) : piece_number avec suffixe "A"
+        for e in sale_entries:
+            assert e.piece_number == "#R002A"
+            if e.account.startswith("411"):
+                assert e.lettrage == "#R002"
+
+        # Settlement entries : piece_number sans suffixe
+        for e in settlement_entries:
             assert e.piece_number == "#R002"
             if e.account.startswith("411"):
                 assert e.lettrage == "#R002"

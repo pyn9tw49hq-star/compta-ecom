@@ -70,6 +70,10 @@ def _build_entries(
     label = f"{label_prefix} {transaction.reference} {canal_display}"
     entry_type = "sale" if is_sale else "refund"
 
+    piece_ref = transaction.reference
+    if not is_sale and transaction.channel == "shopify":
+        piece_ref = f"{transaction.reference}A"
+
     ttc = round(amounts["ttc"], 2)
     ht = round(amounts["ht"], 2)
     shipping_ht = round(amounts["shipping_ht"], 2)
@@ -86,7 +90,7 @@ def _build_entries(
             label=label,
             debit=ttc if is_sale else 0.0,
             credit=0.0 if is_sale else ttc,
-            piece_number=transaction.reference,
+            piece_number=piece_ref,
             lettrage=client_lettrage or transaction.reference,
             channel=transaction.channel,
             entry_type=entry_type,
@@ -103,7 +107,7 @@ def _build_entries(
                 label=label,
                 debit=0.0 if is_sale else ht,
                 credit=ht if is_sale else 0.0,
-                piece_number=transaction.reference,
+                piece_number=piece_ref,
                 lettrage="",
                 channel=transaction.channel,
                 entry_type=entry_type,
@@ -120,7 +124,7 @@ def _build_entries(
                 label=label,
                 debit=0.0 if is_sale else shipping_ht,
                 credit=shipping_ht if is_sale else 0.0,
-                piece_number=transaction.reference,
+                piece_number=piece_ref,
                 lettrage="",
                 channel=transaction.channel,
                 entry_type=entry_type,
@@ -137,7 +141,7 @@ def _build_entries(
                 label=label,
                 debit=0.0 if is_sale else tva,
                 credit=tva if is_sale else 0.0,
-                piece_number=transaction.reference,
+                piece_number=piece_ref,
                 lettrage="",
                 channel=transaction.channel,
                 entry_type=entry_type,
