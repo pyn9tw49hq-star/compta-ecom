@@ -93,21 +93,22 @@ def _build_entries(
         )
     )
 
-    # Ligne 707 (vente produit HT, hors frais de port)
-    entries.append(
-        AccountingEntry(
-            date=transaction.date,
-            journal=journal,
-            account=accounts["vente"],
-            label=label,
-            debit=0.0 if is_sale else ht,
-            credit=ht if is_sale else 0.0,
-            piece_number=transaction.reference,
-            lettrage="",
-            channel=transaction.channel,
-            entry_type=entry_type,
+    # Ligne 707 (vente produit HT, hors frais de port) — omise si ht = 0
+    if ht != 0.0:
+        entries.append(
+            AccountingEntry(
+                date=transaction.date,
+                journal=journal,
+                account=accounts["vente"],
+                label=label,
+                debit=0.0 if is_sale else ht,
+                credit=ht if is_sale else 0.0,
+                piece_number=transaction.reference,
+                lettrage="",
+                channel=transaction.channel,
+                entry_type=entry_type,
+            )
         )
-    )
 
     # Ligne 7085 (frais de port HT) — omise si shipping_ht = 0
     if shipping_ht != 0.0:

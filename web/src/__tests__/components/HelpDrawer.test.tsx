@@ -44,7 +44,7 @@ describe("HelpDrawer", () => {
   it("displays optional file marker", () => {
     render(<HelpDrawer isOpen={true} onOpenChange={vi.fn()} />);
 
-    expect(screen.getByText("(optionnel)")).toBeInTheDocument();
+    expect(screen.getAllByText("(optionnel)").length).toBeGreaterThanOrEqual(1);
   });
 
   it("displays Shopify file count (3 fichiers)", () => {

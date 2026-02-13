@@ -22,7 +22,7 @@ export default function ValidationBar({
   disabled = false,
 }: ValidationBarProps) {
   const activeChannels = channelStatuses.filter(
-    (s) => s.uploadedRequiredCount > 0,
+    (s) => s.uploadedRequiredCount > 0 || s.isComplete,
   );
   const completeChannels = activeChannels.filter((s) => s.isComplete);
   const incompleteChannels = activeChannels.filter((s) => !s.isComplete);
@@ -60,7 +60,7 @@ export default function ValidationBar({
               key={channel.channelKey}
               className="flex items-center gap-1.5 text-sm text-green-700 dark:text-green-300"
             >
-              ✅ {channel.label} sera traité
+              ✅ {channel.label} sera traité{channel.activeMode ? ` (${channel.activeMode.toLowerCase()})` : ""}
             </div>
           ))}
 
@@ -71,7 +71,7 @@ export default function ValidationBar({
                 key={channel.channelKey}
                 className="flex items-center gap-1.5 text-sm text-green-700 dark:text-green-300"
               >
-                ✅ {channel.label} sera traité
+                ✅ {channel.label} sera traité{channel.activeMode ? ` (${channel.activeMode.toLowerCase()})` : ""}
               </div>
             ))}
             {incompleteChannels.map((channel) => {

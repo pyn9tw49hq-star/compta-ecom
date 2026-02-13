@@ -113,8 +113,8 @@ describe("ChannelDashboard", () => {
 
     // The file should appear inside the Shopify channel card
     expect(screen.getByText("Ventes Shopify.csv")).toBeInTheDocument();
-    // Shopify should show 1/3 obligatoires
-    expect(screen.getByText("1 / 3 obligatoires")).toBeInTheDocument();
+    // Shopify uses fileGroups — header shows group labels
+    expect(screen.getByText("Mode complet / Mode avoirs")).toBeInTheDocument();
   });
 
   it("has no axe violations (empty state)", async () => {

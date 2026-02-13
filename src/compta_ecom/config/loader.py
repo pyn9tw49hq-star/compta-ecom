@@ -26,6 +26,8 @@ class ChannelConfig:
     default_country_code: str | None = None
     commission_vat_rate: float | None = None
     multi_files: list[str] = field(default_factory=list)
+    optional_files: list[str] = field(default_factory=list)
+    required_file_groups: list[list[str]] = field(default_factory=list)
     amounts_are_ttc: bool = False  # Si True, montants CSV = TTC (calcul HT via TVA)
 
 
@@ -342,6 +344,41 @@ def _validate_channels(data: dict[str, object]) -> dict[str, ChannelConfig]:
                     f"Clé multi_files '{mf_key}' absente de 'files' pour le canal '{chan_str}' dans {context}"
                 )
 
+        # optional_files (optional)
+        optional_files_raw = chan_data.get("optional_files", [])
+        if not isinstance(optional_files_raw, list):
+            raise ConfigError(
+                f"'optional_files' doit être une liste pour le canal '{chan_str}' dans {context}"
+            )
+        optional_files_list: list[str] = [str(v) for v in optional_files_raw]
+        for of_key in optional_files_list:
+            if of_key not in files_dict:
+                raise ConfigError(
+                    f"Clé optional_files '{of_key}' absente de 'files' pour le canal '{chan_str}' dans {context}"
+                )
+
+        # required_file_groups (optional)
+        rfg_raw = chan_data.get("required_file_groups", [])
+        if not isinstance(rfg_raw, list):
+            raise ConfigError(
+                f"'required_file_groups' doit être une liste pour le canal '{chan_str}' dans {context}"
+            )
+        required_file_groups: list[list[str]] = []
+        for idx, group in enumerate(rfg_raw):
+            if not isinstance(group, list) or len(group) == 0:
+                raise ConfigError(
+                    f"'required_file_groups[{idx}]' doit être une liste non-vide "
+                    f"pour le canal '{chan_str}' dans {context}"
+                )
+            str_group = [str(k) for k in group]
+            for gk in str_group:
+                if gk not in files_dict:
+                    raise ConfigError(
+                        f"Clé required_file_groups '{gk}' absente de 'files' "
+                        f"pour le canal '{chan_str}' dans {context}"
+                    )
+            required_file_groups.append(str_group)
+
         # amounts_are_ttc (optional, default False)
         amounts_are_ttc = bool(chan_data.get("amounts_are_ttc", False))
 
@@ -352,6 +389,8 @@ def _validate_channels(data: dict[str, object]) -> dict[str, ChannelConfig]:
             default_country_code=default_country_code,
             commission_vat_rate=commission_vat_rate,
             multi_files=multi_files_list,
+            optional_files=optional_files_list,
+            required_file_groups=required_file_groups,
             amounts_are_ttc=amounts_are_ttc,
         )
 

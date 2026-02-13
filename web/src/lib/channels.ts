@@ -18,6 +18,7 @@ const CHANNEL_PATTERNS: Record<string, RegExp[]> = {
     /^Ventes Shopify.*\.csv$/i,
     /^Transactions Shopify.*\.csv$/i,
     /^D[ée]tails versements.*\.csv$/i,
+    /^Total des retours.*\.csv$/i,
   ],
   manomano: [
     /^CA Manomano.*\.csv$/i,
@@ -134,6 +135,17 @@ export const CHANNEL_CONFIGS: ChannelConfig[] = [
         required: false,
         regex: null,
       },
+      {
+        key: "returns",
+        pattern: "Total des retours*.csv",
+        patternHuman: '"Total des retours [...].csv"',
+        required: false,
+        regex: /^Total des retours.*\.csv$/i,
+      },
+    ],
+    fileGroups: [
+      { label: "Mode complet", slots: ["sales", "transactions", "payouts"] },
+      { label: "Mode avoirs", slots: ["returns"] },
     ],
   },
   {
@@ -188,7 +200,7 @@ export const CHANNEL_CONFIGS: ChannelConfig[] = [
  * Keywords used by suggestRename to identify a probable channel from a filename.
  */
 export const CHANNEL_KEYWORDS: Record<string, string[]> = {
-  shopify: ["shopify", "ventes shopify", "transactions shopify", "versements"],
+  shopify: ["shopify", "ventes shopify", "transactions shopify", "versements", "retours"],
   manomano: ["manomano", "mano"],
   decathlon: ["decathlon", "deca"],
   leroy_merlin: ["leroy", "merlin", "leroy merlin"],

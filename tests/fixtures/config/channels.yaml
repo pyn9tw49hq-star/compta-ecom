@@ -4,6 +4,13 @@ channels:
       sales: "ventes.csv"
       transactions: "transactions.csv"
       payouts: "versements.csv"
+      payout_details: "detail_versements/*.csv"
+      returns: "returns.csv"
+    multi_files: ["payout_details"]
+    optional_files: ["returns", "payout_details"]
+    required_file_groups:
+      - ["sales", "transactions", "payouts"]
+      - ["returns"]
     encoding: utf-8
     separator: ","
   manomano:

@@ -70,6 +70,32 @@ export default function Home() {
       const uploadedRequiredCount = requiredSlots.filter(
         (slot) => slot.regex && files.some((f) => slot.regex!.test(f.file.name))
       ).length;
+
+      // fileGroups mode: at least one group must have all its slots filled
+      if (config.fileGroups) {
+        const filledSlotKeys = new Set<string>();
+        for (const slot of config.files) {
+          if (slot.regex && files.some((f) => slot.regex!.test(f.file.name))) {
+            filledSlotKeys.add(slot.key);
+          }
+        }
+        const completed: string[] = [];
+        for (const group of config.fileGroups) {
+          if (group.slots.every((s) => filledSlotKeys.has(s))) {
+            completed.push(group.label);
+          }
+        }
+        return {
+          channelKey: config.key,
+          label: config.meta.label,
+          requiredCount: requiredSlots.length,
+          uploadedRequiredCount,
+          isComplete: completed.length > 0,
+          completedGroups: completed,
+          activeMode: completed.length > 0 ? completed[completed.length - 1] : undefined,
+        };
+      }
+
       return {
         channelKey: config.key,
         label: config.meta.label,

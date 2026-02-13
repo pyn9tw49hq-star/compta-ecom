@@ -95,7 +95,7 @@ class TestSaleEntriesWithShipping:
         assert entries[3].credit == 22.0  # 4457: TVA combinée (20 + 2)
 
     def test_shipping_only_order(self, sample_config: AppConfig) -> None:
-        """amount_ht=0, shipping_ht=15 → 4 lignes, 707 C=0, 7085 C=15."""
+        """amount_ht=0, shipping_ht=15 → 3 lignes (707 omise car ht=0), 7085 C=15."""
         tx = _make_transaction(
             amount_ht=0.0,
             amount_tva=0.0,
@@ -105,12 +105,11 @@ class TestSaleEntriesWithShipping:
         )
         entries = generate_sale_entries(tx, sample_config)
 
-        assert len(entries) == 4
-        assert entries[1].credit == 0.0  # 707: produit HT = 0
-        assert entries[2].account == "70850100"  # 7085 France
-        assert entries[2].credit == 15.0  # frais de port HT
-        assert entries[3].credit == 3.0  # 4457: TVA shipping seule
-        assert entries[0].debit == 18.0
+        assert len(entries) == 3
+        assert entries[0].debit == 18.0  # 411: TTC
+        assert entries[1].account == "70850100"  # 7085 France
+        assert entries[1].credit == 15.0  # frais de port HT
+        assert entries[2].credit == 3.0  # 4457: TVA shipping seule
 
     def test_shipping_balance(self, sample_config: AppConfig) -> None:
         """Équilibre débit/crédit avec frais de port."""

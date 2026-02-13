@@ -125,7 +125,7 @@ describe("Page Integration", () => {
       addFilesViaInput([createMockFile("Ventes Shopify Janvier.csv")]);
     });
 
-    expect(screen.getByText(/1 \/ 3 obligatoires/)).toBeInTheDocument();
+    expect(screen.getByText("Mode complet / Mode avoirs")).toBeInTheDocument();
     expect(screen.getByText(/1 fichier déposé/)).toBeInTheDocument();
   });
 

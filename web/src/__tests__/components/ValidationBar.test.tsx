@@ -298,6 +298,68 @@ describe("ValidationBar", () => {
     });
   });
 
+  // --- fileGroups support (Story 3.6) ---
+
+  describe("fileGroups support", () => {
+    const shopifyAvoirsOnly: ChannelStatus = {
+      channelKey: "shopify",
+      label: "Shopify",
+      requiredCount: 3,
+      uploadedRequiredCount: 0,
+      isComplete: true,
+      completedGroups: ["Mode avoirs"],
+      activeMode: "Mode avoirs",
+    };
+
+    const shopifyBothModes: ChannelStatus = {
+      channelKey: "shopify",
+      label: "Shopify",
+      requiredCount: 3,
+      uploadedRequiredCount: 3,
+      isComplete: true,
+      completedGroups: ["Mode complet", "Mode avoirs"],
+      activeMode: "Mode avoirs",
+    };
+
+    it("enables button when only avoirs mode is satisfied (uploadedRequiredCount=0 but isComplete=true)", () => {
+      render(
+        <ValidationBar
+          {...defaultProps}
+          hasFiles={true}
+          channelStatuses={[shopifyAvoirsOnly]}
+          isLoading={false}
+        />,
+      );
+      expect(
+        screen.getByRole("button", { name: "Générer les écritures" }),
+      ).toBeEnabled();
+    });
+
+    it("shows channel as treated with active mode", () => {
+      render(
+        <ValidationBar
+          {...defaultProps}
+          hasFiles={true}
+          channelStatuses={[shopifyAvoirsOnly]}
+          isLoading={false}
+        />,
+      );
+      expect(screen.getByText(/Shopify sera traité \(mode avoirs\)/)).toBeInTheDocument();
+    });
+
+    it("shows channel as treated when both modes are satisfied", () => {
+      render(
+        <ValidationBar
+          {...defaultProps}
+          hasFiles={true}
+          channelStatuses={[shopifyBothModes]}
+          isLoading={false}
+        />,
+      );
+      expect(screen.getByText(/Shopify sera traité \(mode avoirs\)/)).toBeInTheDocument();
+    });
+  });
+
   // --- Accessibility (Task 4.10) ---
 
   describe("accessibility", () => {

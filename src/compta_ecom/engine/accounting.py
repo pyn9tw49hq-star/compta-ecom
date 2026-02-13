@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import dataclasses
+
 from compta_ecom.config.loader import AppConfig
 from compta_ecom.engine import marketplace_entries
 from compta_ecom.engine.accounts import normalize_lettrage
@@ -39,7 +41,23 @@ def generate_entries(
 
     for transaction in transactions:
         if transaction.special_type is not None:
-            if transaction.special_type in ("payout_detail_refund", "orphan_settlement"):
+            if transaction.special_type == "returns_avoir":
+                try:
+                    entries.extend(generate_sale_entries(transaction, config))
+                except BalanceError as exc:
+                    anomalies.append(
+                        Anomaly(
+                            type="balance_error",
+                            severity="error",
+                            reference=transaction.reference,
+                            channel=transaction.channel,
+                            detail=str(exc),
+                            expected_value=None,
+                            actual_value=None,
+                        )
+                    )
+                continue
+            if transaction.special_type in ("payout_detail_refund", "orphan_settlement", "refund_settlement"):
                 entries.extend(generate_settlement_entries(transaction, config))
             elif transaction.channel in config.fournisseurs:
                 entries.extend(generate_marketplace_payout(transaction, config))
@@ -81,6 +99,18 @@ def generate_entries(
             payout_entries_list, payout_anomalies = generate_payout_entries(payout, config)
             entries.extend(payout_entries_list)
             anomalies.extend(payout_anomalies)
+
+    # Clear orphan lettrage on 411 for returns_avoir without matching settlement
+    avoir_refs = {t.reference for t in transactions if t.special_type == "returns_avoir"}
+    settlement_refs = {t.reference for t in transactions if t.special_type == "refund_settlement"}
+    orphan_refs = avoir_refs - settlement_refs
+    if orphan_refs:
+        entries = [
+            dataclasses.replace(e, lettrage="")
+            if e.account.startswith("411") and e.lettrage in orphan_refs
+            else e
+            for e in entries
+        ]
 
     entries = normalize_lettrage(entries)
     return entries, anomalies

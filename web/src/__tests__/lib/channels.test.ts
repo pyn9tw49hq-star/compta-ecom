@@ -47,6 +47,10 @@ describe("detectChannel", () => {
     expect(detectChannel("data.xlsx")).toBeNull();
   });
 
+  it("detects Shopify returns file", () => {
+    expect(detectChannel("Total des retours par commande (1).csv")).toBe("shopify");
+  });
+
   it("returns null for payout_details path-based file (SF-3 limitation)", () => {
     // The browser file.name only gives the filename, not the parent directory
     // So a file like "2026-01-payout.csv" from "Detail transactions par versements/"
@@ -84,11 +88,11 @@ describe("CHANNEL_CONFIGS", () => {
     expect(CHANNEL_CONFIGS).toHaveLength(4);
   });
 
-  it("Shopify has 4 files (3 required + 1 optional)", () => {
+  it("Shopify has 5 files (3 required + 2 optional)", () => {
     const shopify = CHANNEL_CONFIGS.find((c) => c.key === "shopify")!;
-    expect(shopify.files).toHaveLength(4);
+    expect(shopify.files).toHaveLength(5);
     expect(shopify.files.filter((f) => f.required)).toHaveLength(3);
-    expect(shopify.files.filter((f) => !f.required)).toHaveLength(1);
+    expect(shopify.files.filter((f) => !f.required)).toHaveLength(2);
   });
 
   it("ManoMano has 2 required files", () => {
@@ -109,11 +113,11 @@ describe("CHANNEL_CONFIGS", () => {
     expect(lm.files[0].required).toBe(true);
   });
 
-  it("has 7 required + 1 optional = 8 total file slots", () => {
+  it("has 7 required + 2 optional = 9 total file slots", () => {
     const allFiles = CHANNEL_CONFIGS.flatMap((c) => c.files);
-    expect(allFiles).toHaveLength(8);
+    expect(allFiles).toHaveLength(9);
     expect(allFiles.filter((f) => f.required)).toHaveLength(7);
-    expect(allFiles.filter((f) => !f.required)).toHaveLength(1);
+    expect(allFiles.filter((f) => !f.required)).toHaveLength(2);
   });
 
   it("payout_details slot has regex null and required false (SF-3)", () => {
@@ -121,6 +125,28 @@ describe("CHANNEL_CONFIGS", () => {
     const pd = shopify.files.find((f) => f.key === "payout_details")!;
     expect(pd.regex).toBeNull();
     expect(pd.required).toBe(false);
+  });
+
+  it("Shopify has fileGroups with 2 groups", () => {
+    const shopify = CHANNEL_CONFIGS.find((c) => c.key === "shopify")!;
+    expect(shopify.fileGroups).toBeDefined();
+    expect(shopify.fileGroups).toHaveLength(2);
+    expect(shopify.fileGroups![0]).toEqual({
+      label: "Mode complet",
+      slots: ["sales", "transactions", "payouts"],
+    });
+    expect(shopify.fileGroups![1]).toEqual({
+      label: "Mode avoirs",
+      slots: ["returns"],
+    });
+  });
+
+  it("other channels have no fileGroups", () => {
+    for (const config of CHANNEL_CONFIGS) {
+      if (config.key !== "shopify") {
+        expect(config.fileGroups).toBeUndefined();
+      }
+    }
   });
 
   it("each channel has a valid meta reference", () => {
@@ -181,6 +207,11 @@ describe("matchFileToSlot", () => {
 
   it("returns null for unknown file", () => {
     expect(matchFileToSlot("random.csv", CHANNEL_CONFIGS)).toBeNull();
+  });
+
+  it("matches Shopify returns file", () => {
+    expect(matchFileToSlot("Total des retours par commande (1).csv", CHANNEL_CONFIGS))
+      .toEqual({ channel: "shopify", slotKey: "returns" });
   });
 
   it("returns null for payout_details path-based file (regex=null, SF-3)", () => {

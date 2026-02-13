@@ -186,7 +186,7 @@ class PipelineOrchestrator:
         tva_col: dict[str, float] = {}
 
         for t in unique_txs:
-            if t.special_type is not None:
+            if t.special_type is not None and t.special_type != "returns_avoir":
                 continue
             c = t.channel
             # Initialise les accumulateurs pour ce canal
@@ -394,8 +394,11 @@ class PipelineOrchestrator:
             canal_files: dict[str, BytesIO | list[BytesIO]] = {}
 
             for file_key, pattern in channel_config.files.items():
-                # For patterns with '/', match only the basename
-                match_pattern = pattern.split("/")[-1] if "/" in pattern else pattern
+                # Directory-based patterns (containing '/') cannot match bare filenames
+                # in buffer mode — browsers only provide basenames, not paths.
+                if "/" in pattern:
+                    continue
+                match_pattern = pattern
 
                 matched: list[tuple[str, bytes]] = []
                 for filename, content in files.items():
@@ -422,9 +425,16 @@ class PipelineOrchestrator:
                         canal_files[file_key] = BytesIO(matched[0][1])
 
             if canal_files:
-                # Only dispatch if all required (non-multi_files) keys are present
-                required_keys = {k for k in channel_config.files if k not in multi_files}
-                if required_keys.issubset(canal_files.keys()):
-                    result[canal] = canal_files
+                groups = channel_config.required_file_groups
+                if groups:
+                    # At least one group must be entirely satisfied
+                    if any(set(group).issubset(canal_files.keys()) for group in groups):
+                        result[canal] = canal_files
+                else:
+                    # Legacy: all required (non-optional) keys must be present
+                    optional = set(multi_files) | set(channel_config.optional_files or [])
+                    required_keys = {k for k in channel_config.files if k not in optional}
+                    if required_keys.issubset(canal_files.keys()):
+                        result[canal] = canal_files
 
         return result

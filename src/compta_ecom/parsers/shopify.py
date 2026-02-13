@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import datetime
 import logging
 import re
@@ -12,7 +13,7 @@ from typing import Any
 import pandas as pd
 
 from compta_ecom.config.loader import AppConfig
-from compta_ecom.models import Anomaly, NormalizedTransaction, ParseResult, PayoutDetail, PayoutSummary
+from compta_ecom.models import Anomaly, NormalizedTransaction, ParseError, ParseResult, PayoutDetail, PayoutSummary
 from compta_ecom.parsers.base import BaseParser
 
 logger = logging.getLogger(__name__)
@@ -61,6 +62,16 @@ REQUIRED_PAYOUT_DETAIL_COLUMNS = [
     "Payment Method Name",
 ]
 
+REQUIRED_RETURNS_COLUMNS = [
+    "Jour",
+    "Nom de la commande",
+    "Retours nets",
+    "Expédition retournée",
+    "Taxes retournées",
+    "Frais de retour",
+    "Total des retours",
+]
+
 
 def _is_notna(value: object) -> bool:
     """Vérifie qu'une valeur scalaire n'est pas NaN/None (compatible mypy --strict)."""
@@ -91,11 +102,19 @@ class ShopifyParser(BaseParser):
 
     def parse(self, files: dict[str, Path | BytesIO | list[Path | BytesIO]], config: AppConfig) -> ParseResult:
         """Orchestre le parsing des fichiers et le matching."""
+        if "sales" not in files and "returns" not in files:
+            raise ParseError(
+                "Shopify nécessite au moins le fichier Ventes ou le fichier Retours"
+            )
+
         anomalies: list[Anomaly] = []
 
-        # 1. Ventes (obligatoire)
-        sales_data, sales_anomalies = self._parse_sales(files["sales"], config)  # type: ignore[arg-type]
-        anomalies.extend(sales_anomalies)
+        # 1. Ventes (conditionnel — absent en mode avoirs seul)
+        if "sales" in files:
+            sales_data, sales_anomalies = self._parse_sales(files["sales"], config)  # type: ignore[arg-type]
+            anomalies.extend(sales_anomalies)
+        else:
+            sales_data = {}
 
         # 2. Transactions (optionnel — mode dégradé si absent)
         if "transactions" in files:
@@ -106,8 +125,29 @@ class ShopifyParser(BaseParser):
             tx_data = {}
 
         # 3. Matching + construction NormalizedTransaction
-        transactions, match_anomalies = self._match_and_build(sales_data, tx_data, config)
-        anomalies.extend(match_anomalies)
+        if sales_data:
+            transactions, match_anomalies = self._match_and_build(sales_data, tx_data, config)
+            anomalies.extend(match_anomalies)
+        else:
+            transactions = []
+
+        # 3.4 Fichier retours (optionnel) — écritures d'avoir
+        if "returns" in files:
+            returns_txs, returns_anomalies = self._parse_returns(
+                files["returns"], sales_data, config  # type: ignore[arg-type]
+            )
+            anomalies.extend(returns_anomalies)
+
+            # Retaguer les refunds existants couverts par le fichier retours
+            returns_refs = {t.reference for t in returns_txs}
+            retagged: list[NormalizedTransaction] = []
+            for tx in transactions:
+                if tx.type == "refund" and tx.special_type is None and tx.reference in returns_refs:
+                    retagged.append(dataclasses.replace(tx, special_type="refund_settlement"))
+                else:
+                    retagged.append(tx)
+            transactions = retagged
+            transactions.extend(returns_txs)
 
         # 3.5 Detail transactions par versements (optionnel)
         payout_details_by_id: dict[str, list[PayoutDetail]] | None = None
@@ -555,6 +595,138 @@ class ShopifyParser(BaseParser):
                     )
 
         return result, anomalies
+
+    def _parse_returns(
+        self,
+        returns_path: Path | BytesIO,
+        sales_data: dict[str, dict[str, Any]],
+        config: AppConfig,
+    ) -> tuple[list[NormalizedTransaction], list[Anomaly]]:
+        """Parse le fichier 'Total des retours par commande' et crée les NormalizedTransaction d'avoir."""
+        channel_config = config.channels["shopify"]
+        anomalies: list[Anomaly] = []
+
+        df = pd.read_csv(
+            returns_path,
+            sep=channel_config.separator,
+            encoding=channel_config.encoding,
+        )
+        self.validate_columns(df, REQUIRED_RETURNS_COLUMNS)
+
+        # Convertir les colonnes montant en float
+        for col in ["Retours nets", "Expédition retournée", "Taxes retournées", "Frais de retour", "Total des retours"]:
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
+
+        # Filtrer les lignes avec Total des retours == 0
+        df = df[df["Total des retours"] != 0].copy()
+
+        if df.empty:
+            return [], anomalies
+
+        # Agréger par Nom de la commande
+        agg = df.groupby("Nom de la commande", sort=False).agg(
+            {
+                "Jour": "min",
+                "Retours nets": "sum",
+                "Expédition retournée": "sum",
+                "Taxes retournées": "sum",
+                "Frais de retour": "sum",
+                "Total des retours": "sum",
+            }
+        ).reset_index()
+
+        transactions: list[NormalizedTransaction] = []
+
+        for _, row in agg.iterrows():
+            ref = str(row["Nom de la commande"])
+            nets = round(abs(float(row["Retours nets"])), 2)
+            shipping = round(abs(float(row["Expédition retournée"])), 2)
+            taxes = round(abs(float(row["Taxes retournées"])), 2)
+            frais_retour = round(float(row["Frais de retour"]), 2)
+
+            # Anomalie si frais de retour non-zero
+            if frais_retour != 0:
+                anomalies.append(
+                    Anomaly(
+                        type="return_fee_nonzero",
+                        severity="info",
+                        reference=ref,
+                        channel="shopify",
+                        detail=f"Frais de retour non-zéro : {frais_retour}€",
+                        expected_value="0",
+                        actual_value=str(frais_retour),
+                    )
+                )
+
+            # Lookup country_code et tva_rate depuis sales_data
+            sale = sales_data.get(ref)
+            if sale is not None:
+                country_code = str(sale["country_code"])
+                fallback_tva_rate = float(sale["tva_rate"])
+            else:
+                country_code = "250"
+                fallback_tva_rate = 20.0
+                anomalies.append(
+                    Anomaly(
+                        type="return_no_matching_sale",
+                        severity="warning",
+                        reference=ref,
+                        channel="shopify",
+                        detail=f"Retour {ref} sans vente correspondante — fallback France 250",
+                        expected_value=None,
+                        actual_value=None,
+                    )
+                )
+
+            # Calcul tva_rate depuis les montants
+            base = nets + shipping
+            if base > 0 and taxes > 0:
+                tva_rate = round(taxes / base * 100, 2)
+            else:
+                tva_rate = fallback_tva_rate
+
+            # Ventilation TVA entre produit et port (même logique que _parse_sales)
+            if base > 0 and shipping > 0:
+                shipping_ratio = shipping / base
+                shipping_tva = round(taxes * shipping_ratio, 2)
+            else:
+                shipping_tva = 0.0
+            amount_tva = round(taxes - shipping_tva, 2)
+
+            # TTC
+            amount_ttc = round(nets + shipping + taxes, 2)
+
+            # Date
+            date_str = str(row["Jour"])
+            try:
+                date = pd.to_datetime(date_str).date()
+            except (ValueError, TypeError):
+                date = datetime.date.today()
+
+            tx = NormalizedTransaction(
+                reference=ref,
+                channel="shopify",
+                date=date,
+                type="refund",
+                amount_ht=nets,
+                amount_tva=amount_tva,
+                amount_ttc=amount_ttc,
+                shipping_ht=shipping,
+                shipping_tva=shipping_tva,
+                tva_rate=tva_rate,
+                country_code=country_code,
+                commission_ttc=0.0,
+                commission_ht=0.0,
+                net_amount=0.0,
+                payout_date=None,
+                payout_reference=None,
+                payment_method=None,
+                special_type="returns_avoir",
+            )
+            transactions.append(tx)
+
+        logger.info("Retours Shopify : %d avoirs générés", len(transactions))
+        return transactions, anomalies
 
     def _parse_payout_details(
         self,

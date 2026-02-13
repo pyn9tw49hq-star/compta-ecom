@@ -52,7 +52,7 @@ export function computeSummary(
   const tvaCol: Record<string, number> = {};
 
   for (const t of transactions) {
-    if (t.special_type !== null) continue;
+    if (t.special_type !== null && t.special_type !== "returns_avoir") continue;
     const c = t.channel;
 
     if (!(c in caHt)) {

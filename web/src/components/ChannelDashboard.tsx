@@ -128,6 +128,7 @@ export default function ChannelDashboard({
             channelKey={config.key}
             meta={config.meta}
             expectedFiles={config.files}
+            fileGroups={config.fileGroups}
             uploadedFiles={filesByChannel[config.key] ?? []}
             isExpanded={expandedChannels[config.key] ?? false}
             onToggle={() => toggle(config.key)}
@@ -149,6 +150,7 @@ export default function ChannelDashboard({
             channelKey={config.key}
             meta={config.meta}
             expectedFiles={config.files}
+            fileGroups={config.fileGroups}
             uploadedFiles={[]}
             isExpanded={expandedChannels[config.key] ?? false}
             onToggle={() => toggle(config.key)}

@@ -105,10 +105,16 @@ export interface FileSlotConfig {
   regex: RegExp | null;
 }
 
+export interface FileGroupConfig {
+  label: string;
+  slots: string[]; // keys referencing files[].key
+}
+
 export interface ChannelConfig {
   key: string;
   meta: ChannelMeta;
   files: FileSlotConfig[];
+  fileGroups?: FileGroupConfig[];
 }
 
 export interface FileMatchResult {
@@ -124,4 +130,6 @@ export interface ChannelStatus {
   requiredCount: number;
   uploadedRequiredCount: number;
   isComplete: boolean;
+  completedGroups?: string[];
+  activeMode?: string;
 }
