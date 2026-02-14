@@ -10,6 +10,7 @@ from compta_ecom.engine.accounts import (
     _index_to_letter,
     build_account,
     normalize_lettrage,
+    resolve_shipping_zone,
     verify_balance,
 )
 from compta_ecom.models import AccountingEntry, BalanceError
@@ -45,6 +46,37 @@ class TestBuildAccount:
     def test_tva_prefix_belgique(self) -> None:
         """4457 + None + pays 056 → 4457056."""
         assert build_account("4457", None, "056") == "4457056"
+
+
+class TestResolveShippingZone:
+    """Tests de resolve_shipping_zone()."""
+
+    VAT_TABLE: dict[str, dict[str, object]] = {
+        "250": {"name": "France", "rate": 20.0, "alpha2": "FR"},
+        "276": {"name": "Allemagne", "rate": 19.0, "alpha2": "DE"},
+        "826": {"name": "Royaume-Uni", "rate": 0.0, "alpha2": "GB"},
+        "972": {"name": "Martinique", "rate": 0.0, "alpha2": "MQ"},
+    }
+
+    def test_france(self) -> None:
+        """France (250) → france."""
+        assert resolve_shipping_zone("250", self.VAT_TABLE) == "france"
+
+    def test_domtom(self) -> None:
+        """DOM-TOM Martinique (972) → hors_ue."""
+        assert resolve_shipping_zone("972", self.VAT_TABLE) == "hors_ue"
+
+    def test_ue_with_rate(self) -> None:
+        """Allemagne (276, rate=19%) → ue."""
+        assert resolve_shipping_zone("276", self.VAT_TABLE) == "ue"
+
+    def test_export_zero_rate(self) -> None:
+        """Royaume-Uni (826, rate=0%) → hors_ue."""
+        assert resolve_shipping_zone("826", self.VAT_TABLE) == "hors_ue"
+
+    def test_absent_country(self) -> None:
+        """Pays absent de la table → hors_ue."""
+        assert resolve_shipping_zone("999", self.VAT_TABLE) == "hors_ue"
 
 
 class TestVerifyBalance:

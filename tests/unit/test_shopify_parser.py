@@ -152,6 +152,22 @@ class TestShopifyParserExcelFormat:
         refs = {tx.reference for tx in result.transactions}
         assert refs == {"#TEST001", "#TEST002", "#TEST003"}
 
+    FIXTURE_BAD_DATE = Path(__file__).resolve().parent.parent / "fixtures" / "shopify" / "ventes_excel_format_bad_date.csv"
+
+    def test_reparse_failure_logs_warning(self, shopify_config: AppConfig, caplog: pytest.LogCaptureFixture) -> None:
+        """Quand Created at reste NaN après re-parse, un warning est émis."""
+        import logging
+
+        parser = ShopifyParser()
+        with caplog.at_level(logging.INFO):
+            result = parser.parse({"sales": self.FIXTURE_BAD_DATE}, shopify_config)
+
+        info_msgs = [r.message for r in caplog.records if r.levelno == logging.INFO]
+        assert any("Format CSV Excel/Numbers détecté" in m for m in info_msgs)
+
+        warn_msgs = [r.message for r in caplog.records if r.levelno == logging.WARNING]
+        assert any("toujours vide après correction" in m for m in warn_msgs)
+
 
 class TestShopifyParserMultiLine:
     def test_aggregate_same_name(self, tmp_path: Path, shopify_config: AppConfig) -> None:

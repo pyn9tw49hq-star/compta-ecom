@@ -209,7 +209,7 @@ class ShopifyParser(BaseParser):
             and df["Created at"].isna().all()
             and df["Name"].astype(str).str.contains(",").any()
         ):
-            logger.warning("Format CSV Excel/Numbers détecté pour le fichier Ventes — re-parsing automatique")
+            logger.info("Format CSV Excel/Numbers détecté pour le fichier Ventes — re-parsing automatique")
             df = self._reparse_excel_csv(sales_path, channel_config)
             if df["Created at"].isna().all():
                 logger.warning("Re-parse Excel CSV : la colonne 'Created at' est toujours vide après correction — vérifier le format du fichier source")

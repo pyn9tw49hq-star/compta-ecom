@@ -27,7 +27,7 @@ def build_account(
 
 
 FRANCE_CODE = "250"
-DOM_TOM_CODES = {"974"}
+DOM_TOM_CODES = {"971", "972", "973", "974", "975", "976", "876", "652", "663", "540", "258"}
 
 
 def resolve_shipping_zone(country_code: str, vat_table: dict[str, object]) -> str:
@@ -40,7 +40,10 @@ def resolve_shipping_zone(country_code: str, vat_table: dict[str, object]) -> st
         return "france"
     if country_code in DOM_TOM_CODES or country_code not in vat_table:
         return "hors_ue"
-    return "ue"
+    entry = vat_table[country_code]
+    if isinstance(entry, dict) and float(entry.get("rate", 0)) > 0:
+        return "ue"
+    return "hors_ue"
 
 
 def build_shipping_account(prefix: str, channel_code: str, zone_code: str) -> str:

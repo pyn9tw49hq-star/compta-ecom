@@ -111,8 +111,895 @@ countries:
     name: "Suède"
     rate: 25.0
     alpha2: "SE"
-  # --- Territoires à taux spécifique ---
+
+  # --- DOM-TOM ---
+  "258":
+    name: "Polynésie française"
+    rate: 0.0
+    alpha2: "PF"
+  "540":
+    name: "Nouvelle-Calédonie"
+    rate: 0.0
+    alpha2: "NC"
+  "652":
+    name: "Saint-Barthélemy"
+    rate: 0.0
+    alpha2: "BL"
+  "663":
+    name: "Saint-Martin"
+    rate: 0.0
+    alpha2: "MF"
+  "876":
+    name: "Wallis-et-Futuna"
+    rate: 0.0
+    alpha2: "WF"
+  "971":
+    name: "Guadeloupe"
+    rate: 0.0
+    alpha2: "GP"
+  "972":
+    name: "Martinique"
+    rate: 0.0
+    alpha2: "MQ"
+  "973":
+    name: "Guyane française"
+    rate: 0.0
+    alpha2: "GF"
   "974":
-    name: "DOM-TOM (Réunion)"
+    name: "La Réunion"
     rate: 0.0
     alpha2: "RE"
+  "975":
+    name: "Saint-Pierre-et-Miquelon"
+    rate: 0.0
+    alpha2: "PM"
+  "976":
+    name: "Mayotte"
+    rate: 0.0
+    alpha2: "YT"
+
+  # --- Export / Hors-UE (taux 0%) ---
+  "004":
+    name: "Afghanistan"
+    rate: 0.0
+    alpha2: "AF"
+  "008":
+    name: "Albanie"
+    rate: 0.0
+    alpha2: "AL"
+  "010":
+    name: "Antarctique"
+    rate: 0.0
+    alpha2: "AQ"
+  "012":
+    name: "Algérie"
+    rate: 0.0
+    alpha2: "DZ"
+  "016":
+    name: "Samoa américaines"
+    rate: 0.0
+    alpha2: "AS"
+  "020":
+    name: "Andorre"
+    rate: 0.0
+    alpha2: "AD"
+  "024":
+    name: "Angola"
+    rate: 0.0
+    alpha2: "AO"
+  "028":
+    name: "Antigua-et-Barbuda"
+    rate: 0.0
+    alpha2: "AG"
+  "031":
+    name: "Azerbaïdjan"
+    rate: 0.0
+    alpha2: "AZ"
+  "032":
+    name: "Argentine"
+    rate: 0.0
+    alpha2: "AR"
+  "036":
+    name: "Australie"
+    rate: 0.0
+    alpha2: "AU"
+  "044":
+    name: "Bahamas"
+    rate: 0.0
+    alpha2: "BS"
+  "048":
+    name: "Bahreïn"
+    rate: 0.0
+    alpha2: "BH"
+  "050":
+    name: "Bangladesh"
+    rate: 0.0
+    alpha2: "BD"
+  "051":
+    name: "Arménie"
+    rate: 0.0
+    alpha2: "AM"
+  "052":
+    name: "Barbade"
+    rate: 0.0
+    alpha2: "BB"
+  "060":
+    name: "Bermudes"
+    rate: 0.0
+    alpha2: "BM"
+  "064":
+    name: "Bhoutan"
+    rate: 0.0
+    alpha2: "BT"
+  "068":
+    name: "Bolivie"
+    rate: 0.0
+    alpha2: "BO"
+  "070":
+    name: "Bosnie-Herzégovine"
+    rate: 0.0
+    alpha2: "BA"
+  "072":
+    name: "Botswana"
+    rate: 0.0
+    alpha2: "BW"
+  "074":
+    name: "Île Bouvet"
+    rate: 0.0
+    alpha2: "BV"
+  "076":
+    name: "Brésil"
+    rate: 0.0
+    alpha2: "BR"
+  "084":
+    name: "Belize"
+    rate: 0.0
+    alpha2: "BZ"
+  "086":
+    name: "Territoire britannique de l'océan Indien"
+    rate: 0.0
+    alpha2: "IO"
+  "090":
+    name: "Îles Salomon"
+    rate: 0.0
+    alpha2: "SB"
+  "092":
+    name: "Îles Vierges britanniques"
+    rate: 0.0
+    alpha2: "VG"
+  "096":
+    name: "Brunei"
+    rate: 0.0
+    alpha2: "BN"
+  "104":
+    name: "Myanmar"
+    rate: 0.0
+    alpha2: "MM"
+  "108":
+    name: "Burundi"
+    rate: 0.0
+    alpha2: "BI"
+  "112":
+    name: "Biélorussie"
+    rate: 0.0
+    alpha2: "BY"
+  "116":
+    name: "Cambodge"
+    rate: 0.0
+    alpha2: "KH"
+  "120":
+    name: "Cameroun"
+    rate: 0.0
+    alpha2: "CM"
+  "124":
+    name: "Canada"
+    rate: 0.0
+    alpha2: "CA"
+  "132":
+    name: "Cabo Verde"
+    rate: 0.0
+    alpha2: "CV"
+  "136":
+    name: "Îles Caïmans"
+    rate: 0.0
+    alpha2: "KY"
+  "140":
+    name: "République centrafricaine"
+    rate: 0.0
+    alpha2: "CF"
+  "144":
+    name: "Sri Lanka"
+    rate: 0.0
+    alpha2: "LK"
+  "148":
+    name: "Tchad"
+    rate: 0.0
+    alpha2: "TD"
+  "152":
+    name: "Chili"
+    rate: 0.0
+    alpha2: "CL"
+  "156":
+    name: "Chine"
+    rate: 0.0
+    alpha2: "CN"
+  "158":
+    name: "Taïwan"
+    rate: 0.0
+    alpha2: "TW"
+  "162":
+    name: "Île Christmas"
+    rate: 0.0
+    alpha2: "CX"
+  "166":
+    name: "Îles Cocos"
+    rate: 0.0
+    alpha2: "CC"
+  "170":
+    name: "Colombie"
+    rate: 0.0
+    alpha2: "CO"
+  "174":
+    name: "Comores"
+    rate: 0.0
+    alpha2: "KM"
+  "178":
+    name: "Congo"
+    rate: 0.0
+    alpha2: "CG"
+  "180":
+    name: "Congo (République démocratique)"
+    rate: 0.0
+    alpha2: "CD"
+  "184":
+    name: "Îles Cook"
+    rate: 0.0
+    alpha2: "CK"
+  "188":
+    name: "Costa Rica"
+    rate: 0.0
+    alpha2: "CR"
+  "192":
+    name: "Cuba"
+    rate: 0.0
+    alpha2: "CU"
+  "204":
+    name: "Bénin"
+    rate: 0.0
+    alpha2: "BJ"
+  "212":
+    name: "Dominique"
+    rate: 0.0
+    alpha2: "DM"
+  "214":
+    name: "République dominicaine"
+    rate: 0.0
+    alpha2: "DO"
+  "218":
+    name: "Équateur"
+    rate: 0.0
+    alpha2: "EC"
+  "222":
+    name: "El Salvador"
+    rate: 0.0
+    alpha2: "SV"
+  "226":
+    name: "Guinée équatoriale"
+    rate: 0.0
+    alpha2: "GQ"
+  "231":
+    name: "Éthiopie"
+    rate: 0.0
+    alpha2: "ET"
+  "232":
+    name: "Érythrée"
+    rate: 0.0
+    alpha2: "ER"
+  "234":
+    name: "Îles Féroé"
+    rate: 0.0
+    alpha2: "FO"
+  "238":
+    name: "Îles Malouines"
+    rate: 0.0
+    alpha2: "FK"
+  "239":
+    name: "Géorgie du Sud-et-les Îles Sandwich du Sud"
+    rate: 0.0
+    alpha2: "GS"
+  "242":
+    name: "Fidji"
+    rate: 0.0
+    alpha2: "FJ"
+  "248":
+    name: "Îles Åland"
+    rate: 0.0
+    alpha2: "AX"
+  "260":
+    name: "Terres australes françaises"
+    rate: 0.0
+    alpha2: "TF"
+  "262":
+    name: "Djibouti"
+    rate: 0.0
+    alpha2: "DJ"
+  "266":
+    name: "Gabon"
+    rate: 0.0
+    alpha2: "GA"
+  "268":
+    name: "Géorgie"
+    rate: 0.0
+    alpha2: "GE"
+  "270":
+    name: "Gambie"
+    rate: 0.0
+    alpha2: "GM"
+  "275":
+    name: "Palestine"
+    rate: 0.0
+    alpha2: "PS"
+  "288":
+    name: "Ghana"
+    rate: 0.0
+    alpha2: "GH"
+  "292":
+    name: "Gibraltar"
+    rate: 0.0
+    alpha2: "GI"
+  "296":
+    name: "Kiribati"
+    rate: 0.0
+    alpha2: "KI"
+  "304":
+    name: "Groenland"
+    rate: 0.0
+    alpha2: "GL"
+  "308":
+    name: "Grenade"
+    rate: 0.0
+    alpha2: "GD"
+  "316":
+    name: "Guam"
+    rate: 0.0
+    alpha2: "GU"
+  "320":
+    name: "Guatemala"
+    rate: 0.0
+    alpha2: "GT"
+  "324":
+    name: "Guinée"
+    rate: 0.0
+    alpha2: "GN"
+  "328":
+    name: "Guyana"
+    rate: 0.0
+    alpha2: "GY"
+  "332":
+    name: "Haïti"
+    rate: 0.0
+    alpha2: "HT"
+  "334":
+    name: "Îles Heard-et-MacDonald"
+    rate: 0.0
+    alpha2: "HM"
+  "336":
+    name: "Vatican"
+    rate: 0.0
+    alpha2: "VA"
+  "340":
+    name: "Honduras"
+    rate: 0.0
+    alpha2: "HN"
+  "344":
+    name: "Hong Kong"
+    rate: 0.0
+    alpha2: "HK"
+  "352":
+    name: "Islande"
+    rate: 0.0
+    alpha2: "IS"
+  "356":
+    name: "Inde"
+    rate: 0.0
+    alpha2: "IN"
+  "360":
+    name: "Indonésie"
+    rate: 0.0
+    alpha2: "ID"
+  "364":
+    name: "Iran"
+    rate: 0.0
+    alpha2: "IR"
+  "368":
+    name: "Irak"
+    rate: 0.0
+    alpha2: "IQ"
+  "376":
+    name: "Israël"
+    rate: 0.0
+    alpha2: "IL"
+  "384":
+    name: "Côte d'Ivoire"
+    rate: 0.0
+    alpha2: "CI"
+  "388":
+    name: "Jamaïque"
+    rate: 0.0
+    alpha2: "JM"
+  "392":
+    name: "Japon"
+    rate: 0.0
+    alpha2: "JP"
+  "398":
+    name: "Kazakhstan"
+    rate: 0.0
+    alpha2: "KZ"
+  "400":
+    name: "Jordanie"
+    rate: 0.0
+    alpha2: "JO"
+  "404":
+    name: "Kenya"
+    rate: 0.0
+    alpha2: "KE"
+  "408":
+    name: "Corée du Nord"
+    rate: 0.0
+    alpha2: "KP"
+  "410":
+    name: "Corée du Sud"
+    rate: 0.0
+    alpha2: "KR"
+  "414":
+    name: "Koweït"
+    rate: 0.0
+    alpha2: "KW"
+  "417":
+    name: "Kirghizistan"
+    rate: 0.0
+    alpha2: "KG"
+  "418":
+    name: "Laos"
+    rate: 0.0
+    alpha2: "LA"
+  "422":
+    name: "Liban"
+    rate: 0.0
+    alpha2: "LB"
+  "426":
+    name: "Lesotho"
+    rate: 0.0
+    alpha2: "LS"
+  "430":
+    name: "Liberia"
+    rate: 0.0
+    alpha2: "LR"
+  "434":
+    name: "Libye"
+    rate: 0.0
+    alpha2: "LY"
+  "438":
+    name: "Liechtenstein"
+    rate: 0.0
+    alpha2: "LI"
+  "446":
+    name: "Macao"
+    rate: 0.0
+    alpha2: "MO"
+  "450":
+    name: "Madagascar"
+    rate: 0.0
+    alpha2: "MG"
+  "454":
+    name: "Malawi"
+    rate: 0.0
+    alpha2: "MW"
+  "458":
+    name: "Malaisie"
+    rate: 0.0
+    alpha2: "MY"
+  "462":
+    name: "Maldives"
+    rate: 0.0
+    alpha2: "MV"
+  "466":
+    name: "Mali"
+    rate: 0.0
+    alpha2: "ML"
+  "478":
+    name: "Mauritanie"
+    rate: 0.0
+    alpha2: "MR"
+  "480":
+    name: "Maurice"
+    rate: 0.0
+    alpha2: "MU"
+  "484":
+    name: "Mexique"
+    rate: 0.0
+    alpha2: "MX"
+  "492":
+    name: "Monaco"
+    rate: 0.0
+    alpha2: "MC"
+  "496":
+    name: "Mongolie"
+    rate: 0.0
+    alpha2: "MN"
+  "498":
+    name: "Moldavie"
+    rate: 0.0
+    alpha2: "MD"
+  "499":
+    name: "Monténégro"
+    rate: 0.0
+    alpha2: "ME"
+  "500":
+    name: "Montserrat"
+    rate: 0.0
+    alpha2: "MS"
+  "504":
+    name: "Maroc"
+    rate: 0.0
+    alpha2: "MA"
+  "508":
+    name: "Mozambique"
+    rate: 0.0
+    alpha2: "MZ"
+  "512":
+    name: "Oman"
+    rate: 0.0
+    alpha2: "OM"
+  "516":
+    name: "Namibie"
+    rate: 0.0
+    alpha2: "NA"
+  "520":
+    name: "Nauru"
+    rate: 0.0
+    alpha2: "NR"
+  "524":
+    name: "Népal"
+    rate: 0.0
+    alpha2: "NP"
+  "531":
+    name: "Curaçao"
+    rate: 0.0
+    alpha2: "CW"
+  "533":
+    name: "Aruba"
+    rate: 0.0
+    alpha2: "AW"
+  "534":
+    name: "Saint-Martin (partie néerlandaise)"
+    rate: 0.0
+    alpha2: "SX"
+  "535":
+    name: "Bonaire, Saint-Eustache et Saba"
+    rate: 0.0
+    alpha2: "BQ"
+  "548":
+    name: "Vanuatu"
+    rate: 0.0
+    alpha2: "VU"
+  "554":
+    name: "Nouvelle-Zélande"
+    rate: 0.0
+    alpha2: "NZ"
+  "558":
+    name: "Nicaragua"
+    rate: 0.0
+    alpha2: "NI"
+  "562":
+    name: "Niger"
+    rate: 0.0
+    alpha2: "NE"
+  "566":
+    name: "Nigéria"
+    rate: 0.0
+    alpha2: "NG"
+  "570":
+    name: "Niué"
+    rate: 0.0
+    alpha2: "NU"
+  "574":
+    name: "Île Norfolk"
+    rate: 0.0
+    alpha2: "NF"
+  "578":
+    name: "Norvège"
+    rate: 0.0
+    alpha2: "NO"
+  "580":
+    name: "Îles Mariannes du Nord"
+    rate: 0.0
+    alpha2: "MP"
+  "581":
+    name: "Îles mineures éloignées des États-Unis"
+    rate: 0.0
+    alpha2: "UM"
+  "583":
+    name: "Micronésie"
+    rate: 0.0
+    alpha2: "FM"
+  "584":
+    name: "Îles Marshall"
+    rate: 0.0
+    alpha2: "MH"
+  "585":
+    name: "Palaos"
+    rate: 0.0
+    alpha2: "PW"
+  "586":
+    name: "Pakistan"
+    rate: 0.0
+    alpha2: "PK"
+  "591":
+    name: "Panama"
+    rate: 0.0
+    alpha2: "PA"
+  "598":
+    name: "Papouasie-Nouvelle-Guinée"
+    rate: 0.0
+    alpha2: "PG"
+  "600":
+    name: "Paraguay"
+    rate: 0.0
+    alpha2: "PY"
+  "604":
+    name: "Pérou"
+    rate: 0.0
+    alpha2: "PE"
+  "608":
+    name: "Philippines"
+    rate: 0.0
+    alpha2: "PH"
+  "612":
+    name: "Îles Pitcairn"
+    rate: 0.0
+    alpha2: "PN"
+  "624":
+    name: "Guinée-Bissau"
+    rate: 0.0
+    alpha2: "GW"
+  "626":
+    name: "Timor oriental"
+    rate: 0.0
+    alpha2: "TL"
+  "630":
+    name: "Porto Rico"
+    rate: 0.0
+    alpha2: "PR"
+  "634":
+    name: "Qatar"
+    rate: 0.0
+    alpha2: "QA"
+  "643":
+    name: "Russie"
+    rate: 0.0
+    alpha2: "RU"
+  "646":
+    name: "Rwanda"
+    rate: 0.0
+    alpha2: "RW"
+  "654":
+    name: "Sainte-Hélène, Ascension et Tristan da Cunha"
+    rate: 0.0
+    alpha2: "SH"
+  "659":
+    name: "Saint-Kitts-et-Nevis"
+    rate: 0.0
+    alpha2: "KN"
+  "660":
+    name: "Anguilla"
+    rate: 0.0
+    alpha2: "AI"
+  "662":
+    name: "Sainte-Lucie"
+    rate: 0.0
+    alpha2: "LC"
+  "670":
+    name: "Saint-Vincent-et-les-Grenadines"
+    rate: 0.0
+    alpha2: "VC"
+  "674":
+    name: "Saint-Marin"
+    rate: 0.0
+    alpha2: "SM"
+  "678":
+    name: "Sao Tomé-et-Príncipe"
+    rate: 0.0
+    alpha2: "ST"
+  "682":
+    name: "Arabie saoudite"
+    rate: 0.0
+    alpha2: "SA"
+  "686":
+    name: "Sénégal"
+    rate: 0.0
+    alpha2: "SN"
+  "688":
+    name: "Serbie"
+    rate: 0.0
+    alpha2: "RS"
+  "690":
+    name: "Seychelles"
+    rate: 0.0
+    alpha2: "SC"
+  "694":
+    name: "Sierra Leone"
+    rate: 0.0
+    alpha2: "SL"
+  "702":
+    name: "Singapour"
+    rate: 0.0
+    alpha2: "SG"
+  "704":
+    name: "Viêt Nam"
+    rate: 0.0
+    alpha2: "VN"
+  "706":
+    name: "Somalie"
+    rate: 0.0
+    alpha2: "SO"
+  "710":
+    name: "Afrique du Sud"
+    rate: 0.0
+    alpha2: "ZA"
+  "716":
+    name: "Zimbabwe"
+    rate: 0.0
+    alpha2: "ZW"
+  "728":
+    name: "Soudan du Sud"
+    rate: 0.0
+    alpha2: "SS"
+  "729":
+    name: "Soudan"
+    rate: 0.0
+    alpha2: "SD"
+  "732":
+    name: "Sahara occidental"
+    rate: 0.0
+    alpha2: "EH"
+  "740":
+    name: "Suriname"
+    rate: 0.0
+    alpha2: "SR"
+  "744":
+    name: "Svalbard et Jan Mayen"
+    rate: 0.0
+    alpha2: "SJ"
+  "748":
+    name: "Eswatini"
+    rate: 0.0
+    alpha2: "SZ"
+  "756":
+    name: "Suisse"
+    rate: 0.0
+    alpha2: "CH"
+  "760":
+    name: "Syrie"
+    rate: 0.0
+    alpha2: "SY"
+  "762":
+    name: "Tadjikistan"
+    rate: 0.0
+    alpha2: "TJ"
+  "764":
+    name: "Thaïlande"
+    rate: 0.0
+    alpha2: "TH"
+  "768":
+    name: "Togo"
+    rate: 0.0
+    alpha2: "TG"
+  "772":
+    name: "Tokelau"
+    rate: 0.0
+    alpha2: "TK"
+  "776":
+    name: "Tonga"
+    rate: 0.0
+    alpha2: "TO"
+  "780":
+    name: "Trinité-et-Tobago"
+    rate: 0.0
+    alpha2: "TT"
+  "784":
+    name: "Émirats arabes unis"
+    rate: 0.0
+    alpha2: "AE"
+  "788":
+    name: "Tunisie"
+    rate: 0.0
+    alpha2: "TN"
+  "792":
+    name: "Turquie"
+    rate: 0.0
+    alpha2: "TR"
+  "795":
+    name: "Turkménistan"
+    rate: 0.0
+    alpha2: "TM"
+  "796":
+    name: "Îles Turks-et-Caïcos"
+    rate: 0.0
+    alpha2: "TC"
+  "798":
+    name: "Tuvalu"
+    rate: 0.0
+    alpha2: "TV"
+  "800":
+    name: "Ouganda"
+    rate: 0.0
+    alpha2: "UG"
+  "804":
+    name: "Ukraine"
+    rate: 0.0
+    alpha2: "UA"
+  "807":
+    name: "Macédoine du Nord"
+    rate: 0.0
+    alpha2: "MK"
+  "818":
+    name: "Égypte"
+    rate: 0.0
+    alpha2: "EG"
+  "826":
+    name: "Royaume-Uni"
+    rate: 0.0
+    alpha2: "GB"
+  "831":
+    name: "Guernesey"
+    rate: 0.0
+    alpha2: "GG"
+  "832":
+    name: "Jersey"
+    rate: 0.0
+    alpha2: "JE"
+  "833":
+    name: "Île de Man"
+    rate: 0.0
+    alpha2: "IM"
+  "834":
+    name: "Tanzanie"
+    rate: 0.0
+    alpha2: "TZ"
+  "840":
+    name: "États-Unis"
+    rate: 0.0
+    alpha2: "US"
+  "850":
+    name: "Îles Vierges américaines"
+    rate: 0.0
+    alpha2: "VI"
+  "854":
+    name: "Burkina Faso"
+    rate: 0.0
+    alpha2: "BF"
+  "858":
+    name: "Uruguay"
+    rate: 0.0
+    alpha2: "UY"
+  "860":
+    name: "Ouzbékistan"
+    rate: 0.0
+    alpha2: "UZ"
+  "862":
+    name: "Venezuela"
+    rate: 0.0
+    alpha2: "VE"
+  "882":
+    name: "Samoa"
+    rate: 0.0
+    alpha2: "WS"
+  "887":
+    name: "Yémen"
+    rate: 0.0
+    alpha2: "YE"
+  "894":
+    name: "Zambie"
+    rate: 0.0
+    alpha2: "ZM"

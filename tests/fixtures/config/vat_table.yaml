@@ -3,3 +3,11 @@ countries:
     name: France
     rate: 20.0
     alpha2: FR
+  "826":
+    name: Royaume-Uni
+    rate: 0.0
+    alpha2: GB
+  "972":
+    name: Martinique
+    rate: 0.0
+    alpha2: MQ
