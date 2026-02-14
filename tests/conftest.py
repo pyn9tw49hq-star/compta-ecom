@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from compta_ecom.config.loader import AppConfig, ChannelConfig, PspConfig
+from compta_ecom.config.loader import AppConfig, ChannelConfig, DirectPaymentConfig, PspConfig
 
 
 @pytest.fixture
@@ -72,5 +72,9 @@ def sample_config() -> AppConfig:
     config.comptes_charges_marketplace = {
         "decathlon": {"commission": "62220800", "abonnement": "61311112"},
         "leroy_merlin": {"commission": "62220900", "abonnement": "61311113", "tva_deductible": "44566001"},
+    }
+    config.direct_payments = {
+        "klarna": DirectPaymentConfig(compte="46740000", sales_payment_method="Klarna"),
+        "bank_deposit": DirectPaymentConfig(compte="58010000", sales_payment_method="Bank Deposit"),
     }
     return config

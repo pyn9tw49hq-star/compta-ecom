@@ -109,7 +109,7 @@ describe("AnomaliesPanel", () => {
       // Severity badge
       expect(screen.getByText("Avertissement")).toBeInTheDocument();
       // Type label (French)
-      expect(screen.getByText("Incohérence TVA")).toBeInTheDocument();
+      expect(screen.getByText("Taux de TVA incohérent")).toBeInTheDocument();
       // Canal badge
       expect(screen.getByText("Shopify")).toBeInTheDocument();
       // Reference
@@ -132,12 +132,25 @@ describe("AnomaliesPanel", () => {
       render(<AnomaliesPanel anomalies={MOCK_ANOMALIES} />);
 
       // Labels appear in both filter checkboxes and cards, so use getAllByText
-      expect(screen.getAllByText("Vente orpheline").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText("Vente sans encaissement").length).toBeGreaterThanOrEqual(1);
       expect(screen.getAllByText("Écart de montant").length).toBeGreaterThanOrEqual(1);
       expect(screen.getAllByText("Déséquilibre débit/crédit").length).toBeGreaterThanOrEqual(1);
-      expect(screen.getAllByText("Reversement manquant").length).toBeGreaterThanOrEqual(1);
-      expect(screen.getAllByText("Règlement orphelin").length).toBeGreaterThanOrEqual(1);
-      expect(screen.getAllByText("Remboursement orphelin").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText("Versement en attente").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText("Encaissement sans commande").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText("Remboursement sans commande").length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("displays French label for direct_payment type", () => {
+      const anomaly: Anomaly = {
+        type: "direct_payment",
+        severity: "info",
+        canal: "shopify",
+        reference: "#DP01",
+        detail: "Paiement Klarna détecté",
+      };
+      render(<AnomaliesPanel anomalies={[anomaly]} />);
+
+      expect(screen.getByText("Paiement direct")).toBeInTheDocument();
     });
 
     it("falls back to raw type value for unknown types", () => {
@@ -202,11 +215,10 @@ describe("AnomaliesPanel", () => {
 
       // Get all severity badges in order
       const allBadges = screen.getAllByText(/^(Erreur|Avertissement|Info)$/);
-      // Filter to only the card badges (not the counter badges)
-      // Counter badges have number text, card badges don't
-      // First card badge should be "Erreur"
+      // Filter to only the flat card badges (not counter badges, not grouped <details>)
+      // First flat card badge should be "Erreur"
       const cardBadges = allBadges.filter(
-        (el) => el.closest("[class*='border-l-4']") !== null,
+        (el) => el.closest("[class*='border-l-4']") !== null && el.closest("details") === null,
       );
       expect(cardBadges[0]).toHaveTextContent("Erreur");
     });
@@ -261,7 +273,7 @@ describe("AnomaliesPanel", () => {
       render(<AnomaliesPanel anomalies={MOCK_ANOMALIES} />);
 
       const tvaCheckbox = screen.getByRole("checkbox", {
-        name: /Incohérence TVA/,
+        name: /Taux de TVA incohérent/,
       });
       fireEvent.click(tvaCheckbox);
 

@@ -40,6 +40,14 @@ class PspConfig:
 
 
 @dataclass
+class DirectPaymentConfig:
+    """Configuration d'un moyen de paiement direct (sans PSP)."""
+
+    compte: str
+    sales_payment_method: str
+
+
+@dataclass
 class AppConfig:
     """Configuration complète de l'application (non frozen — dataclass technique)."""
 
@@ -79,6 +87,9 @@ class AppConfig:
     )
     journal_achats: str = "AC"
     journal_reglement: str = "RG"
+
+    # Paiements directs (Klarna, Bank Deposit, etc.)
+    direct_payments: dict[str, DirectPaymentConfig] = field(default_factory=dict)
 
     # Matching
     matching_tolerance: float = 0.01
@@ -121,6 +132,7 @@ def _validate_chart(data: dict[str, object]) -> tuple[
     dict[str, str],
     str,
     str,
+    dict[str, DirectPaymentConfig],
 ]:
     """Valide et extrait le plan comptable."""
     context = "chart_of_accounts.yaml"
@@ -201,6 +213,23 @@ def _validate_chart(data: dict[str, object]) -> tuple[
     journal_achats = str(journaux_raw.get("achats", "AC"))
     journal_reglement = str(journaux_raw.get("reglement", "RG"))
 
+    # Paiements directs (optionnel)
+    dp_raw = data.get("direct_payments", {})
+    if not isinstance(dp_raw, dict):
+        raise ConfigError(f"'direct_payments' doit être un mapping dans {context}")
+    direct_payments: dict[str, DirectPaymentConfig] = {}
+    for dp_name, dp_data in dp_raw.items():
+        if not isinstance(dp_data, dict):
+            raise ConfigError(f"direct_payments '{dp_name}' doit être un mapping dans {context}")
+        if "compte" not in dp_data:
+            raise ConfigError(f"Clé 'compte' manquante pour direct_payments '{dp_name}' dans {context}")
+        if "sales_payment_method" not in dp_data:
+            raise ConfigError(f"Clé 'sales_payment_method' manquante pour direct_payments '{dp_name}' dans {context}")
+        direct_payments[str(dp_name)] = DirectPaymentConfig(
+            compte=str(dp_data["compte"]),
+            sales_payment_method=str(dp_data["sales_payment_method"]),
+        )
+
     return (
         {str(k): str(v) for k, v in clients.items()},
         {str(k): str(v) for k, v in fournisseurs.items()},
@@ -217,6 +246,7 @@ def _validate_chart(data: dict[str, object]) -> tuple[
         journaux_vente,
         journal_achats,
         journal_reglement,
+        direct_payments,
     )
 
 
@@ -415,7 +445,7 @@ def load_config(config_dir: Path) -> AppConfig:
     vat_data = _load_yaml(config_dir / "vat_table.yaml")
     channels_data = _load_yaml(config_dir / "channels.yaml")
 
-    clients, fournisseurs, psp, transit, banque, comptes_speciaux, prefix, canal_codes, tva_prefix, port_prefix, zones_port, comptes_charges_marketplace, journaux_vente, journal_achats, journal_reglement = _validate_chart(chart_data)
+    clients, fournisseurs, psp, transit, banque, comptes_speciaux, prefix, canal_codes, tva_prefix, port_prefix, zones_port, comptes_charges_marketplace, journaux_vente, journal_achats, journal_reglement, direct_payments = _validate_chart(chart_data)
     vat_table = _validate_vat(vat_data)
     channels = _validate_channels(channels_data)
 
@@ -447,6 +477,7 @@ def load_config(config_dir: Path) -> AppConfig:
         journal_achats=journal_achats,
         journal_reglement=journal_reglement,
         matching_tolerance=matching_tolerance,
+        direct_payments=direct_payments,
     )
 
     logger.debug("matching_tolerance: %s", config.matching_tolerance)

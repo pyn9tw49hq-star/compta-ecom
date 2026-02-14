@@ -12,6 +12,7 @@ from compta_ecom.engine.marketplace_payout_entries import (
     generate_marketplace_payout_from_summary,
 )
 from compta_ecom.engine.payout_entries import generate_payout_entries
+from compta_ecom.engine.direct_payment_entries import generate_direct_payment_entries
 from compta_ecom.engine.sale_entries import generate_sale_entries
 from compta_ecom.engine.settlement_entries import generate_settlement_entries
 from compta_ecom.models import AccountingEntry, Anomaly, BalanceError, NormalizedTransaction, PayoutSummary
@@ -56,6 +57,24 @@ def generate_entries(
                             actual_value=None,
                         )
                     )
+                continue
+            if transaction.special_type == "direct_payment":
+                try:
+                    entries.extend(generate_sale_entries(transaction, config))
+                except BalanceError as exc:
+                    anomalies.append(
+                        Anomaly(
+                            type="balance_error",
+                            severity="error",
+                            reference=transaction.reference,
+                            channel=transaction.channel,
+                            detail=str(exc),
+                            expected_value=None,
+                            actual_value=None,
+                        )
+                    )
+                    continue
+                entries.extend(generate_direct_payment_entries(transaction, config))
                 continue
             if transaction.special_type in ("payout_detail_refund", "orphan_settlement", "refund_settlement"):
                 entries.extend(generate_settlement_entries(transaction, config))

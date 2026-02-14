@@ -58,3 +58,11 @@ journaux:
     leroy_merlin: "LM"
   achats: "AC"
   reglement: "RG"
+
+direct_payments:
+  klarna:
+    compte: "46740000"
+    sales_payment_method: "Klarna"
+  bank_deposit:
+    compte: "58010000"
+    sales_payment_method: "Bank Deposit"

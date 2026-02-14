@@ -174,6 +174,78 @@ class TestCLIExitCodes:
         assert exc_info.value.code == 3
 
 
+class TestPipelineDirectPayment:
+    """Pipeline avec paiement direct Klarna → écritures VE + RG, anomalie direct_payment."""
+
+    def test_klarna_direct_payment_end_to_end(self, tmp_path: Path) -> None:
+        """Vente Klarna orpheline → VE (3 lignes) + RG (2 lignes), lettrage 411 cohérent."""
+        input_dir = tmp_path / "input"
+        input_dir.mkdir()
+
+        # Copy transactions and versements as-is
+        shutil.copy(SHOPIFY_FIXTURES / "transactions.csv", input_dir / "transactions.csv")
+        shutil.copy(SHOPIFY_FIXTURES / "versements.csv", input_dir / "versements.csv")
+
+        # Create modified sales with a Klarna orphan order
+        sales_content = (SHOPIFY_FIXTURES / "ventes.csv").read_text()
+        sales_content += '#KLARNA01,2026-01-20,80.00,0.00,16.00,96.00,FR TVA 20%,16.00,Klarna,FR\n'
+        (input_dir / "ventes.csv").write_text(sales_content)
+
+        config = load_config(CONFIG_FIXTURES)
+        output = tmp_path / "output.xlsx"
+
+        orchestrator = PipelineOrchestrator()
+        orchestrator.run(input_dir, output, config)
+
+        wb = openpyxl.load_workbook(output)
+        ws_entries = wb["Écritures"]
+        headers = [cell.value for cell in ws_entries[1]]
+        col = {name: idx for idx, name in enumerate(headers)}
+        data_rows = list(ws_entries.iter_rows(min_row=2, values_only=True))
+
+        # Filter entries for the Klarna order
+        klarna_entries = [r for r in data_rows if r[col["piece_number"]] == "#KLARNA01"]
+
+        # VE entries: 411 D + 707 C + 4457 C = 3 lines
+        ve_entries = [r for r in klarna_entries if r[col["journal"]] == "VE"]
+        assert len(ve_entries) == 3, f"Attendu 3 écritures VE, trouvé {len(ve_entries)}"
+
+        # RG entries: 46740000 D + 411 C = 2 lines
+        rg_entries = [r for r in klarna_entries if r[col["journal"]] == "RG"]
+        assert len(rg_entries) == 2, f"Attendu 2 écritures RG, trouvé {len(rg_entries)}"
+
+        # RG debit on 46740000
+        rg_debit = [r for r in rg_entries if (r[col["debit"]] or 0) > 0]
+        assert len(rg_debit) == 1
+        assert rg_debit[0][col["account"]] == "46740000"
+        assert rg_debit[0][col["debit"]] == 96.0
+
+        # RG credit on 411SHOPIFY
+        rg_credit = [r for r in rg_entries if (r[col["credit"]] or 0) > 0]
+        assert len(rg_credit) == 1
+        assert rg_credit[0][col["account"]] == "411SHOPIFY"
+        assert rg_credit[0][col["credit"]] == 96.0
+
+        # Lettrage 411 cohérent entre VE et RG (même code alphabétique)
+        ve_411 = [r for r in ve_entries if r[col["account"]] == "411SHOPIFY"]
+        rg_411 = [r for r in rg_entries if r[col["account"]] == "411SHOPIFY"]
+        assert len(ve_411) == 1
+        assert len(rg_411) == 1
+        assert ve_411[0][col["lettrage"]] == rg_411[0][col["lettrage"]]
+        assert ve_411[0][col["lettrage"]] not in (None, "")
+
+        # Anomalie direct_payment présente, pas orphan_sale
+        ws_anomalies = wb["Anomalies"]
+        anomaly_rows = list(ws_anomalies.iter_rows(min_row=2, values_only=True))
+        anomaly_types_for_klarna = [
+            r[0] for r in anomaly_rows if r[2] == "#KLARNA01"  # type, severity, reference
+        ]
+        assert "direct_payment" in anomaly_types_for_klarna
+        assert "orphan_sale" not in anomaly_types_for_klarna
+
+        wb.close()
+
+
 DETAIL_FIXTURES = SHOPIFY_FIXTURES / "detail_versements"
 
 

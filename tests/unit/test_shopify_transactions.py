@@ -7,7 +7,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from compta_ecom.config.loader import AppConfig, ChannelConfig, PspConfig
+from compta_ecom.config.loader import AppConfig, ChannelConfig, DirectPaymentConfig, PspConfig
 from compta_ecom.models import ParseError
 from compta_ecom.parsers.shopify import ShopifyParser
 
@@ -40,6 +40,10 @@ def shopify_config() -> AppConfig:
                 encoding="utf-8",
                 separator=",",
             ),
+        },
+        direct_payments={
+            "klarna": DirectPaymentConfig(compte="46740000", sales_payment_method="Klarna"),
+            "bank_deposit": DirectPaymentConfig(compte="58010000", sales_payment_method="Bank Deposit"),
         },
     )
 
@@ -433,3 +437,92 @@ class TestDegradedMode:
         assert tx.payment_method is None
         assert tx.commission_ttc == 0.0
         assert tx.net_amount == tx.amount_ttc
+
+
+class TestDirectPaymentOrphans:
+    """Tests pour les ventes orphelines avec paiement direct (Klarna, Bank Deposit)."""
+
+    def test_klarna_orphan_becomes_direct_payment(self, tmp_path: Path, shopify_config: AppConfig) -> None:
+        """Vente Payment Method=Klarna sans charge → special_type=direct_payment, payment_method=klarna."""
+        sales_path = _make_sales_csv(tmp_path, [_base_sale(**{"Payment Method": "Klarna"})])
+        # Transaction pour une autre commande, donc #1001 est orpheline
+        tx_path = _make_transactions_csv(tmp_path, [_base_transaction(Order="#9999")])
+
+        parser = ShopifyParser()
+        result = parser.parse({"sales": sales_path, "transactions": tx_path}, shopify_config)
+
+        sale_tx = next(tx for tx in result.transactions if tx.reference == "#1001" and tx.type == "sale")
+        assert sale_tx.special_type == "direct_payment"
+        assert sale_tx.payment_method == "klarna"
+        assert sale_tx.commission_ttc == 0.0
+        assert sale_tx.net_amount == sale_tx.amount_ttc
+
+        # Anomalie direct_payment (info), pas orphan_sale
+        assert not any(a.type == "orphan_sale" and a.reference == "#1001" for a in result.anomalies)
+        dp_anomalies = [a for a in result.anomalies if a.type == "direct_payment" and a.reference == "#1001"]
+        assert len(dp_anomalies) == 1
+        assert dp_anomalies[0].severity == "info"
+        assert "Klarna" in dp_anomalies[0].detail
+
+    def test_bank_deposit_orphan_becomes_direct_payment(self, tmp_path: Path, shopify_config: AppConfig) -> None:
+        """Vente Payment Method=Bank Deposit sans charge → special_type=direct_payment."""
+        sales_path = _make_sales_csv(tmp_path, [_base_sale(**{"Payment Method": "Bank Deposit"})])
+        tx_path = _make_transactions_csv(tmp_path, [_base_transaction(Order="#9999")])
+
+        parser = ShopifyParser()
+        result = parser.parse({"sales": sales_path, "transactions": tx_path}, shopify_config)
+
+        sale_tx = next(tx for tx in result.transactions if tx.reference == "#1001" and tx.type == "sale")
+        assert sale_tx.special_type == "direct_payment"
+        assert sale_tx.payment_method == "bank_deposit"
+
+        dp_anomalies = [a for a in result.anomalies if a.type == "direct_payment" and a.reference == "#1001"]
+        assert len(dp_anomalies) == 1
+        assert "Bank Deposit" in dp_anomalies[0].detail
+
+    def test_unknown_payment_method_still_orphan_sale(self, tmp_path: Path, shopify_config: AppConfig) -> None:
+        """Vente Payment Method=Shopify Payments sans charge → orphan_sale classique (non-régression)."""
+        sales_path = _make_sales_csv(tmp_path, [_base_sale(**{"Payment Method": "Shopify Payments"})])
+        tx_path = _make_transactions_csv(tmp_path, [_base_transaction(Order="#9999")])
+
+        parser = ShopifyParser()
+        result = parser.parse({"sales": sales_path, "transactions": tx_path}, shopify_config)
+
+        sale_tx = next(tx for tx in result.transactions if tx.reference == "#1001" and tx.type == "sale")
+        assert sale_tx.special_type is None
+        assert sale_tx.payment_method is None
+
+        assert any(a.type == "orphan_sale" and a.reference == "#1001" for a in result.anomalies)
+        assert not any(a.type == "direct_payment" and a.reference == "#1001" for a in result.anomalies)
+
+    def test_klarna_case_insensitive(self, tmp_path: Path, shopify_config: AppConfig) -> None:
+        """Payment Method en minuscules 'klarna' → detecte comme direct_payment."""
+        sales_path = _make_sales_csv(tmp_path, [_base_sale(**{"Payment Method": "klarna"})])
+        tx_path = _make_transactions_csv(tmp_path, [_base_transaction(Order="#9999")])
+        parser = ShopifyParser()
+        result = parser.parse({"sales": sales_path, "transactions": tx_path}, shopify_config)
+        sale_tx = next(tx for tx in result.transactions if tx.reference == "#1001" and tx.type == "sale")
+        assert sale_tx.special_type == "direct_payment"
+        assert sale_tx.payment_method == "klarna"
+
+    def test_empty_payment_method_still_orphan(self, tmp_path: Path, shopify_config: AppConfig) -> None:
+        """Payment Method vide → orphan_sale classique, pas de direct_payment."""
+        sales_path = _make_sales_csv(tmp_path, [_base_sale(**{"Payment Method": ""})])
+        tx_path = _make_transactions_csv(tmp_path, [_base_transaction(Order="#9999")])
+        parser = ShopifyParser()
+        result = parser.parse({"sales": sales_path, "transactions": tx_path}, shopify_config)
+        sale_tx = next(tx for tx in result.transactions if tx.reference == "#1001" and tx.type == "sale")
+        assert sale_tx.special_type is None
+        assert sale_tx.payment_method is None
+
+    def test_no_transactions_file_no_direct_payment(self, tmp_path: Path, shopify_config: AppConfig) -> None:
+        """Mode dégradé (pas de fichier transactions) → pas de direct_payment même si Klarna."""
+        sales_path = _make_sales_csv(tmp_path, [_base_sale(**{"Payment Method": "Klarna"})])
+
+        parser = ShopifyParser()
+        result = parser.parse({"sales": sales_path}, shopify_config)
+
+        tx = result.transactions[0]
+        assert tx.special_type is None
+        assert tx.payment_method is None
+        assert not any(a.type == "direct_payment" for a in result.anomalies)

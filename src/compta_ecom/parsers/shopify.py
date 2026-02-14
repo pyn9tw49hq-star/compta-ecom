@@ -420,6 +420,9 @@ class ShopifyParser(BaseParser):
             )
             return None, anomalies
 
+        payment_method_raw: object = row["Payment Method"]
+        sale_payment_method = str(payment_method_raw).strip() if _is_notna(payment_method_raw) else ""
+
         sale: dict[str, Any] = {
             "reference": reference,
             "date": date,
@@ -430,6 +433,7 @@ class ShopifyParser(BaseParser):
             "shipping_tva": shipping_tva,
             "tva_rate": tva_rate,
             "country_code": country_code,
+            "sale_payment_method": sale_payment_method,
         }
 
         return sale, anomalies
@@ -560,38 +564,79 @@ class ShopifyParser(BaseParser):
                 result.append(tx)
             else:
                 # Orphan sale or degraded mode (no transactions file)
-                if transactions:
+                sale_pm = sale.get("sale_payment_method", "")
+                direct_key: str | None = None
+                if transactions and sale_pm:
+                    for dp_key, dp_cfg in config.direct_payments.items():
+                        if dp_cfg.sales_payment_method.lower() == sale_pm.lower():
+                            direct_key = dp_key
+                            break
+
+                if direct_key is not None:
                     anomalies.append(
                         Anomaly(
-                            type="orphan_sale",
-                            severity="warning",
+                            type="direct_payment",
+                            severity="info",
                             reference=ref,
                             channel="shopify",
-                            detail="Commande présente dans les Ventes mais aucun encaissement trouvé dans les Transactions — commande probablement en attente, annulée ou hors période",
+                            detail=f"Paiement direct « {sale_pm} » — écriture de règlement générée. Vérifiez l'apurement du compte client.",
                             expected_value=None,
-                            actual_value=None,
+                            actual_value=sale_pm,
                         )
                     )
-                tx = NormalizedTransaction(
-                    reference=sale["reference"],
-                    channel="shopify",
-                    date=sale["date"],
-                    type="sale",
-                    amount_ht=sale["amount_ht"],
-                    amount_tva=sale["amount_tva"],
-                    amount_ttc=sale["amount_ttc"],
-                    shipping_ht=sale["shipping_ht"],
-                    shipping_tva=sale["shipping_tva"],
-                    tva_rate=sale["tva_rate"],
-                    country_code=sale["country_code"],
-                    commission_ttc=0.0,
-                    commission_ht=0.0,
-                    net_amount=sale["amount_ttc"],
-                    payout_date=None,
-                    payout_reference=None,
-                    payment_method=None,
-                    special_type=None,
-                )
+                    tx = NormalizedTransaction(
+                        reference=sale["reference"],
+                        channel="shopify",
+                        date=sale["date"],
+                        type="sale",
+                        amount_ht=sale["amount_ht"],
+                        amount_tva=sale["amount_tva"],
+                        amount_ttc=sale["amount_ttc"],
+                        shipping_ht=sale["shipping_ht"],
+                        shipping_tva=sale["shipping_tva"],
+                        tva_rate=sale["tva_rate"],
+                        country_code=sale["country_code"],
+                        commission_ttc=0.0,
+                        commission_ht=0.0,
+                        net_amount=sale["amount_ttc"],
+                        payout_date=None,
+                        payout_reference=None,
+                        payment_method=direct_key,
+                        special_type="direct_payment",
+                    )
+                else:
+                    if transactions:
+                        anomalies.append(
+                            Anomaly(
+                                type="orphan_sale",
+                                severity="warning",
+                                reference=ref,
+                                channel="shopify",
+                                detail="Commande présente dans les Ventes mais aucun encaissement trouvé dans les Transactions — commande probablement en attente, annulée ou hors période",
+                                expected_value=None,
+                                actual_value=None,
+                            )
+                        )
+                    tx = NormalizedTransaction(
+                        reference=sale["reference"],
+                        channel="shopify",
+                        date=sale["date"],
+                        type="sale",
+                        amount_ht=sale["amount_ht"],
+                        amount_tva=sale["amount_tva"],
+                        amount_ttc=sale["amount_ttc"],
+                        shipping_ht=sale["shipping_ht"],
+                        shipping_tva=sale["shipping_tva"],
+                        tva_rate=sale["tva_rate"],
+                        country_code=sale["country_code"],
+                        commission_ttc=0.0,
+                        commission_ht=0.0,
+                        net_amount=sale["amount_ttc"],
+                        payout_date=None,
+                        payout_reference=None,
+                        payment_method=None,
+                        special_type=None,
+                    )
                 result.append(tx)
 
             # Refunds

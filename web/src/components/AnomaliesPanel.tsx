@@ -57,6 +57,7 @@ const ANOMALY_TYPE_LABELS: Record<string, string> = {
   return_no_matching_sale: "Remboursement sans commande d'origine",
   return_fee_nonzero: "Frais de retour non nuls",
   unknown_psp: "Moyen de paiement non reconnu",
+  direct_payment: "Paiement direct",
   parse_warning: "Avertissement de lecture fichier",
   zero_amount_order: "Commande à montant nul",
   missing_date: "Date manquante",
