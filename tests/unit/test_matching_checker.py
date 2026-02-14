@@ -150,9 +150,9 @@ class TestAmountCoherence:
         result = MatchingChecker._check_amount_coherence(tx, config)
         assert len(result) == 1
         assert "commission (-3.5€)" in result[0].detail
-        assert "net (-115.5€)" in result[0].detail
-        assert "119.0€" in result[0].detail
-        assert "écart de 1.0€" in result[0].detail
+        assert "net versé (-115.5€)" in result[0].detail
+        assert "120.0€" in result[0].detail
+        assert "Écart de 1.0€" in result[0].detail
 
     def test_ecart_superieur_tolerance(self) -> None:
         """Écart > tolérance → amount_mismatch."""

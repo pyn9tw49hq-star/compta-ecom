@@ -58,10 +58,10 @@ class MatchingChecker:
                     reference=transaction.reference,
                     channel=transaction.channel,
                     detail=(
-                        f"Montant TTC ({transaction.amount_ttc}€) ne correspond pas "
-                        f"à la décomposition commission ({transaction.commission_ttc}€) "
-                        f"+ net ({transaction.net_amount}€) = {expected}€ "
-                        f"— écart de {round(diff, 2)}€"
+                        f"Écart de {round(diff, 2)}€ entre le montant TTC ({transaction.amount_ttc}€) "
+                        f"et la somme commission ({transaction.commission_ttc}€) "
+                        f"+ net versé ({transaction.net_amount}€) "
+                        f"— vérifier la répartition"
                     ),
                     expected_value=str(expected),
                     actual_value=str(transaction.amount_ttc),
@@ -82,8 +82,8 @@ class MatchingChecker:
                     severity="info",
                     reference=transaction.reference,
                     channel=transaction.channel,
-                    detail="Transaction sans date de reversement — payout en attente",
-                    expected_value="date de payout",
+                    detail="Cette transaction n'a pas encore de date de versement — le virement bancaire est probablement en attente chez Shopify",
+                    expected_value="date de versement",
                     actual_value="None",
                 )
             ]
@@ -112,8 +112,8 @@ class MatchingChecker:
                         reference=tx.reference,
                         channel=tx.channel,
                         detail=(
-                            f"Remboursement sans vente correspondante "
-                            f"(référence {tx.reference} absente des ventes)"
+                            f"Remboursement pour la commande {tx.reference} mais aucune vente "
+                            f"d'origine trouvée — le remboursement est peut-être antérieur à la période exportée"
                         ),
                         expected_value="vente correspondante",
                         actual_value="aucune",
@@ -148,8 +148,8 @@ class MatchingChecker:
                         reference=tx.reference,
                         channel=tx.channel,
                         detail=(
-                            f"Facture du {tx.date.isoformat()} sans règlement "
-                            f"depuis {days_elapsed} jours"
+                            f"Commande du {tx.date.isoformat()} non réglée "
+                            f"depuis {days_elapsed} jours — retard de paiement à surveiller"
                         ),
                         expected_value=f"<= {delay_threshold} jours",
                         actual_value=f"{days_elapsed} jours",

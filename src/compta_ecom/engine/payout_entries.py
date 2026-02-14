@@ -37,9 +37,9 @@ def _generate_aggregated_payout_entries(
             reference=payout.payout_reference or "",
             channel=payout.channel,
             detail=(
-                f"Payout {payout.payout_reference} sans transactions matchées — probable versement cross-period (transactions hors périmètre)"
+                f"Versement {payout.payout_reference} sans aucune transaction correspondante — probable versement couvrant une période différente de celle exportée"
                 if is_cross_period
-                else f"Payout {payout.payout_reference} contient des PSP hétérogènes — écriture de reversement manuelle requise"
+                else f"Versement {payout.payout_reference} contient plusieurs moyens de paiement différents — l'écriture de reversement devra être saisie manuellement"
             ),
             expected_value=None,
             actual_value=None,
@@ -109,7 +109,7 @@ def _generate_aggregated_multi_psp_entries(
                     severity="warning",
                     reference=ref,
                     channel=payout.channel,
-                    detail=f"PSP {psp_type} inconnu dans la config pour payout {ref}",
+                    detail=f"Moyen de paiement « {psp_type} » non configuré — impossible de déterminer le compte bancaire pour le versement {ref}",
                     expected_value=None,
                     actual_value=psp_type,
                 )

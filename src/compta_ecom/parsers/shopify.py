@@ -460,7 +460,7 @@ class ShopifyParser(BaseParser):
                         severity="warning",
                         reference=order,
                         channel="shopify",
-                        detail=f"PSP inconnu : {payment_method_raw}",
+                        detail=f"Moyen de paiement non reconnu : « {payment_method_raw} » — vérifier la configuration des moyens de paiement",
                         expected_value=None,
                         actual_value=payment_method_raw,
                     )
@@ -545,7 +545,7 @@ class ShopifyParser(BaseParser):
                             severity="warning",
                             reference=ref,
                             channel="shopify",
-                            detail="Vente sans transaction charge correspondante",
+                            detail="Commande présente dans les Ventes mais aucun encaissement trouvé dans les Transactions — commande probablement en attente, annulée ou hors période",
                             expected_value=None,
                             actual_value=None,
                         )
@@ -608,7 +608,7 @@ class ShopifyParser(BaseParser):
                         severity="warning",
                         reference=ref,
                         channel="shopify",
-                        detail="Transaction sans vente correspondante",
+                        detail="Encaissement présent dans les Transactions mais aucune commande trouvée dans les Ventes — probable décalage de période entre les deux exports",
                         expected_value=None,
                         actual_value=None,
                     )
@@ -700,7 +700,7 @@ class ShopifyParser(BaseParser):
                         severity="info",
                         reference=ref,
                         channel="shopify",
-                        detail=f"Frais de retour non-zéro : {frais_retour}€",
+                        detail=f"Frais de retour de {frais_retour}€ détectés sur ce remboursement — à vérifier si ces frais sont normaux",
                         expected_value="0",
                         actual_value=str(frais_retour),
                     )
@@ -720,7 +720,7 @@ class ShopifyParser(BaseParser):
                         severity="warning",
                         reference=ref,
                         channel="shopify",
-                        detail=f"Retour {ref} sans vente correspondante — fallback France 250",
+                        detail=f"Remboursement {ref} sans commande d'origine trouvée — pays par défaut (France) utilisé pour la comptabilisation",
                         expected_value=None,
                         actual_value=None,
                     )
@@ -843,7 +843,7 @@ class ShopifyParser(BaseParser):
                             severity="warning",
                             reference=order,
                             channel="shopify",
-                            detail=f"PSP inconnu : {payment_method_raw}",
+                            detail=f"Moyen de paiement non reconnu : « {payment_method_raw} » — vérifier la configuration des moyens de paiement",
                             expected_value=None,
                             actual_value=payment_method_raw,
                         )
@@ -985,9 +985,9 @@ class ShopifyParser(BaseParser):
                         reference=detail.order_reference,
                         channel="shopify",
                         detail=(
-                            f"Remboursement {detail.order_reference} découvert dans "
-                            f"payout detail {detail.payout_id} (montant={amount_ttc}€) "
-                            f"— écriture RG générée"
+                            f"Remboursement de {amount_ttc}€ pour la commande {detail.order_reference} "
+                            f"détecté dans le détail du versement {detail.payout_id} "
+                            f"— écriture de remboursement générée automatiquement"
                         ),
                         expected_value=None,
                         actual_value=None,
@@ -1118,7 +1118,7 @@ class ShopifyParser(BaseParser):
                             severity="error",
                             reference=payout_reference or f"PAYOUT-{date_str}",
                             channel="shopify",
-                            detail=f"Somme des nets detail ({detail_sum}€) != total versement ({total_amount}€) — écart de {round(abs(detail_sum - total_amount), 2)}€",
+                            detail=f"Le détail du versement ({detail_sum}€) ne correspond pas au montant total versé ({total_amount}€) — écart de {round(abs(detail_sum - total_amount), 2)}€ à vérifier",
                             expected_value=str(total_amount),
                             actual_value=str(detail_sum),
                         )
@@ -1152,7 +1152,7 @@ class ShopifyParser(BaseParser):
                             severity="warning",
                             reference=payout.payout_reference or f"PAYOUT-{date_str}",
                             channel="shopify",
-                            detail=f"Versement du {date_str} sans fichier detail — mode agrégé utilisé",
+                            detail=f"Aucun fichier de détail trouvé pour le versement du {date_str} — le montant est comptabilisé en bloc sans ventilation par commande",
                             expected_value="fichier detail avec Payout ID correspondant",
                             actual_value="aucun fichier detail trouvé",
                         )
@@ -1168,7 +1168,7 @@ class ShopifyParser(BaseParser):
                             severity="warning",
                             reference=orphan_payout_id,
                             channel="shopify",
-                            detail=f"Fichier detail avec Payout ID {orphan_payout_id} sans versement correspondant dans le fichier résumé",
+                            detail=f"Fichier de détail trouvé pour le versement {orphan_payout_id} mais ce versement n'apparaît pas dans le récapitulatif des versements",
                             expected_value="versement correspondant dans Détails versements.csv",
                             actual_value="aucun versement trouvé",
                         )

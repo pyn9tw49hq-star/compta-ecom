@@ -58,7 +58,7 @@ class VatChecker:
                     severity="error",
                     reference=transaction.reference,
                     channel=transaction.channel,
-                    detail=f"Pays {country_code} absent de la table TVA — contrôle impossible",
+                    detail=f"Pays inconnu (code {country_code}) — ce pays n'est pas dans la table TVA, le taux applicable n'a pas pu être vérifié",
                     expected_value=None,
                     actual_value=str(country_code),
                 )
@@ -74,7 +74,7 @@ class VatChecker:
                     severity="warning",
                     reference=transaction.reference,
                     channel=transaction.channel,
-                    detail=f"Taux TVA {transaction.tva_rate}% ≠ attendu {expected_rate}% pour le pays {country_code}",
+                    detail=f"Taux de TVA incohérent : {transaction.tva_rate}% appliqué au lieu de {expected_rate}% attendu pour ce pays (code {country_code})",
                     expected_value=str(expected_rate),
                     actual_value=str(transaction.tva_rate),
                 )
@@ -102,16 +102,16 @@ class VatChecker:
 
         if product_mismatch:
             parts.append(
-                f"TVA produit: {transaction.amount_tva}€ ≠ calculé {expected_product_tva}€"
-                f" (HT {transaction.amount_ht}€ × {transaction.tva_rate}%)"
+                f"Montant de TVA produit incorrect : {transaction.amount_tva}€ constaté au lieu de "
+                f"{expected_product_tva}€ calculé ({transaction.amount_ht}€ HT × {transaction.tva_rate}%)"
             )
             expected_parts.append(str(expected_product_tva))
             actual_parts.append(str(transaction.amount_tva))
 
         if shipping_mismatch:
             parts.append(
-                f"TVA port: {transaction.shipping_tva}€ ≠ calculé {expected_shipping_tva}€"
-                f" (HT {transaction.shipping_ht}€ × {transaction.tva_rate}%)"
+                f"Montant de TVA port incorrect : {transaction.shipping_tva}€ constaté au lieu de "
+                f"{expected_shipping_tva}€ calculé ({transaction.shipping_ht}€ HT × {transaction.tva_rate}%)"
             )
             expected_parts.append(str(expected_shipping_tva))
             actual_parts.append(str(transaction.shipping_tva))
@@ -122,7 +122,7 @@ class VatChecker:
                 severity="warning",
                 reference=transaction.reference,
                 channel=transaction.channel,
-                detail=" ; ".join(parts),
+                detail=" ; ".join(parts) + " — écart dû à un arrondi ou un taux mixte",
                 expected_value=", ".join(expected_parts),
                 actual_value=", ".join(actual_parts),
             )
@@ -145,7 +145,7 @@ class VatChecker:
                     severity="warning",
                     reference=transaction.reference,
                     channel=transaction.channel,
-                    detail=f"TTC {transaction.amount_ttc}€ ≠ composants {expected_ttc}€ (écart {round(diff, 2)}€)",
+                    detail=f"Montant TTC incohérent : {transaction.amount_ttc}€ affiché mais la somme HT + TVA + port donne {expected_ttc}€ (écart de {round(diff, 2)}€)",
                     expected_value=str(expected_ttc),
                     actual_value=str(transaction.amount_ttc),
                 )

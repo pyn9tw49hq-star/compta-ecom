@@ -144,7 +144,7 @@ class TestGeneratePayoutEntriesMixedPsp:
         assert len(anomalies) == 1
         assert anomalies[0].type == "mixed_psp_payout"
         assert anomalies[0].severity == "info"
-        assert "cross-period" in anomalies[0].detail
+        assert "période différente" in anomalies[0].detail
 
     def test_mixed_psp_anomaly_with_matched_transactions(self, sample_config: AppConfig) -> None:
         """psp_type=None, matched_net_sum set → warning severity (true mixed PSP)."""
@@ -155,7 +155,7 @@ class TestGeneratePayoutEntriesMixedPsp:
         assert len(anomalies) == 1
         assert anomalies[0].type == "mixed_psp_payout"
         assert anomalies[0].severity == "warning"
-        assert "hétérogènes" in anomalies[0].detail
+        assert "plusieurs moyens de paiement" in anomalies[0].detail
 
 
 class TestGeneratePayoutEntriesBalance:

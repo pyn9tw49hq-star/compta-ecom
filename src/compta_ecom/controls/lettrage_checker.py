@@ -39,9 +39,9 @@ class LettrageChecker:
                         reference=lettrage,
                         channel=group[0].channel,
                         detail=(
-                            f"Groupe de lettrage 511 '{lettrage}' déséquilibré : "
-                            f"débits={total_debit}€, crédits={total_credit}€, "
-                            f"écart={diff}€"
+                            f"Le groupe de lettrage « {lettrage} » sur le compte 511 (banque) est déséquilibré : "
+                            f"débits {total_debit}€ ≠ crédits {total_credit}€ "
+                            f"(écart {diff}€)"
                         ),
                         expected_value=str(total_debit),
                         actual_value=str(total_credit),

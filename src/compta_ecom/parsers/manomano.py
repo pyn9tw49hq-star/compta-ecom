@@ -151,7 +151,7 @@ class ManoManoParser(BaseParser):
                     severity="warning",
                     reference=ref,
                     channel="manomano",
-                    detail=f"Type de transaction inconnu : {raw_type}",
+                    detail=f"Type de transaction « {raw_type} » non reconnu dans le fichier CA — cette ligne a été ignorée",
                     expected_value="ORDER ou REFUND",
                     actual_value=raw_type,
                 ))
@@ -216,7 +216,7 @@ class ManoManoParser(BaseParser):
                     severity="warning",
                     reference=ref,
                     channel="manomano",
-                    detail=f"Type de payout inconnu : {raw_type}",
+                    detail=f"Type de versement « {raw_type} » non reconnu dans le fichier Versements — cette ligne a été ignorée",
                     expected_value=", ".join(sorted(KNOWN_PAYOUT_TYPES)),
                     actual_value=raw_type,
                 ))
@@ -230,7 +230,7 @@ class ManoManoParser(BaseParser):
                     severity="warning",
                     reference=ref,
                     channel="manomano",
-                    detail="PAYOUT_DATE invalide ou manquante",
+                    detail="Date de versement invalide ou manquante — cette ligne du fichier Versements a été ignorée",
                     expected_value=DATE_FORMAT_PAYOUT,
                     actual_value=None,
                 ))
@@ -289,7 +289,7 @@ class ManoManoParser(BaseParser):
                     severity="warning",
                     reference=payout_ref_str,
                     channel="manomano",
-                    detail="PAYOUT_DATE invalide pour le payout",
+                    detail="Date de versement invalide — ce groupe de versement a été ignoré",
                     expected_value=DATE_FORMAT_PAYOUT,
                     actual_value=None,
                 ))
@@ -361,7 +361,7 @@ class ManoManoParser(BaseParser):
                         severity="warning",
                         reference=ref,
                         channel="manomano",
-                        detail="Date absente dans CA et pas de correspondance Versement",
+                        detail="Date manquante dans le fichier CA et aucune correspondance dans le fichier Versements — transaction ignorée",
                         expected_value=None,
                         actual_value=None,
                     ))

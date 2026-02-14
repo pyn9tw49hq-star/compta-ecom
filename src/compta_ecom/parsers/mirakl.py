@@ -244,7 +244,7 @@ class MiraklParser(BaseParser):
                     severity="warning",
                     reference=ref_str,
                     channel=self.channel,
-                    detail="Somme Montant et Frais de port = 0",
+                    detail="Commande à montant nul — la somme du montant et des frais de port est égale à zéro, commande ignorée",
                     expected_value=None,
                     actual_value=None,
                 ))
@@ -259,7 +259,7 @@ class MiraklParser(BaseParser):
                     severity="warning",
                     reference=ref_str,
                     channel=self.channel,
-                    detail="Date de commande manquante ou invalide",
+                    detail="Date de commande manquante ou invalide — impossible de comptabiliser cette commande sans date",
                     expected_value=DATE_FORMAT,
                     actual_value=None,
                 ))
@@ -374,7 +374,7 @@ class MiraklParser(BaseParser):
                     severity="warning",
                     reference=str(ref) if pd.notna(ref) else "",
                     channel=self.channel,
-                    detail="Date du cycle de paiement invalide ou manquante",
+                    detail="Date du cycle de paiement invalide ou manquante — ligne de paiement ignorée",
                     expected_value=DATE_FORMAT,
                     actual_value=None,
                 ))
@@ -445,7 +445,7 @@ class MiraklParser(BaseParser):
                     severity="warning",
                     reference=str(row["Numéro de commande"]) if pd.notna(row["Numéro de commande"]) else "",
                     channel=self.channel,
-                    detail="Date de commande invalide pour abonnement",
+                    detail="Date de commande invalide pour l'abonnement — ligne d'abonnement ignorée",
                     expected_value=DATE_FORMAT,
                     actual_value=None,
                 ))
@@ -500,7 +500,7 @@ class MiraklParser(BaseParser):
                 severity="warning",
                 reference=ref,
                 channel=self.channel,
-                detail=f"Type de ligne inconnu : {line_type}",
+                detail=f"Type de ligne « {line_type} » non reconnu dans le fichier — cette ligne a été ignorée",
                 expected_value=", ".join(sorted(KNOWN_LINE_TYPES)),
                 actual_value=line_type,
             ))
