@@ -7,14 +7,14 @@ import type { Anomaly } from "@/lib/types";
 
 // --- Task 1: Constants ---
 
-interface SeverityMeta {
+export interface SeverityMeta {
   label: string;
   badgeClass: string;
   borderClass: string;
   order: number;
 }
 
-const SEVERITY_META: Record<string, SeverityMeta> = {
+export const SEVERITY_META: Record<string, SeverityMeta> = {
   error: {
     label: "Erreur",
     badgeClass: "bg-red-100 text-red-800 border-red-300 dark:bg-red-900 dark:text-red-200 dark:border-red-700",
@@ -35,7 +35,45 @@ const SEVERITY_META: Record<string, SeverityMeta> = {
   },
 };
 
-const ANOMALY_TYPE_LABELS: Record<string, string> = {
+export const ANOMALY_CATEGORIES: Record<string, { label: string; types: string[] }> = {
+  coherence_tva: {
+    label: "Cohérence TVA",
+    types: ["tva_mismatch", "tva_amount_mismatch", "ttc_coherence_mismatch", "unknown_country"],
+  },
+  rapprochement: {
+    label: "Rapprochement ventes/encaissements",
+    types: ["orphan_sale", "orphan_settlement", "amount_mismatch", "orphan_refund"],
+  },
+  versements: {
+    label: "Versements & détails",
+    types: [
+      "missing_payout", "payout_detail_mismatch", "payout_missing_details",
+      "orphan_payout_detail", "mixed_psp_payout", "unknown_psp_detail",
+      "payout_detail_refund_discovered", "direct_payment",
+    ],
+  },
+  retours: {
+    label: "Retours & remboursements",
+    types: ["return_no_matching_sale", "return_fee_nonzero"],
+  },
+  parsing: {
+    label: "Parsing & données",
+    types: [
+      "parse_warning", "zero_amount_order", "missing_date", "invalid_date",
+      "unknown_line_type", "unknown_transaction_type", "unknown_payout_type", "unknown_psp",
+    ],
+  },
+  lettrage: {
+    label: "Lettrage comptable",
+    types: ["lettrage_511_unbalanced", "balance_error"],
+  },
+  delais: {
+    label: "Délais de paiement",
+    types: ["payment_delay"],
+  },
+};
+
+export const ANOMALY_TYPE_LABELS: Record<string, string> = {
   orphan_sale: "Vente sans encaissement",
   orphan_settlement: "Encaissement sans commande",
   tva_mismatch: "Taux de TVA incohérent",

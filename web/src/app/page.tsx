@@ -20,6 +20,7 @@ import AnomaliesPanel from "@/components/AnomaliesPanel";
 import StatsBoard from "@/components/StatsBoard";
 import DownloadButtons from "@/components/DownloadButtons";
 import FlashPdfButton from "@/components/FlashPdfButton";
+import AnomalyPdfButton from "@/components/AnomalyPdfButton";
 import AccountSettingsPanel, { hasAccountValidationErrors } from "@/components/AccountSettingsPanel";
 import PeriodFilter from "@/components/PeriodFilter";
 import { useAccountOverrides } from "@/hooks/useAccountOverrides";
@@ -291,6 +292,10 @@ export default function Home() {
             <EntriesTable entries={result.entries} />
           </TabsContent>
           <TabsContent value="anomalies">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold">Anomalies détectées</h2>
+              <AnomalyPdfButton anomalies={filteredAnomalies} dateRange={dateRange} />
+            </div>
             <AnomaliesPanel anomalies={filteredAnomalies} />
           </TabsContent>
           <TabsContent value="resume">

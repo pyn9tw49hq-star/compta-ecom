@@ -4,7 +4,17 @@
  */
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-import { getChannelMeta } from "./channels";
+import {
+  PAGE_WIDTH,
+  MARGIN,
+  HEAD_STYLE,
+  BODY_STYLE,
+  TOTAL_STYLE,
+  fmt,
+  fmtPct,
+  fmtDate,
+  channelLabel,
+} from "./pdfStyles";
 import type { Summary } from "./types";
 
 export interface FlashPdfSections {
@@ -25,80 +35,14 @@ export interface FlashPdfData {
 }
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Flash-specific helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Normalize narrow no-break spaces (U+202F) and no-break spaces (U+00A0)
- * to regular spaces — jsPDF Helvetica (WinAnsiEncoding) can't render U+202F.
- */
-function normSpace(s: string): string {
-  return s.replace(/[\u202F\u00A0]/g, " ");
-}
-
-/** French number format: "12 345,67 €" */
-function fmt(n: number): string {
-  return normSpace(
-    new Intl.NumberFormat("fr-FR", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(n) + " \u20AC"
-  );
-}
-
-/** French percent format: "12,5 %" */
-function fmtPct(n: number): string {
-  return normSpace(
-    new Intl.NumberFormat("fr-FR", {
-      minimumFractionDigits: 1,
-      maximumFractionDigits: 1,
-    }).format(n) + " %"
-  );
-}
-
-/** Format a Date to "DD/MM/YYYY". */
-function fmtDate(d: Date): string {
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const yyyy = d.getFullYear();
-  return `${dd}/${mm}/${yyyy}`;
-}
-
-/** Build download filename. */
+/** Build download filename for the Flash PDF. */
 function buildFilename(dateRange: { from: Date; to: Date }): string {
   const iso = (d: Date) => d.toISOString().slice(0, 10);
   return `FLASH-ECOMMERCE_${iso(dateRange.from)}_${iso(dateRange.to)}.pdf`;
 }
-
-/** Get display label for a channel key. */
-function channelLabel(key: string): string {
-  return getChannelMeta(key).label;
-}
-
-// ---------------------------------------------------------------------------
-// Shared styles
-// ---------------------------------------------------------------------------
-
-const PAGE_WIDTH = 210; // A4 mm
-const MARGIN = 14;
-
-const HEAD_STYLE = {
-  fillColor: [41, 50, 65] as [number, number, number],
-  textColor: 255,
-  fontStyle: "bold" as const,
-  font: "helvetica",
-};
-
-const BODY_STYLE = {
-  font: "helvetica",
-  fontStyle: "normal" as const,
-};
-
-const TOTAL_STYLE = {
-  font: "helvetica",
-  fontStyle: "bold" as const,
-  fillColor: [235, 237, 240] as [number, number, number],
-};
 
 // ---------------------------------------------------------------------------
 // Section renderers
