@@ -268,7 +268,8 @@ class ShopifyParser(BaseParser):
         anomalies: list[Anomaly] = []
 
         sum_cols = ["Subtotal", "Shipping", "Taxes", "Total"]
-        first_cols = ["Created at", "Shipping Country", "Tax 1 Name", "Payment Method"]
+        extra_tax_cols = [f"Tax {i} Name" for i in range(2, 6) if f"Tax {i} Name" in df.columns]
+        first_cols = ["Created at", "Shipping Country", "Tax 1 Name", "Payment Method"] + extra_tax_cols
 
         grouped = df.groupby("Name", sort=False)
 
@@ -293,6 +294,29 @@ class ShopifyParser(BaseParser):
         aggregated = pd.concat([first, sums], axis=1).reset_index()
 
         return aggregated, anomalies
+
+    @staticmethod
+    def _find_tva_rate_for_country(row: Any, alpha2_code: str) -> float:
+        """Trouve le taux TVA correspondant au pays de livraison parmi Tax 1-5 Name.
+
+        Convention Shopify : les noms de taxe commencent par le code alpha-2 pays,
+        ex: "FR TVA 20%", "IT IVA 22%", "ES IVA 21%".
+        """
+        fallback_rate = 0.0
+        for i in range(1, 6):
+            col = f"Tax {i} Name"
+            if col not in row.index:
+                break
+            raw = row[col]
+            if not _is_notna(raw):
+                continue
+            name = str(raw).strip()
+            rate = _extract_vat_rate(name)
+            if i == 1:
+                fallback_rate = rate
+            if len(name) >= 2 and name[:2].upper() == alpha2_code.upper() and rate > 0:
+                return rate
+        return fallback_rate
 
     def _extract_sale_data(
         self, row: Any, config: AppConfig
@@ -340,10 +364,8 @@ class ShopifyParser(BaseParser):
         else:
             country_code = numeric_code
 
-        # Extraction taux TVA
-        tax_raw: object = row["Tax 1 Name"]
-        tax_name = tax_raw if _is_notna(tax_raw) else None
-        tva_rate = _extract_vat_rate(tax_name)
+        # Extraction taux TVA — scan Tax 1-5 Name, priorité au pays de livraison
+        tva_rate = self._find_tva_rate_for_country(row, alpha2_code)
 
         # Montants — dérivés depuis Total et Taxes pour garantir HT + TVA = TTC.
         # Shopify peut exporter en prix TTC (Total = Subtotal + Shipping, taxes

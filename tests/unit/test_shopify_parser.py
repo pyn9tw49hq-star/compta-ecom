@@ -830,3 +830,98 @@ class TestPayoutRetrocompatibility:
         # Assert
         assert len(result.transactions) == 1
         assert result.payouts == []
+
+
+class TestShopifyParserMultiTax:
+    """Commandes avec plusieurs lignes de taxe (Tax 1 + Tax 2, pays différents)."""
+
+    @pytest.fixture
+    def config_with_italy(self) -> AppConfig:
+        """Config incluant France (250) et Italie (380)."""
+        return AppConfig(
+            clients={"shopify": "411SHOPIFY"},
+            fournisseurs={"manomano": "FMANO"},
+            psp={"card": PspConfig(compte="51150007", commission="62700002")},
+            transit="58000000",
+            banque="51200000",
+            comptes_speciaux={"ADJUSTMENT": "51150002"},
+            comptes_vente_prefix="707",
+            canal_codes={"shopify": "01"},
+            comptes_tva_prefix="4457",
+            vat_table={
+                "250": {"name": "France", "rate": 20.0, "alpha2": "FR"},
+                "380": {"name": "Italie", "rate": 22.0, "alpha2": "IT"},
+            },
+            alpha2_to_numeric={"FR": "250", "IT": "380"},
+            channels={
+                "shopify": ChannelConfig(
+                    files={"sales": "Ventes Shopify*.csv"},
+                    encoding="utf-8",
+                    separator=",",
+                ),
+            },
+        )
+
+    def test_multi_tax_uses_shipping_country_rate(
+        self, tmp_path: Path, config_with_italy: AppConfig
+    ) -> None:
+        """Tax 1 = FR 20%, Tax 2 = IT 22%, Shipping Country = IT → tva_rate = 22.0."""
+        row = _base_row(
+            **{
+                "Shipping Country": "IT",
+                "Tax 1 Name": "FR TVA 20%",
+                "Tax 1 Value": 125.0,
+                "Tax 2 Name": "IT IVA 22%",
+                "Tax 2 Value": 138.85,
+                "Subtotal": 1500.0,
+                "Shipping": 20.0,
+                "Taxes": 263.85,
+                "Total": 1520.0,
+            }
+        )
+        csv_path = _make_csv(tmp_path, [row])
+        parser = ShopifyParser()
+        result = parser.parse({"sales": csv_path}, config_with_italy)
+
+        assert len(result.transactions) == 1
+        tx = result.transactions[0]
+        assert tx.country_code == "380"
+        assert tx.tva_rate == 22.0
+
+    def test_single_tax_still_works(
+        self, tmp_path: Path, config_with_italy: AppConfig
+    ) -> None:
+        """Tax 1 = FR 20% seul, Shipping Country = FR → tva_rate = 20.0 (pas de régression)."""
+        row = _base_row(
+            **{
+                "Shipping Country": "FR",
+                "Tax 1 Name": "FR TVA 20%",
+                "Tax 1 Value": 22.0,
+            }
+        )
+        csv_path = _make_csv(tmp_path, [row])
+        parser = ShopifyParser()
+        result = parser.parse({"sales": csv_path}, config_with_italy)
+
+        tx = result.transactions[0]
+        assert tx.country_code == "250"
+        assert tx.tva_rate == 20.0
+
+    def test_no_matching_tax_falls_back_to_tax1(
+        self, tmp_path: Path, config_with_italy: AppConfig
+    ) -> None:
+        """Tax 1 = FR 20%, Shipping Country = IT mais pas de Tax IT → fallback Tax 1 = 20.0."""
+        row = _base_row(
+            **{
+                "Shipping Country": "IT",
+                "Tax 1 Name": "FR TVA 20%",
+                "Tax 1 Value": 22.0,
+            }
+        )
+        csv_path = _make_csv(tmp_path, [row])
+        parser = ShopifyParser()
+        result = parser.parse({"sales": csv_path}, config_with_italy)
+
+        tx = result.transactions[0]
+        assert tx.country_code == "380"
+        assert tx.tva_rate == 20.0  # Fallback to Tax 1 when no match
