@@ -43,17 +43,27 @@ const ChannelCard = memo(function ChannelCard({
       const required = expectedFiles.filter((f) => f.required);
       const optional = expectedFiles.filter((f) => !f.required);
 
-      // Match each slot to an uploaded file
-      const matches = new Map<string, { file: UploadedFile } | null>();
+      // Match each slot to uploaded file(s)
+      const matches = new Map<string, { file: UploadedFile; count: number } | null>();
       for (const slot of expectedFiles) {
         matches.set(slot.key, null);
       }
       for (const uploaded of uploadedFiles) {
         for (const slot of expectedFiles) {
           if (slot.regex === null) continue;
-          if (slot.regex.test(uploaded.file.name.normalize("NFC")) && !matches.get(slot.key)) {
-            matches.set(slot.key, { file: uploaded });
-            break;
+          if (slot.regex.test(uploaded.file.name.normalize("NFC"))) {
+            const existing = matches.get(slot.key);
+            if (slot.multi) {
+              // Multi-file slot: accumulate count, keep first file as representative
+              matches.set(slot.key, {
+                file: existing?.file ?? uploaded,
+                count: (existing?.count ?? 0) + 1,
+              });
+              break;
+            } else if (!existing) {
+              matches.set(slot.key, { file: uploaded, count: 1 });
+              break;
+            }
           }
         }
       }
@@ -169,6 +179,7 @@ const ChannelCard = memo(function ChannelCard({
                         patternHuman={slot.patternHuman}
                         isRequired
                         matchedFile={match?.file ?? null}
+                        matchedCount={match?.count}
                         showMissingWarning={isActive && !isComplete && group.filledCount > 0 && !group.complete}
                         onRemoveFile={
                           match?.file
@@ -199,6 +210,7 @@ const ChannelCard = memo(function ChannelCard({
                         patternHuman={slot.patternHuman}
                         isRequired={false}
                         matchedFile={match?.file ?? null}
+                        matchedCount={match?.count}
                         showMissingWarning={false}
                         onRemoveFile={
                           match?.file
@@ -224,6 +236,7 @@ const ChannelCard = memo(function ChannelCard({
                   patternHuman={slot.patternHuman}
                   isRequired
                   matchedFile={match?.file ?? null}
+                  matchedCount={match?.count}
                   showMissingWarning={hasPartialFiles}
                   onRemoveFile={
                     match?.file
@@ -247,6 +260,7 @@ const ChannelCard = memo(function ChannelCard({
                       patternHuman={slot.patternHuman}
                       isRequired={false}
                       matchedFile={match?.file ?? null}
+                      matchedCount={match?.count}
                       showMissingWarning={false}
                       onRemoveFile={
                         match?.file

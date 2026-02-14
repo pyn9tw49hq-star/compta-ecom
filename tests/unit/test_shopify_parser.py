@@ -118,6 +118,41 @@ class TestShopifyParserNominal:
         assert tx.special_type is None
 
 
+class TestShopifyParserExcelFormat:
+    """Format CSV pour Excel/Numbers : lignes data enveloppées de guillemets."""
+
+    FIXTURE = Path(__file__).resolve().parent.parent / "fixtures" / "shopify" / "ventes_excel_format.csv"
+
+    def test_parse_excel_format(self, shopify_config: AppConfig) -> None:
+        """Le parser détecte le format Excel et parse correctement."""
+        parser = ShopifyParser()
+        result = parser.parse({"sales": self.FIXTURE}, shopify_config)
+
+        assert len(result.transactions) == 3  # TEST003 aggregated
+        refs = {tx.reference for tx in result.transactions}
+        assert refs == {"#TEST001", "#TEST002", "#TEST003"}
+
+        tx1 = next(tx for tx in result.transactions if tx.reference == "#TEST001")
+        assert tx1.amount_ht == 100.0
+        assert tx1.shipping_ht == 10.0
+        assert tx1.amount_ttc == 132.0
+        assert tx1.tva_rate == 20.0
+        assert tx1.country_code == "250"
+        assert tx1.date == datetime.date(2026, 1, 15)
+
+    def test_parse_excel_format_bytesio(self, shopify_config: AppConfig) -> None:
+        """Le format Excel fonctionne aussi en mode BytesIO (web)."""
+        from io import BytesIO
+
+        data = self.FIXTURE.read_bytes()
+        parser = ShopifyParser()
+        result = parser.parse({"sales": BytesIO(data)}, shopify_config)
+
+        assert len(result.transactions) == 3
+        refs = {tx.reference for tx in result.transactions}
+        assert refs == {"#TEST001", "#TEST002", "#TEST003"}
+
+
 class TestShopifyParserMultiLine:
     def test_aggregate_same_name(self, tmp_path: Path, shopify_config: AppConfig) -> None:
         rows = [

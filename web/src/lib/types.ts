@@ -103,6 +103,7 @@ export interface FileSlotConfig {
   patternHuman: string;
   required: boolean;
   regex: RegExp | null;
+  multi?: boolean;
 }
 
 export interface FileGroupConfig {

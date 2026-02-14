@@ -81,8 +81,8 @@ describe("FileSlot", () => {
     render(
       <FileSlot
         slotKey="payout_details"
-        pattern="Detail transactions par versements/*.csv"
-        patternHuman={'"Detail transactions par versements/[...].csv"'}
+        pattern="Detail transactions par versements*.csv"
+        patternHuman={'"Detail transactions par versements [...].csv"'}
         isRequired={false}
         matchedFile={null}
         showMissingWarning={false}
@@ -90,7 +90,7 @@ describe("FileSlot", () => {
     );
 
     expect(
-      screen.getByText('"Detail transactions par versements/[...].csv"'),
+      screen.getByText('"Detail transactions par versements [...].csv"'),
     ).toBeInTheDocument();
     expect(screen.getByText("optionnel")).toBeInTheDocument();
   });
@@ -151,8 +151,8 @@ describe("FileSlot", () => {
     const { container } = render(
       <FileSlot
         slotKey="payout_details"
-        pattern="Detail transactions par versements/*.csv"
-        patternHuman={'"Detail transactions par versements/[...].csv"'}
+        pattern="Detail transactions par versements*.csv"
+        patternHuman={'"Detail transactions par versements [...].csv"'}
         isRequired={false}
         matchedFile={null}
         showMissingWarning={false}

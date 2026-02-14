@@ -6,7 +6,7 @@ import dataclasses
 import datetime
 import logging
 import re
-from io import BytesIO
+from io import BytesIO, StringIO
 from pathlib import Path
 from typing import Any
 
@@ -199,6 +199,21 @@ class ShopifyParser(BaseParser):
             sep=channel_config.separator,
             encoding=channel_config.encoding,
         )
+
+        # Détection format "CSV pour Excel/Numbers" : chaque ligne de données
+        # est enveloppée dans une seule paire de guillemets doubles.
+        # Symptôme : "Created at" entièrement NaN et "Name" contient des virgules.
+        if (
+            "Created at" in df.columns
+            and "Name" in df.columns
+            and df["Created at"].isna().all()
+            and df["Name"].astype(str).str.contains(",").any()
+        ):
+            logger.warning("Format CSV Excel/Numbers détecté pour le fichier Ventes — re-parsing automatique")
+            df = self._reparse_excel_csv(sales_path, channel_config)
+            if df["Created at"].isna().all():
+                logger.warning("Re-parse Excel CSV : la colonne 'Created at' est toujours vide après correction — vérifier le format du fichier source")
+
         self.validate_columns(df, REQUIRED_SALES_COLUMNS)
 
         anomalies: list[Anomaly] = []
@@ -214,6 +229,39 @@ class ShopifyParser(BaseParser):
                 sales_data[str(sale["reference"])] = sale
 
         return sales_data, anomalies
+
+    @staticmethod
+    def _reparse_excel_csv(
+        source: Path | BytesIO, channel_config: object
+    ) -> pd.DataFrame:
+        """Re-parse un CSV au format Excel/Numbers (lignes data enveloppées de guillemets)."""
+        if isinstance(source, BytesIO):
+            source.seek(0)
+            raw_lines = source.read().decode(
+                getattr(channel_config, "encoding", "utf-8")
+            ).splitlines(keepends=True)
+        else:
+            with open(source, encoding=getattr(channel_config, "encoding", "utf-8")) as f:
+                raw_lines = f.readlines()
+
+        cleaned: list[str] = []
+        for i, line in enumerate(raw_lines):
+            if i == 0:
+                cleaned.append(line)
+                continue
+            stripped = line.strip()
+            if stripped.startswith('"') and stripped.endswith('"'):
+                inner = stripped[1:-1]
+                inner = inner.replace('""', '"')
+                cleaned.append(inner + "\n")
+            else:
+                cleaned.append(line)
+
+        return pd.read_csv(
+            StringIO("".join(cleaned)),
+            sep=getattr(channel_config, "separator", ","),
+            encoding=getattr(channel_config, "encoding", "utf-8"),
+        )
 
     def _aggregate(self, df: pd.DataFrame) -> tuple[pd.DataFrame, list[Anomaly]]:
         """Agrège les commandes multi-lignes par Name."""

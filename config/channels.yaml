@@ -3,8 +3,8 @@ channels:
     files:
       sales: "Ventes Shopify*.csv"
       transactions: "Transactions Shopify*.csv"
-      payouts: "Détails versements*.csv"
-      payout_details: "Detail transactions par versements/*.csv"
+      payouts: "D?tails versements*.csv"
+      payout_details: "Detail transactions par versements*.csv"
       returns: "Total des retours*.csv"
     multi_files: ["payout_details"]
     optional_files: ["returns", "payout_details"]

@@ -50,10 +50,11 @@ const shopifyFiles: FileSlotConfig[] = [
   },
   {
     key: "payout_details",
-    pattern: "Detail transactions par versements/*.csv",
-    patternHuman: '"Detail transactions par versements/[...].csv"',
+    pattern: "Detail transactions par versements*.csv",
+    patternHuman: '"Detail transactions par versements [...].csv"',
     required: false,
-    regex: null,
+    regex: /^Detail transactions par versements.*\.csv$/i,
+    multi: true,
   },
 ];
 

@@ -40,7 +40,7 @@ def shopify_config() -> AppConfig:
                     "sales": "ventes.csv",
                     "transactions": "transactions.csv",
                     "payouts": "versements.csv",
-                    "payout_details": "detail_versements/*.csv",
+                    "payout_details": "detail_versements*.csv",
                     "returns": "returns.csv",
                 },
                 encoding="utf-8",
@@ -285,13 +285,13 @@ class TestPipelineDispatchGroups:
         result = orch._detect_files_from_buffers(buffers, shopify_config.channels)
         assert "shopify" not in result
 
-    def test_dispatch_directory_pattern_no_overmatch(self, shopify_config: AppConfig) -> None:
-        """BUG-001 regression: directory-based patterns must not match basenames in buffer mode."""
+    def test_dispatch_no_overmatch(self, shopify_config: AppConfig) -> None:
+        """payout_details pattern must not match unrelated filenames."""
         orch = PipelineOrchestrator()
         buffers = {"returns.csv": b"dummy"}
         result = orch._detect_files_from_buffers(buffers, shopify_config.channels)
         assert "shopify" in result
-        # payout_details must NOT be present — its pattern contains '/'
+        # returns.csv must not match payout_details pattern
         assert "payout_details" not in result["shopify"]
 
     def test_dispatch_legacy_channel_without_groups(self, shopify_config: AppConfig) -> None:
@@ -320,6 +320,99 @@ class TestPipelineDispatchGroups:
         buffers = {"test_data.csv": b"dummy"}
         result = orch._detect_files_from_buffers(buffers, config_no_groups.channels)
         assert "test_channel" in result
+
+
+class TestBufferPatternMatching:
+    """Tests de détection des fichiers utilisateur réels en mode buffer."""
+
+    @pytest.fixture
+    def prod_like_config(self) -> AppConfig:
+        """Config avec patterns production (accent wildcard + flat payout_details)."""
+        return AppConfig(
+            clients={"shopify": "411SHOPIFY"},
+            fournisseurs={},
+            psp={"card": PspConfig(compte="51150007", commission="62700002")},
+            transit="58000000",
+            banque="51200000",
+            comptes_speciaux={},
+            comptes_vente_prefix="707",
+            canal_codes={"shopify": "01"},
+            comptes_tva_prefix="4457",
+            vat_table={},
+            channels={
+                "shopify": ChannelConfig(
+                    files={
+                        "sales": "Ventes Shopify*.csv",
+                        "transactions": "Transactions Shopify*.csv",
+                        "payouts": "D?tails versements*.csv",
+                        "payout_details": "Detail transactions par versements*.csv",
+                        "returns": "Total des retours*.csv",
+                    },
+                    encoding="utf-8",
+                    separator=",",
+                    multi_files=["payout_details"],
+                    optional_files=["returns", "payout_details"],
+                    required_file_groups=[
+                        ["sales", "transactions", "payouts"],
+                        ["returns"],
+                    ],
+                ),
+            },
+        )
+
+    def test_payouts_sans_accent(self, prod_like_config: AppConfig) -> None:
+        """'Details versements.csv' (sans accent) matche le pattern 'D?tails versements*.csv'."""
+        orch = PipelineOrchestrator()
+        buffers = {
+            "Ventes Shopify.csv": b"dummy",
+            "Transactions Shopify.csv": b"dummy",
+            "Details versements.csv": b"dummy",
+        }
+        result = orch._detect_files_from_buffers(buffers, prod_like_config.channels)
+        assert "shopify" in result
+        assert "payouts" in result["shopify"]
+
+    def test_payouts_avec_accent(self, prod_like_config: AppConfig) -> None:
+        """'Détails versements.csv' (avec accent) matche aussi le pattern."""
+        orch = PipelineOrchestrator()
+        buffers = {
+            "Ventes Shopify.csv": b"dummy",
+            "Transactions Shopify.csv": b"dummy",
+            "D\u00e9tails versements.csv": b"dummy",
+        }
+        result = orch._detect_files_from_buffers(buffers, prod_like_config.channels)
+        assert "shopify" in result
+        assert "payouts" in result["shopify"]
+
+    def test_payout_details_flat_files(self, prod_like_config: AppConfig) -> None:
+        """Fichiers plats 'Detail transactions par versements N.csv' matchent en buffer mode."""
+        orch = PipelineOrchestrator()
+        buffers = {
+            "Ventes Shopify.csv": b"dummy",
+            "Transactions Shopify.csv": b"dummy",
+            "Details versements.csv": b"dummy",
+            "Detail transactions par versements 1.csv": b"d1",
+            "Detail transactions par versements 2.csv": b"d2",
+            "Detail transactions par versements 3.csv": b"d3",
+        }
+        result = orch._detect_files_from_buffers(buffers, prod_like_config.channels)
+        assert "shopify" in result
+        assert "payout_details" in result["shopify"]
+        # multi_files → list
+        assert isinstance(result["shopify"]["payout_details"], list)
+        assert len(result["shopify"]["payout_details"]) == 3
+
+    def test_payout_details_no_overmatch_transactions(self, prod_like_config: AppConfig) -> None:
+        """'Transactions Shopify.csv' ne matche PAS le pattern payout_details."""
+        orch = PipelineOrchestrator()
+        buffers = {
+            "Ventes Shopify.csv": b"dummy",
+            "Transactions Shopify.csv": b"dummy",
+            "Details versements.csv": b"dummy",
+        }
+        result = orch._detect_files_from_buffers(buffers, prod_like_config.channels)
+        assert "shopify" in result
+        assert "payout_details" not in result["shopify"]
 
 
 class TestConfigValidation:

@@ -10,8 +10,6 @@ import type { FileSlotConfig, ChannelConfig } from "./types";
 
 /**
  * Channel detection patterns — mirror of channels.yaml (backend).
- * Note: "Detail transactions par versements/*.csv" is a path-based pattern
- * not matchable via browser file.name (SF-3) — intentionally excluded.
  */
 const CHANNEL_PATTERNS: Record<string, RegExp[]> = {
   shopify: [
@@ -19,6 +17,7 @@ const CHANNEL_PATTERNS: Record<string, RegExp[]> = {
     /^Transactions Shopify.*\.csv$/i,
     /^D[ée]tails\s+versements.*\.csv$/i,
     /^Total des retours.*\.csv$/i,
+    /^Detail transactions par versements.*\.csv$/i,
   ],
   manomano: [
     /^CA Manomano.*\.csv$/i,
@@ -130,10 +129,11 @@ export const CHANNEL_CONFIGS: ChannelConfig[] = [
       },
       {
         key: "payout_details",
-        pattern: "Detail transactions par versements/*.csv",
-        patternHuman: '"Detail transactions par versements/[...].csv"',
+        pattern: "Detail transactions par versements*.csv",
+        patternHuman: '"Detail transactions par versements [...].csv"',
         required: false,
-        regex: null,
+        regex: /^Detail transactions par versements.*\.csv$/i,
+        multi: true,
       },
       {
         key: "returns",
@@ -209,7 +209,6 @@ export const CHANNEL_KEYWORDS: Record<string, string[]> = {
 /**
  * Match a filename to a specific channel and file slot.
  * Returns the channel key and slot key, or null if no match.
- * Slots with regex=null are skipped (e.g. payout_details — SF-3).
  */
 export function matchFileToSlot(
   filename: string,

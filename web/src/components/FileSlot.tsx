@@ -13,22 +13,36 @@ interface FileSlotProps {
   patternHuman: string;
   isRequired: boolean;
   matchedFile: UploadedFile | null;
+  matchedCount?: number;
   showMissingWarning: boolean;
   onRemoveFile?: () => void;
 }
 
 /**
  * Displays a single file slot in one of three variants:
- * filled, empty-required, or empty-optional.
+ * filled (single or multi), empty-required, or empty-optional.
  */
 const FileSlot = memo(function FileSlot({
   patternHuman,
   isRequired,
   matchedFile,
+  matchedCount,
   showMissingWarning,
   onRemoveFile,
 }: FileSlotProps) {
-  // Variant: filled
+  const count = matchedCount ?? (matchedFile ? 1 : 0);
+
+  // Variant: filled (multi-file)
+  if (matchedFile && count > 1) {
+    return (
+      <div className="flex items-center gap-3 py-1.5">
+        <CircleCheck className="h-4 w-4 text-green-600 dark:text-green-400 shrink-0" aria-hidden="true" />
+        <span className="text-sm font-medium truncate">{count} fichiers</span>
+      </div>
+    );
+  }
+
+  // Variant: filled (single file)
   if (matchedFile) {
     return (
       <div className="flex items-center gap-3 py-1.5">

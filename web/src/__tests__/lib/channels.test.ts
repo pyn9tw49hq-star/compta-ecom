@@ -51,11 +51,8 @@ describe("detectChannel", () => {
     expect(detectChannel("Total des retours par commande (1).csv")).toBe("shopify");
   });
 
-  it("returns null for payout_details path-based file (SF-3 limitation)", () => {
-    // The browser file.name only gives the filename, not the parent directory
-    // So a file like "2026-01-payout.csv" from "Detail transactions par versements/"
-    // cannot be matched — this is expected behavior
-    expect(detectChannel("2026-01-payout.csv")).toBeNull();
+  it("detects Shopify payout_details file", () => {
+    expect(detectChannel("Detail transactions par versements 1.csv")).toBe("shopify");
   });
 
   it("is case-insensitive", () => {
@@ -120,11 +117,12 @@ describe("CHANNEL_CONFIGS", () => {
     expect(allFiles.filter((f) => !f.required)).toHaveLength(2);
   });
 
-  it("payout_details slot has regex null and required false (SF-3)", () => {
+  it("payout_details slot has regex defined, required false, multi true", () => {
     const shopify = CHANNEL_CONFIGS.find((c) => c.key === "shopify")!;
     const pd = shopify.files.find((f) => f.key === "payout_details")!;
-    expect(pd.regex).toBeNull();
+    expect(pd.regex).toBeInstanceOf(RegExp);
     expect(pd.required).toBe(false);
+    expect(pd.multi).toBe(true);
   });
 
   it("Shopify has fileGroups with 2 groups", () => {
@@ -214,8 +212,14 @@ describe("matchFileToSlot", () => {
       .toEqual({ channel: "shopify", slotKey: "returns" });
   });
 
-  it("returns null for payout_details path-based file (regex=null, SF-3)", () => {
-    expect(matchFileToSlot("2026-01-payout.csv", CHANNEL_CONFIGS)).toBeNull();
+  it("matches Shopify payout_details file", () => {
+    expect(matchFileToSlot("Detail transactions par versements 1.csv", CHANNEL_CONFIGS))
+      .toEqual({ channel: "shopify", slotKey: "payout_details" });
+  });
+
+  it("matches Shopify payout_details file (variant)", () => {
+    expect(matchFileToSlot("Detail transactions par versements 5.csv", CHANNEL_CONFIGS))
+      .toEqual({ channel: "shopify", slotKey: "payout_details" });
   });
 });
 
