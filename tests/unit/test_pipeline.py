@@ -60,7 +60,7 @@ def _make_entry(**overrides: object) -> AccountingEntry:
 
 def _make_anomaly(**overrides: object) -> Anomaly:
     defaults: dict[str, object] = {
-        "type": "orphan_sale",
+        "type": "orphan_sale_summary",
         "severity": "warning",
         "reference": "#999",
         "channel": "shopify",
@@ -220,7 +220,7 @@ class TestPipelineCheckersIntegration:
 
     def test_anomalies_aggregated(self, tmp_path: Path) -> None:
         """Les anomalies des checkers sont agrégées avec celles des parsers."""
-        parser_anomaly = _make_anomaly(type="orphan_sale")
+        parser_anomaly = _make_anomaly(type="orphan_sale_summary")
         engine_anomaly = _make_anomaly(type="mixed_psp_payout")
         vat_anomaly = _make_anomaly(type="tva_mismatch")
         matching_anomaly = _make_anomaly(type="amount_mismatch")
@@ -240,7 +240,7 @@ class TestPipelineCheckersIntegration:
         call_args = mock_export.call_args
         all_anomalies = call_args[0][1]
         anomaly_types = [a.type for a in all_anomalies]
-        assert "orphan_sale" in anomaly_types
+        assert "orphan_sale_summary" in anomaly_types
         assert "mixed_psp_payout" in anomaly_types
         assert "tva_mismatch" in anomaly_types
         assert "amount_mismatch" in anomaly_types

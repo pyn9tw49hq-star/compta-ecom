@@ -33,7 +33,7 @@ def _make_entry(**overrides: object) -> AccountingEntry:
 def _make_anomaly(**overrides: object) -> Anomaly:
     """Helper pour construire une Anomaly."""
     defaults: dict[str, object] = {
-        "type": "orphan_sale",
+        "type": "orphan_sale_summary",
         "severity": "warning",
         "reference": "#999",
         "channel": "shopify",

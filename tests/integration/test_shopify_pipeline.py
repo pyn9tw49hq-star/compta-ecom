@@ -68,7 +68,7 @@ class TestPipelineWithAnomalies:
     """Pipeline avec anomalies : commande orpheline."""
 
     def test_orphan_sale_anomaly(self, tmp_path: Path) -> None:
-        """CSV ventes avec une commande orpheline → onglet Anomalies non vide."""
+        """CSV ventes avec une commande orpheline → onglet Anomalies contient orphan_sale_summary."""
         # Create modified sales CSV with an extra order not in transactions
         input_dir = tmp_path / "input"
         input_dir.mkdir()
@@ -92,7 +92,7 @@ class TestPipelineWithAnomalies:
         ws_anomalies = wb["Anomalies"]
         data_rows = list(ws_anomalies.iter_rows(min_row=2, values_only=True))
         anomaly_types = [row[0] for row in data_rows]
-        assert "orphan_sale" in anomaly_types
+        assert "orphan_sale_summary" in anomaly_types
         wb.close()
 
 
@@ -234,14 +234,17 @@ class TestPipelineDirectPayment:
         assert ve_411[0][col["lettrage"]] == rg_411[0][col["lettrage"]]
         assert ve_411[0][col["lettrage"]] not in (None, "")
 
-        # Anomalie direct_payment présente, pas orphan_sale
+        # Anomalie direct_payment présente, pas orphan_sale_summary mentionnant #KLARNA01
         ws_anomalies = wb["Anomalies"]
         anomaly_rows = list(ws_anomalies.iter_rows(min_row=2, values_only=True))
         anomaly_types_for_klarna = [
             r[0] for r in anomaly_rows if r[2] == "#KLARNA01"  # type, severity, reference
         ]
         assert "direct_payment" in anomaly_types_for_klarna
-        assert "orphan_sale" not in anomaly_types_for_klarna
+        # orphan_sale_summary should not mention #KLARNA01 since it's a direct_payment
+        orphan_summaries = [r for r in anomaly_rows if r[0] == "orphan_sale_summary"]
+        for summary_row in orphan_summaries:
+            assert "#KLARNA01" not in (summary_row[3] or "")
 
         wb.close()
 

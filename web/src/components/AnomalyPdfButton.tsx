@@ -78,8 +78,10 @@ function ToggleAllButton({ allChecked, onToggle }: { allChecked: boolean; onTogg
 export default function AnomalyPdfButton({ anomalies, dateRange }: AnomalyPdfButtonProps) {
   const [open, setOpen] = useState(false);
   const [severityFilter, setSeverityFilter] = useState({ errors: true, warnings: true, infos: true });
-  const [categoryFilter, setCategoryFilter] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(Object.keys(ANOMALY_CATEGORIES).map((k) => [k, true]))
+  const [typeFilter, setTypeFilter] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(
+      Object.values(ANOMALY_CATEGORIES).flatMap((cat) => cat.types.map((t) => [t, true]))
+    )
   );
   const [canalFilter, setCanalFilter] = useState<Set<string>>(new Set());
   const [groupBy, setGroupBy] = useState<"severity" | "canal" | "type">("severity");
@@ -109,12 +111,10 @@ export default function AnomalyPdfButton({ anomalies, dateRange }: AnomalyPdfBut
       if (a.severity === "warning" && !severityFilter.warnings) return false;
       if (a.severity === "info" && !severityFilter.infos) return false;
       if (!canalFilter.has(a.canal)) return false;
-      for (const [catKey, cat] of Object.entries(ANOMALY_CATEGORIES)) {
-        if (cat.types.includes(a.type) && !categoryFilter[catKey]) return false;
-      }
+      if (a.type in typeFilter && !typeFilter[a.type]) return false;
       return true;
     }).length;
-  }, [anomalies, severityFilter, categoryFilter, canalFilter]);
+  }, [anomalies, severityFilter, typeFilter, canalFilter]);
 
   // Severity toggles
   const toggleSeverity = useCallback((key: "errors" | "warnings" | "infos") => {
@@ -127,16 +127,27 @@ export default function AnomalyPdfButton({ anomalies, dateRange }: AnomalyPdfBut
     setSeverityFilter({ errors: next, warnings: next, infos: next });
   }, [allSeverities]);
 
-  // Category toggles
-  const toggleCategory = useCallback((key: string) => {
-    setCategoryFilter((prev) => ({ ...prev, [key]: !prev[key] }));
+  // Type toggles
+  const toggleType = useCallback((type: string) => {
+    setTypeFilter((prev) => ({ ...prev, [type]: !prev[type] }));
   }, []);
 
-  const allCategories = Object.values(categoryFilter).every(Boolean);
-  const toggleAllCategories = useCallback(() => {
-    const next = !allCategories;
-    setCategoryFilter(Object.fromEntries(Object.keys(ANOMALY_CATEGORIES).map((k) => [k, next])));
-  }, [allCategories]);
+  // Toggle all types within a category (select all / deselect all)
+  const toggleCategoryTypes = useCallback((catTypes: string[]) => {
+    setTypeFilter((prev) => {
+      const allChecked = catTypes.every((t) => prev[t]);
+      const next = !allChecked;
+      const update = { ...prev };
+      for (const t of catTypes) update[t] = next;
+      return update;
+    });
+  }, []);
+
+  const allTypes = Object.values(typeFilter).every(Boolean);
+  const toggleAllTypes = useCallback(() => {
+    const next = !allTypes;
+    setTypeFilter((prev) => Object.fromEntries(Object.keys(prev).map((k) => [k, next])));
+  }, [allTypes]);
 
   // Canal toggles
   const toggleCanal = useCallback((canal: string) => {
@@ -165,7 +176,7 @@ export default function AnomalyPdfButton({ anomalies, dateRange }: AnomalyPdfBut
 
       const sections: AnomalyPdfSections = {
         ...severityFilter,
-        categories: categoryFilter,
+        types: typeFilter,
         channels: canalFilter,
       };
 
@@ -182,7 +193,7 @@ export default function AnomalyPdfButton({ anomalies, dateRange }: AnomalyPdfBut
     } finally {
       setGenerating(false);
     }
-  }, [anomalies, severityFilter, categoryFilter, canalFilter, groupBy, dateRange, uniqueCanals]);
+  }, [anomalies, severityFilter, typeFilter, canalFilter, groupBy, dateRange, uniqueCanals]);
 
   // Empty state: button disabled
   if (anomalies.length === 0) {
@@ -232,36 +243,57 @@ export default function AnomalyPdfButton({ anomalies, dateRange }: AnomalyPdfBut
 
           <div className="h-px bg-border" />
 
-          {/* Category filters */}
+          {/* Category / type filters */}
           <div className="my-3">
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs font-semibold uppercase text-muted-foreground">Catégories</span>
-              <ToggleAllButton allChecked={allCategories} onToggle={toggleAllCategories} />
+              <ToggleAllButton allChecked={allTypes} onToggle={toggleAllTypes} />
             </div>
             <div className="space-y-1">
-              {Object.entries(ANOMALY_CATEGORIES).map(([key, cat]) => (
-                <details key={key} className="group">
-                  <summary className="flex items-center gap-2 cursor-pointer text-sm list-none">
-                    <Checkbox.Root
-                      checked={categoryFilter[key]}
-                      onCheckedChange={() => toggleCategory(key)}
-                      className={CHECKBOX_CLASS}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Checkbox.Indicator className="duration-0">{CHECK_SVG}</Checkbox.Indicator>
-                    </Checkbox.Root>
-                    <span className="font-medium">{cat.label}</span>
-                    <span className="text-xs text-muted-foreground">({cat.types.length})</span>
-                  </summary>
-                  <div className="ml-6 mt-1 mb-1 space-y-0.5">
-                    {cat.types.map((t) => (
-                      <div key={t} className="text-xs text-muted-foreground">
-                        {ANOMALY_TYPE_LABELS[t] ?? t}
-                      </div>
-                    ))}
-                  </div>
-                </details>
-              ))}
+              {Object.entries(ANOMALY_CATEGORIES).map(([key, cat]) => {
+                const checkedCount = cat.types.filter((t) => typeFilter[t]).length;
+                const allChecked = checkedCount === cat.types.length;
+                const noneChecked = checkedCount === 0;
+                const parentChecked = allChecked ? true : noneChecked ? false : "indeterminate";
+                return (
+                  <details key={key} className="group">
+                    <summary className="flex items-center gap-2 cursor-pointer text-sm list-none">
+                      <Checkbox.Root
+                        checked={parentChecked}
+                        onCheckedChange={() => toggleCategoryTypes(cat.types)}
+                        className={CHECKBOX_CLASS}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Checkbox.Indicator className="duration-0">
+                          {parentChecked === "indeterminate" ? (
+                            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                              <rect x="2" y="4.5" width="6" height="1.5" rx="0.5" fill="currentColor" />
+                            </svg>
+                          ) : (
+                            CHECK_SVG
+                          )}
+                        </Checkbox.Indicator>
+                      </Checkbox.Root>
+                      <span className="font-medium">{cat.label}</span>
+                      <span className="text-xs text-muted-foreground">({checkedCount}/{cat.types.length})</span>
+                    </summary>
+                    <div className="ml-6 mt-1 mb-1 space-y-0.5">
+                      {cat.types.map((t) => (
+                        <label key={t} className="flex items-center gap-2 cursor-pointer text-xs text-muted-foreground">
+                          <Checkbox.Root
+                            checked={typeFilter[t]}
+                            onCheckedChange={() => toggleType(t)}
+                            className={CHECKBOX_CLASS}
+                          >
+                            <Checkbox.Indicator className="duration-0">{CHECK_SVG}</Checkbox.Indicator>
+                          </Checkbox.Root>
+                          {ANOMALY_TYPE_LABELS[t] ?? t}
+                        </label>
+                      ))}
+                    </div>
+                  </details>
+                );
+              })}
             </div>
           </div>
 

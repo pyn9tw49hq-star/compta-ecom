@@ -9,7 +9,7 @@ import pytest
 
 from compta_ecom.config.loader import AppConfig, ChannelConfig, DirectPaymentConfig, PspConfig
 from compta_ecom.models import ParseError
-from compta_ecom.parsers.shopify import ShopifyParser
+from compta_ecom.parsers.shopify import ShopifyParser, _extract_ref_number
 
 
 @pytest.fixture
@@ -261,7 +261,7 @@ class TestMatching:
         assert refund_tx.commission_ttc == -3.96
 
     def test_orphan_sale_no_charge(self, tmp_path: Path, shopify_config: AppConfig) -> None:
-        """Vente sans charge → Anomaly(type='orphan_sale') + NormalizedTransaction dégradée."""
+        """Vente sans charge → Anomaly(type='orphan_sale_summary') + NormalizedTransaction dégradée."""
         sales_path = _make_sales_csv(tmp_path, [_base_sale()])
         # Only a refund transaction, no charge
         tx_path = _make_transactions_csv(tmp_path, [
@@ -271,9 +271,9 @@ class TestMatching:
         parser = ShopifyParser()
         result = parser.parse({"sales": sales_path, "transactions": tx_path}, shopify_config)
 
-        anomalies = [a for a in result.anomalies if a.type == "orphan_sale"]
+        anomalies = [a for a in result.anomalies if a.type == "orphan_sale_summary"]
         assert len(anomalies) == 1
-        assert anomalies[0].reference == "#1001"
+        assert "#1001" in anomalies[0].detail
 
         # Degraded NormalizedTransaction for the sale
         sale_tx = next(tx for tx in result.transactions if tx.type == "sale")
@@ -457,8 +457,8 @@ class TestDirectPaymentOrphans:
         assert sale_tx.commission_ttc == 0.0
         assert sale_tx.net_amount == sale_tx.amount_ttc
 
-        # Anomalie direct_payment (info), pas orphan_sale
-        assert not any(a.type == "orphan_sale" and a.reference == "#1001" for a in result.anomalies)
+        # Anomalie direct_payment (info), pas orphan_sale_summary
+        assert not any(a.type == "orphan_sale_summary" and "#1001" in (a.detail or "") for a in result.anomalies)
         dp_anomalies = [a for a in result.anomalies if a.type == "direct_payment" and a.reference == "#1001"]
         assert len(dp_anomalies) == 1
         assert dp_anomalies[0].severity == "info"
@@ -481,7 +481,7 @@ class TestDirectPaymentOrphans:
         assert "Bank Deposit" in dp_anomalies[0].detail
 
     def test_unknown_payment_method_still_orphan_sale(self, tmp_path: Path, shopify_config: AppConfig) -> None:
-        """Vente Payment Method=Shopify Payments sans charge → orphan_sale classique (non-régression)."""
+        """Vente Payment Method=Shopify Payments sans charge → orphan_sale_summary (non-régression)."""
         sales_path = _make_sales_csv(tmp_path, [_base_sale(**{"Payment Method": "Shopify Payments"})])
         tx_path = _make_transactions_csv(tmp_path, [_base_transaction(Order="#9999")])
 
@@ -492,7 +492,9 @@ class TestDirectPaymentOrphans:
         assert sale_tx.special_type is None
         assert sale_tx.payment_method is None
 
-        assert any(a.type == "orphan_sale" and a.reference == "#1001" for a in result.anomalies)
+        summary = [a for a in result.anomalies if a.type == "orphan_sale_summary"]
+        assert len(summary) == 1
+        assert "#1001" in summary[0].detail
         assert not any(a.type == "direct_payment" and a.reference == "#1001" for a in result.anomalies)
 
     def test_klarna_case_insensitive(self, tmp_path: Path, shopify_config: AppConfig) -> None:
@@ -526,3 +528,166 @@ class TestDirectPaymentOrphans:
         assert tx.special_type is None
         assert tx.payment_method is None
         assert not any(a.type == "direct_payment" for a in result.anomalies)
+
+
+class TestExtractRefNumber:
+    """TEST-002 — Tests unitaires _extract_ref_number()."""
+
+    def test_hash_prefix(self) -> None:
+        assert _extract_ref_number("#1118") == 1118
+
+    def test_letters_only(self) -> None:
+        assert _extract_ref_number("ABC") is None
+
+    def test_empty_string(self) -> None:
+        assert _extract_ref_number("") is None
+
+    def test_zero(self) -> None:
+        assert _extract_ref_number("#0") == 0
+
+    def test_bare_number(self) -> None:
+        assert _extract_ref_number("1118") == 1118
+
+
+class TestPriorPeriodSettlement:
+    """TEST-001 — Couverture prior_period_settlement vs orphan_settlement."""
+
+    def test_prior_period_below_first_sale(self, tmp_path: Path, shopify_config: AppConfig) -> None:
+        """(a) ref #500 avec ventes #1000+ → prior_period_settlement info, pas orphan_settlement."""
+        sales_path = _make_sales_csv(tmp_path, [_base_sale(Name="#1000")])
+        tx_path = _make_transactions_csv(tmp_path, [
+            _base_transaction(Order="#1000"),
+            _base_transaction(Order="#500"),
+        ])
+        parser = ShopifyParser()
+        result = parser.parse({"sales": sales_path, "transactions": tx_path}, shopify_config)
+
+        prior = [a for a in result.anomalies if a.type == "prior_period_settlement"]
+        assert len(prior) == 1
+        assert prior[0].severity == "info"
+        assert "#500" in (prior[0].actual_value or "")
+
+        orphan = [a for a in result.anomalies if a.type == "orphan_settlement"]
+        assert len(orphan) == 0
+
+    def test_orphan_above_first_sale(self, tmp_path: Path, shopify_config: AppConfig) -> None:
+        """(b) ref #9999 avec ventes #1000+ → orphan_settlement warning."""
+        sales_path = _make_sales_csv(tmp_path, [_base_sale(Name="#1000")])
+        tx_path = _make_transactions_csv(tmp_path, [
+            _base_transaction(Order="#1000"),
+            _base_transaction(Order="#9999"),
+        ])
+        parser = ShopifyParser()
+        result = parser.parse({"sales": sales_path, "transactions": tx_path}, shopify_config)
+
+        orphan = [a for a in result.anomalies if a.type == "orphan_settlement"]
+        assert len(orphan) == 1
+        assert orphan[0].reference == "#9999"
+        assert orphan[0].severity == "warning"
+
+        prior = [a for a in result.anomalies if a.type == "prior_period_settlement"]
+        assert len(prior) == 0
+
+    def test_equal_to_first_sale_is_orphan(self, tmp_path: Path, shopify_config: AppConfig) -> None:
+        """(c) ref == first_sale_num → orphan_settlement (boundary: not strictly less)."""
+        sales_path = _make_sales_csv(tmp_path, [_base_sale(Name="#1000")])
+        # #1000 matches the sale, so we need another ref with the same numeric value
+        # Use a second sale to have first_sale_num=1000, and orphan tx #1000 won't match
+        # because it IS in sales. Instead test with first_sale=1000 and orphan=#1000 not in sales.
+        # We need sales={#1001} and orphan tx=#1001 won't work either. Let's use two different sales.
+        sales_path = _make_sales_csv(tmp_path, [
+            _base_sale(Name="#1000"),
+            _base_sale(Name="#1005", Subtotal=50.0, Taxes=10.0, Total=65.0, Shipping=5.0),
+        ])
+        tx_path = _make_transactions_csv(tmp_path, [
+            _base_transaction(Order="#1000"),
+            _base_transaction(Order="#1005", Amount=65.0, Fee=1.95, Net=63.05),
+            _base_transaction(Order="#1000", Amount=10.0, Fee=0.30, Net=9.70, **{"Payout ID": "PAY-X"}),
+            # Orphan with ref_num == first_sale_num (1000)
+            # We can't have the same key as a sale. Use a ref that parses to 1000 but differs as string.
+        ])
+        # Actually simpler: first_sale_num is min of sales keys. If sales start at #1001,
+        # then #1001 orphan tx is ref_num==first_sale_num → must be orphan_settlement.
+        sales_path = _make_sales_csv(tmp_path, [_base_sale(Name="#1001")])
+        tx_path = _make_transactions_csv(tmp_path, [
+            _base_transaction(Order="#1001"),
+            # Orphan whose ref_num (1001) == first_sale_num (1001) → NOT prior, IS orphan
+            _base_transaction(Order="#1001b"),  # _extract_ref_number("#1001b") == 1001
+        ])
+        parser = ShopifyParser()
+        result = parser.parse({"sales": sales_path, "transactions": tx_path}, shopify_config)
+
+        orphan = [a for a in result.anomalies if a.type == "orphan_settlement"]
+        assert len(orphan) == 1
+        assert orphan[0].reference == "#1001b"
+
+        prior = [a for a in result.anomalies if a.type == "prior_period_settlement"]
+        assert len(prior) == 0
+
+    def test_non_numeric_ref_is_orphan(self, tmp_path: Path, shopify_config: AppConfig) -> None:
+        """(d) ref non-numérique (ex: 'ABC') → orphan_settlement (fallback)."""
+        sales_path = _make_sales_csv(tmp_path, [_base_sale(Name="#1001")])
+        tx_path = _make_transactions_csv(tmp_path, [
+            _base_transaction(Order="#1001"),
+            _base_transaction(Order="ABC"),
+        ])
+        parser = ShopifyParser()
+        result = parser.parse({"sales": sales_path, "transactions": tx_path}, shopify_config)
+
+        orphan = [a for a in result.anomalies if a.type == "orphan_settlement"]
+        assert len(orphan) == 1
+        assert orphan[0].reference == "ABC"
+
+        prior = [a for a in result.anomalies if a.type == "prior_period_settlement"]
+        assert len(prior) == 0
+
+    def test_multiple_prior_period_single_anomaly(self, tmp_path: Path, shopify_config: AppConfig) -> None:
+        """(e) 3 refs prior-period → 1 seule anomalie avec count=3."""
+        sales_path = _make_sales_csv(tmp_path, [_base_sale(Name="#1000")])
+        tx_path = _make_transactions_csv(tmp_path, [
+            _base_transaction(Order="#1000"),
+            _base_transaction(Order="#100"),
+            _base_transaction(Order="#200"),
+            _base_transaction(Order="#300"),
+        ])
+        parser = ShopifyParser()
+        result = parser.parse({"sales": sales_path, "transactions": tx_path}, shopify_config)
+
+        prior = [a for a in result.anomalies if a.type == "prior_period_settlement"]
+        assert len(prior) == 1
+        assert "3 transactions" in prior[0].detail
+        # All three refs in actual_value
+        for ref in ("#100", "#200", "#300"):
+            assert ref in (prior[0].actual_value or "")
+
+    def test_no_prior_period_no_anomaly(self, tmp_path: Path, shopify_config: AppConfig) -> None:
+        """(f) 0 refs prior-period → pas d'anomalie prior_period_settlement."""
+        sales_path = _make_sales_csv(tmp_path, [_base_sale(Name="#1001")])
+        tx_path = _make_transactions_csv(tmp_path, [_base_transaction(Order="#1001")])
+        parser = ShopifyParser()
+        result = parser.parse({"sales": sales_path, "transactions": tx_path}, shopify_config)
+
+        prior = [a for a in result.anomalies if a.type == "prior_period_settlement"]
+        assert len(prior) == 0
+
+
+class TestOrphanSaleSummaryCount:
+    """TEST-003 — orphan_sale_summary avec 2+ ventes orphelines."""
+
+    def test_two_orphan_sales_single_summary(self, tmp_path: Path, shopify_config: AppConfig) -> None:
+        """2 ventes sans encaissement → 1 anomalie orphan_sale_summary avec count=2."""
+        sales_path = _make_sales_csv(tmp_path, [
+            _base_sale(Name="#2001"),
+            _base_sale(Name="#2002", Subtotal=50.0, Taxes=10.0, Total=65.0, Shipping=5.0),
+        ])
+        # Transaction pour une commande inexistante dans les ventes
+        tx_path = _make_transactions_csv(tmp_path, [_base_transaction(Order="#9999")])
+
+        parser = ShopifyParser()
+        result = parser.parse({"sales": sales_path, "transactions": tx_path}, shopify_config)
+
+        summary = [a for a in result.anomalies if a.type == "orphan_sale_summary"]
+        assert len(summary) == 1
+        assert "2 commandes sans encaissement" in summary[0].detail
+        assert "#2001" in summary[0].detail
+        assert "#2002" in summary[0].detail

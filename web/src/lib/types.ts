@@ -19,6 +19,8 @@ export interface Anomaly {
   canal: string;
   reference: string;
   detail: string;
+  expected_value: string | null;
+  actual_value: string | null;
 }
 
 export interface Summary {

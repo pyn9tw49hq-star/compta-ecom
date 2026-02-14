@@ -16,7 +16,6 @@ import {
 import {
   ANOMALY_TYPE_LABELS,
   SEVERITY_META,
-  ANOMALY_CATEGORIES,
 } from "@/components/AnomaliesPanel";
 import type { Anomaly } from "./types";
 import type { DateRange } from "./datePresets";
@@ -29,7 +28,7 @@ export interface AnomalyPdfSections {
   errors: boolean;
   warnings: boolean;
   infos: boolean;
-  categories: Record<string, boolean>;
+  types: Record<string, boolean>;
   channels: Set<string>;
 }
 
@@ -64,14 +63,6 @@ function getSeverityLabel(severity: string): string {
   return SEVERITY_META[severity]?.label ?? severity;
 }
 
-/** Get the category key that contains a given anomaly type. */
-function getCategoryForType(type: string): string | null {
-  for (const [key, cat] of Object.entries(ANOMALY_CATEGORIES)) {
-    if (cat.types.includes(type)) return key;
-  }
-  return null;
-}
-
 /** Filter anomalies based on sections config. */
 function filterAnomalies(anomalies: Anomaly[], sections: AnomalyPdfSections): Anomaly[] {
   return anomalies.filter((a) => {
@@ -83,10 +74,8 @@ function filterAnomalies(anomalies: Anomaly[], sections: AnomalyPdfSections): An
     // Channel filter
     if (!sections.channels.has(a.canal)) return false;
 
-    // Category filter
-    const cat = getCategoryForType(a.type);
-    if (cat && !sections.categories[cat]) return false;
-    // Types not in any category pass through if severity/channel match
+    // Type filter
+    if (a.type in sections.types && !sections.types[a.type]) return false;
     return true;
   });
 }

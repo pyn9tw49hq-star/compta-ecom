@@ -29,6 +29,8 @@ def serialize_anomaly(anomaly: Anomaly) -> dict[str, object]:
         "canal": anomaly.channel,
         "reference": anomaly.reference,
         "detail": anomaly.detail,
+        "expected_value": anomaly.expected_value,
+        "actual_value": anomaly.actual_value,
     }
 
 

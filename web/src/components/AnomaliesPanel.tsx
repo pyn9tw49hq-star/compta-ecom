@@ -42,7 +42,7 @@ export const ANOMALY_CATEGORIES: Record<string, { label: string; types: string[]
   },
   rapprochement: {
     label: "Rapprochement ventes/encaissements",
-    types: ["orphan_sale", "orphan_settlement", "amount_mismatch", "orphan_refund"],
+    types: ["orphan_sale", "orphan_sale_summary", "orphan_settlement", "amount_mismatch", "orphan_refund", "prior_period_settlement"],
   },
   versements: {
     label: "Versements & détails",
@@ -75,6 +75,7 @@ export const ANOMALY_CATEGORIES: Record<string, { label: string; types: string[]
 
 export const ANOMALY_TYPE_LABELS: Record<string, string> = {
   orphan_sale: "Vente sans encaissement",
+  orphan_sale_summary: "Commandes sans encaissement",
   orphan_settlement: "Encaissement sans commande",
   tva_mismatch: "Taux de TVA incohérent",
   tva_amount_mismatch: "Montant TVA incorrect",
@@ -103,6 +104,7 @@ export const ANOMALY_TYPE_LABELS: Record<string, string> = {
   unknown_line_type: "Type de ligne inconnu",
   unknown_transaction_type: "Type de transaction inconnu",
   unknown_payout_type: "Type de versement inconnu",
+  prior_period_settlement: "Encaissements période antérieure",
 };
 
 function getTypeLabel(type: string): string {
@@ -111,6 +113,32 @@ function getTypeLabel(type: string): string {
 
 function getSeverityMeta(severity: string): SeverityMeta {
   return SEVERITY_META[severity] ?? SEVERITY_META.info;
+}
+
+/** Extract payment method name from a direct_payment anomaly detail string. */
+function extractPaymentMethod(detail: string): string {
+  const separators = [" — ", " - ", ": "];
+  for (const sep of separators) {
+    const idx = detail.indexOf(sep);
+    if (idx > 0) {
+      return detail.substring(0, idx).trim();
+    }
+  }
+  return detail.trim();
+}
+
+/** Compute actual order count for an orphan_sale group (summary embeds count in detail). */
+function getOrphanSaleCount(group: Anomaly[]): number {
+  let count = 0;
+  for (const a of group) {
+    if (a.type === "orphan_sale_summary") {
+      const match = a.detail.match(/^(\d+)\s+commande/);
+      count += match ? parseInt(match[1], 10) : 1;
+    } else {
+      count += 1;
+    }
+  }
+  return count;
 }
 
 // --- Task 2 + 3: Component ---
@@ -309,24 +337,42 @@ export default function AnomaliesPanel({ anomalies }: AnomaliesPanelProps) {
         )}
       </div>
 
-      {/* Anomaly cards — missing_payout grouped by canal, rest flat */}
+      {/* Anomaly cards — grouped types in <details>, rest flat */}
       <div className="space-y-2">
         {(() => {
-          const missingPayouts = sortedAnomalies.filter((a) => a.type === "missing_payout");
-          const others = sortedAnomalies.filter((a) => a.type !== "missing_payout");
+          const GROUPED_TYPES = new Set(["missing_payout", "orphan_sale_summary", "orphan_sale", "direct_payment"]);
+          const grouped = sortedAnomalies.filter((a) => GROUPED_TYPES.has(a.type));
+          const others = sortedAnomalies.filter((a) => !GROUPED_TYPES.has(a.type));
 
           // Group missing_payout by canal
-          const groupedByCanal = new Map<string, Anomaly[]>();
-          for (const a of missingPayouts) {
-            const group = groupedByCanal.get(a.canal) ?? [];
+          const missingPayoutByCanal = new Map<string, Anomaly[]>();
+          for (const a of grouped.filter((a) => a.type === "missing_payout")) {
+            const group = missingPayoutByCanal.get(a.canal) ?? [];
             group.push(a);
-            groupedByCanal.set(a.canal, group);
+            missingPayoutByCanal.set(a.canal, group);
+          }
+
+          // Group orphan_sale_summary + orphan_sale by canal
+          const orphanSaleByCanal = new Map<string, Anomaly[]>();
+          for (const a of grouped.filter((a) => a.type === "orphan_sale_summary" || a.type === "orphan_sale")) {
+            const group = orphanSaleByCanal.get(a.canal) ?? [];
+            group.push(a);
+            orphanSaleByCanal.set(a.canal, group);
+          }
+
+          // Group direct_payment by payment method
+          const directPaymentByMethod = new Map<string, Anomaly[]>();
+          for (const a of grouped.filter((a) => a.type === "direct_payment")) {
+            const method = extractPaymentMethod(a.detail);
+            const group = directPaymentByMethod.get(method) ?? [];
+            group.push(a);
+            directPaymentByMethod.set(method, group);
           }
 
           return (
             <>
               {/* Grouped missing_payout sections */}
-              {Array.from(groupedByCanal.entries()).map(([canal, group]) => {
+              {Array.from(missingPayoutByCanal.entries()).map(([canal, group]) => {
                 const channelMeta = getChannelMeta(canal);
                 const meta = getSeverityMeta(group[0].severity);
                 return (
@@ -340,6 +386,65 @@ export default function AnomaliesPanel({ anomalies }: AnomaliesPanelProps) {
                       </Badge>
                       <span>
                         {group.length} {group.length > 1 ? "reversements manquants" : "reversement manquant"}
+                      </span>
+                    </summary>
+                    <div className="px-3 pb-3 space-y-1">
+                      {group.map((anomaly, i) => (
+                        <div key={i} className="text-sm text-muted-foreground pl-1 py-1 border-t first:border-t-0">
+                          <span className="font-medium text-foreground">{anomaly.reference}</span>
+                          {" — "}{anomaly.detail}
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                );
+              })}
+
+              {/* Grouped orphan_sale_summary / orphan_sale sections */}
+              {Array.from(orphanSaleByCanal.entries()).map(([canal, group]) => {
+                const channelMeta = getChannelMeta(canal);
+                const meta = getSeverityMeta(group[0].severity);
+                const orderCount = getOrphanSaleCount(group);
+                return (
+                  <details key={`os-${canal}`} className={`rounded-md border border-l-4 ${meta.borderClass} bg-card`}>
+                    <summary className="cursor-pointer p-3 flex items-center gap-2 text-sm font-medium">
+                      <Badge variant="outline" className={meta.badgeClass}>
+                        {meta.label}
+                      </Badge>
+                      <Badge variant="outline" className={channelMeta.badgeClass}>
+                        {channelMeta.label}
+                      </Badge>
+                      <span>
+                        {orderCount} {orderCount > 1 ? "commandes sans encaissement" : "commande sans encaissement"}
+                      </span>
+                    </summary>
+                    <div className="px-3 pb-3 space-y-1">
+                      {group.map((anomaly, i) => (
+                        <div key={i} className="text-sm text-muted-foreground pl-1 py-1 border-t first:border-t-0">
+                          <span className="font-medium text-foreground">{anomaly.reference}</span>
+                          {" — "}{anomaly.detail}
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                );
+              })}
+
+              {/* Grouped direct_payment sections — one card per payment method */}
+              {Array.from(directPaymentByMethod.entries()).map(([method, group]) => {
+                const meta = getSeverityMeta(group[0].severity);
+                const channelMeta = getChannelMeta(group[0].canal);
+                return (
+                  <details key={`dp-${method}`} className={`rounded-md border border-l-4 ${meta.borderClass} bg-card`}>
+                    <summary className="cursor-pointer p-3 flex items-center gap-2 text-sm font-medium">
+                      <Badge variant="outline" className={meta.badgeClass}>
+                        {meta.label}
+                      </Badge>
+                      <Badge variant="outline" className={channelMeta.badgeClass}>
+                        {channelMeta.label}
+                      </Badge>
+                      <span>
+                        {group.length} {group.length > 1 ? "paiements directs" : "paiement direct"} — {method}
                       </span>
                     </summary>
                     <div className="px-3 pb-3 space-y-1">
@@ -376,6 +481,16 @@ export default function AnomaliesPanel({ anomalies }: AnomaliesPanelProps) {
                     <div className="mt-1 text-sm text-muted-foreground pl-1">
                       {anomaly.detail}
                     </div>
+                    {anomaly.actual_value && (
+                      <details className="mt-2 pl-1">
+                        <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">
+                          Voir les références
+                        </summary>
+                        <div className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap">
+                          {anomaly.actual_value}
+                        </div>
+                      </details>
+                    )}
                   </div>
                 );
               })}

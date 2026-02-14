@@ -89,6 +89,12 @@ def _normalize_payout_id(raw: object) -> str:
     return s
 
 
+def _extract_ref_number(ref: str) -> int | None:
+    """Extrait la partie numérique d'une référence Shopify (ex: '#1118' → 1118)."""
+    m = re.search(r"(\d+)", ref)
+    return int(m.group(1)) if m else None
+
+
 def _extract_vat_rate(tax_name: object) -> float:
     """Extraire le taux TVA depuis Tax 1 Name. Ex: 'FR TVA 20%' -> 20.0."""
     if not tax_name or not isinstance(tax_name, str):
@@ -530,6 +536,7 @@ class ShopifyParser(BaseParser):
         """Matching vente↔transaction et construction des NormalizedTransaction finales."""
         anomalies: list[Anomaly] = []
         result: list[NormalizedTransaction] = []
+        orphan_sale_refs: list[str] = []
 
         for ref, sale in sales.items():
             txs = transactions.get(ref, [])
@@ -606,17 +613,7 @@ class ShopifyParser(BaseParser):
                     )
                 else:
                     if transactions:
-                        anomalies.append(
-                            Anomaly(
-                                type="orphan_sale",
-                                severity="warning",
-                                reference=ref,
-                                channel="shopify",
-                                detail="Commande présente dans les Ventes mais aucun encaissement trouvé dans les Transactions — commande probablement en attente, annulée ou hors période",
-                                expected_value=None,
-                                actual_value=None,
-                            )
-                        )
+                        orphan_sale_refs.append(ref)
                     tx = NormalizedTransaction(
                         reference=sale["reference"],
                         channel="shopify",
@@ -666,20 +663,57 @@ class ShopifyParser(BaseParser):
                 )
                 result.append(tx)
 
-        # Orphan settlements (transactions without matching sale)
+        # --- Orphan sale summary (Issue #2) ---
+        if orphan_sale_refs:
+            refs_str = ", ".join(orphan_sale_refs)
+            anomalies.append(
+                Anomaly(
+                    type="orphan_sale_summary",
+                    severity="info",
+                    reference="",
+                    channel="shopify",
+                    detail=f"{len(orphan_sale_refs)} commandes sans encaissement trouvé — Références : {refs_str}",
+                    expected_value=None,
+                    actual_value=None,
+                )
+            )
+
+        # --- Orphan settlements (transactions without matching sale) ---
+        # Determine the first sale reference number for prior-period detection
+        first_sale_num: int | None = None
+        if sales:
+            sale_nums = [_extract_ref_number(k) for k in sales]
+            valid_nums = [n for n in sale_nums if n is not None]
+            if valid_nums:
+                first_sale_num = min(valid_nums)
+
+        prior_period_refs: list[str] = []
+
         for ref, txs in transactions.items():
             if ref not in sales:
-                anomalies.append(
-                    Anomaly(
-                        type="orphan_settlement",
-                        severity="warning",
-                        reference=ref,
-                        channel="shopify",
-                        detail="Encaissement présent dans les Transactions mais aucune commande trouvée dans les Ventes — probable décalage de période entre les deux exports",
-                        expected_value=None,
-                        actual_value=None,
-                    )
+                # Classify: prior period vs true orphan
+                ref_num = _extract_ref_number(ref)
+                is_prior = (
+                    first_sale_num is not None
+                    and ref_num is not None
+                    and ref_num < first_sale_num
                 )
+
+                if is_prior:
+                    prior_period_refs.append(ref)
+                else:
+                    anomalies.append(
+                        Anomaly(
+                            type="orphan_settlement",
+                            severity="warning",
+                            reference=ref,
+                            channel="shopify",
+                            detail="Encaissement présent dans les Transactions mais aucune commande trouvée dans les Ventes — probable décalage de période entre les deux exports",
+                            expected_value=None,
+                            actual_value=None,
+                        )
+                    )
+
                 # Generate settlement-only entries for orphan transactions
                 # so they contribute to lettrage balance on 511
                 for orphan_tx in txs:
@@ -708,6 +742,21 @@ class ShopifyParser(BaseParser):
                             special_type="orphan_settlement",
                         )
                     )
+
+        # --- Prior period settlement summary (Issue #1) ---
+        if prior_period_refs:
+            refs_str = ", ".join(sorted(prior_period_refs, key=lambda r: _extract_ref_number(r) or 0))
+            anomalies.append(
+                Anomaly(
+                    type="prior_period_settlement",
+                    severity="info",
+                    reference="",
+                    channel="shopify",
+                    detail=f"{len(prior_period_refs)} transactions d'encaissement concernent une période antérieure",
+                    expected_value=None,
+                    actual_value=refs_str,
+                )
+            )
 
         return result, anomalies
 

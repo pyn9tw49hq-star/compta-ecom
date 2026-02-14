@@ -38,6 +38,19 @@ const SEVERITY_META: Record<string, SeverityMeta> = {
 };
 
 /**
+ * Badge class for VAT anomaly rate: green < 1%, orange 1–5%, red > 5%.
+ */
+function getVatAnomalyRateBadgeClass(rate: number): string {
+  if (rate < 1) {
+    return "bg-green-100 text-green-800 border-green-300 dark:bg-green-900 dark:text-green-200 dark:border-green-700";
+  }
+  if (rate <= 5) {
+    return "bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-900 dark:text-orange-200 dark:border-orange-700";
+  }
+  return "bg-red-100 text-red-800 border-red-300 dark:bg-red-900 dark:text-red-200 dark:border-red-700";
+}
+
+/**
  * Badge class for refund rate: green < 5%, orange 5–10%, red > 10%.
  */
 function getRefundRateBadgeClass(rate: number): string {
@@ -81,6 +94,29 @@ export default function StatsBoard({ summary, entries, anomalies, htTtcMode, onH
     }
     return counts;
   }, [anomalies]);
+
+  const vatAnomalyStats = useMemo(() => {
+    const amountMismatch = anomalies.filter((a) => a.type === "tva_amount_mismatch");
+    const rateMismatch = anomalies.filter((a) => a.type === "tva_mismatch");
+    const total = totalTransactions || 0;
+
+    const amountCount = amountMismatch.length;
+    const rateCount = rateMismatch.length;
+
+    const amountRate = total > 0 ? Math.round((amountCount / total) * 1000) / 10 : 0;
+    const rateRate = total > 0 ? Math.round((rateCount / total) * 1000) / 10 : 0;
+
+    let rateMismatchTotal = 0;
+    for (const a of rateMismatch) {
+      if (a.actual_value) {
+        const val = parseFloat(a.actual_value);
+        if (!isNaN(val)) rateMismatchTotal += val;
+      }
+    }
+    rateMismatchTotal = Math.round(rateMismatchTotal * 100) / 100;
+
+    return { amountCount, rateCount, amountRate, rateRate, rateMismatchTotal };
+  }, [anomalies, totalTransactions]);
 
   const hasKpis = !!summary.ca_par_canal;
 
@@ -198,18 +234,34 @@ export default function StatsBoard({ summary, entries, anomalies, htTtcMode, onH
             Aucune anomalie
           </div>
         ) : (
-          <div className="flex flex-wrap gap-2">
-            {(["error", "warning", "info"] as const).map((severity) => {
-              const count = severityCounts[severity];
-              if (count === 0) return null;
-              const meta = SEVERITY_META[severity];
-              return (
-                <Badge key={severity} variant="outline" className={meta.badgeClass}>
-                  {count} {meta.label}
-                </Badge>
-              );
-            })}
-          </div>
+          <>
+            <div className="flex flex-wrap gap-2">
+              {(["error", "warning", "info"] as const).map((severity) => {
+                const count = severityCounts[severity];
+                if (count === 0) return null;
+                const meta = SEVERITY_META[severity];
+                return (
+                  <Badge key={severity} variant="outline" className={meta.badgeClass}>
+                    {count} {meta.label}
+                  </Badge>
+                );
+              })}
+            </div>
+            {(vatAnomalyStats.amountCount > 0 || vatAnomalyStats.rateCount > 0) && (
+              <div className="flex flex-wrap gap-2 mt-3">
+                {vatAnomalyStats.amountCount > 0 && (
+                  <Badge variant="outline" className={getVatAnomalyRateBadgeClass(vatAnomalyStats.amountRate)}>
+                    Montant TVA incorrect : {formatPercent(vatAnomalyStats.amountRate)}
+                  </Badge>
+                )}
+                {vatAnomalyStats.rateCount > 0 && (
+                  <Badge variant="outline" className={getVatAnomalyRateBadgeClass(vatAnomalyStats.rateRate)}>
+                    Taux TVA incohérent : {formatPercent(vatAnomalyStats.rateRate)} — {formatCurrency(vatAnomalyStats.rateMismatchTotal)} €
+                  </Badge>
+                )}
+              </div>
+            )}
+          </>
         )}
       </section>
 
