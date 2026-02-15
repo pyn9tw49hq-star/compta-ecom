@@ -86,47 +86,28 @@ class VatChecker:
     def _check_tva_amounts(
         transaction: NormalizedTransaction,
     ) -> list[Anomaly]:
-        """Contrôle 2 — montants TVA = HT × taux."""
-        expected_product_tva = round(transaction.amount_ht * transaction.tva_rate / 100, 2)
-        expected_shipping_tva = round(transaction.shipping_ht * transaction.tva_rate / 100, 2)
+        """Contrôle 2 — montant TVA total = HT total × taux."""
+        total_actual_tva = round(transaction.amount_tva + transaction.shipping_tva, 2)
+        total_ht = round(transaction.amount_ht + transaction.shipping_ht, 2)
+        total_expected_tva = round(total_ht * transaction.tva_rate / 100, 2)
 
-        product_mismatch = abs(transaction.amount_tva - expected_product_tva) > AMOUNT_TOLERANCE
-        shipping_mismatch = abs(transaction.shipping_tva - expected_shipping_tva) > AMOUNT_TOLERANCE
+        if round(abs(total_actual_tva - total_expected_tva), 2) > AMOUNT_TOLERANCE:
+            return [
+                Anomaly(
+                    type="tva_amount_mismatch",
+                    severity="warning",
+                    reference=transaction.reference,
+                    channel=transaction.channel,
+                    detail=(
+                        f"Montant de TVA total incorrect : {total_actual_tva}€ constaté au lieu de "
+                        f"{total_expected_tva}€ calculé ({total_ht}€ HT × {transaction.tva_rate}%)"
+                    ),
+                    expected_value=str(total_expected_tva),
+                    actual_value=str(total_actual_tva),
+                )
+            ]
 
-        if not product_mismatch and not shipping_mismatch:
-            return []
-
-        parts: list[str] = []
-        expected_parts: list[str] = []
-        actual_parts: list[str] = []
-
-        if product_mismatch:
-            parts.append(
-                f"Montant de TVA produit incorrect : {transaction.amount_tva}€ constaté au lieu de "
-                f"{expected_product_tva}€ calculé ({transaction.amount_ht}€ HT × {transaction.tva_rate}%)"
-            )
-            expected_parts.append(str(expected_product_tva))
-            actual_parts.append(str(transaction.amount_tva))
-
-        if shipping_mismatch:
-            parts.append(
-                f"Montant de TVA port incorrect : {transaction.shipping_tva}€ constaté au lieu de "
-                f"{expected_shipping_tva}€ calculé ({transaction.shipping_ht}€ HT × {transaction.tva_rate}%)"
-            )
-            expected_parts.append(str(expected_shipping_tva))
-            actual_parts.append(str(transaction.shipping_tva))
-
-        return [
-            Anomaly(
-                type="tva_amount_mismatch",
-                severity="warning",
-                reference=transaction.reference,
-                channel=transaction.channel,
-                detail=" ; ".join(parts) + " — écart dû à un arrondi ou un taux mixte",
-                expected_value=", ".join(expected_parts),
-                actual_value=", ".join(actual_parts),
-            )
-        ]
+        return []
 
     @staticmethod
     def _check_ttc_coherence(

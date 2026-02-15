@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getChannelMeta } from "@/lib/channels";
 import type { Anomaly } from "@/lib/types";
@@ -42,7 +43,7 @@ export const ANOMALY_CATEGORIES: Record<string, { label: string; types: string[]
   },
   rapprochement: {
     label: "Rapprochement ventes/encaissements",
-    types: ["orphan_sale", "orphan_sale_summary", "orphan_settlement", "amount_mismatch", "orphan_refund", "prior_period_settlement"],
+    types: ["orphan_sale", "orphan_sale_summary", "orphan_settlement", "amount_mismatch", "orphan_refund", "prior_period_settlement", "prior_period_refund"],
   },
   versements: {
     label: "Versements & détails",
@@ -105,6 +106,7 @@ export const ANOMALY_TYPE_LABELS: Record<string, string> = {
   unknown_transaction_type: "Type de transaction inconnu",
   unknown_payout_type: "Type de versement inconnu",
   prior_period_settlement: "Encaissements période antérieure",
+  prior_period_refund: "Remboursements période antérieure",
 };
 
 function getTypeLabel(type: string): string {
@@ -340,9 +342,11 @@ export default function AnomaliesPanel({ anomalies }: AnomaliesPanelProps) {
       {/* Anomaly cards — grouped types in <details>, rest flat */}
       <div className="space-y-2">
         {(() => {
-          const GROUPED_TYPES = new Set(["missing_payout", "orphan_sale_summary", "orphan_sale", "direct_payment"]);
+          const GROUPED_TYPES = new Set(["missing_payout", "orphan_sale_summary", "orphan_sale", "direct_payment", "tva_mismatch"]);
+          const PRIOR_PERIOD_TYPES = new Set(["prior_period_settlement", "prior_period_refund"]);
           const grouped = sortedAnomalies.filter((a) => GROUPED_TYPES.has(a.type));
-          const others = sortedAnomalies.filter((a) => !GROUPED_TYPES.has(a.type));
+          const priorPeriod = sortedAnomalies.filter((a) => PRIOR_PERIOD_TYPES.has(a.type));
+          const others = sortedAnomalies.filter((a) => !GROUPED_TYPES.has(a.type) && !PRIOR_PERIOD_TYPES.has(a.type));
 
           // Group missing_payout by canal
           const missingPayoutByCanal = new Map<string, Anomaly[]>();
@@ -369,15 +373,63 @@ export default function AnomaliesPanel({ anomalies }: AnomaliesPanelProps) {
             directPaymentByMethod.set(method, group);
           }
 
+          // Group tva_mismatch by rate discrepancy (actual vs expected)
+          const tvaMismatchByRate = new Map<string, Anomaly[]>();
+          for (const a of grouped.filter((a) => a.type === "tva_mismatch")) {
+            const key = `${a.actual_value ?? "?"}% au lieu de ${a.expected_value ?? "?"}%`;
+            const group = tvaMismatchByRate.get(key) ?? [];
+            group.push(a);
+            tvaMismatchByRate.set(key, group);
+          }
+
           return (
             <>
+              {/* Prior period cards — rendered first (Issue #1) */}
+              {priorPeriod.map((anomaly, i) => {
+                const meta = getSeverityMeta(anomaly.severity);
+                const channelMeta = getChannelMeta(anomaly.canal);
+                return (
+                  <div
+                    key={`pp-${i}`}
+                    className={`rounded-md border border-l-4 ${meta.borderClass} bg-card p-3`}
+                  >
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <Badge variant="outline" className={meta.badgeClass}>
+                        {meta.label}
+                      </Badge>
+                      <span>{getTypeLabel(anomaly.type)}</span>
+                      {anomaly.canal && (
+                        <Badge variant="outline" className={channelMeta.badgeClass}>
+                          {channelMeta.label}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="mt-1 text-sm text-muted-foreground pl-1">
+                      {anomaly.detail}
+                    </div>
+                    {anomaly.actual_value && (
+                      <details className="group mt-2 pl-1">
+                        <summary className="cursor-pointer list-none text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
+                          <ChevronRight className="h-3 w-3 shrink-0 transition-transform group-open:rotate-90" />
+                          Voir les références
+                        </summary>
+                        <div className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap">
+                          {anomaly.actual_value}
+                        </div>
+                      </details>
+                    )}
+                  </div>
+                );
+              })}
+
               {/* Grouped missing_payout sections */}
               {Array.from(missingPayoutByCanal.entries()).map(([canal, group]) => {
                 const channelMeta = getChannelMeta(canal);
                 const meta = getSeverityMeta(group[0].severity);
                 return (
-                  <details key={`mp-${canal}`} className={`rounded-md border border-l-4 ${meta.borderClass} bg-card`}>
-                    <summary className="cursor-pointer p-3 flex items-center gap-2 text-sm font-medium">
+                  <details key={`mp-${canal}`} className={`group rounded-md border border-l-4 ${meta.borderClass} bg-card`}>
+                    <summary className="cursor-pointer list-none p-3 flex items-center gap-2 text-sm font-medium">
+                      <ChevronRight className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
                       <Badge variant="outline" className={meta.badgeClass}>
                         {meta.label}
                       </Badge>
@@ -406,8 +458,9 @@ export default function AnomaliesPanel({ anomalies }: AnomaliesPanelProps) {
                 const meta = getSeverityMeta(group[0].severity);
                 const orderCount = getOrphanSaleCount(group);
                 return (
-                  <details key={`os-${canal}`} className={`rounded-md border border-l-4 ${meta.borderClass} bg-card`}>
-                    <summary className="cursor-pointer p-3 flex items-center gap-2 text-sm font-medium">
+                  <details key={`os-${canal}`} className={`group rounded-md border border-l-4 ${meta.borderClass} bg-card`}>
+                    <summary className="cursor-pointer list-none p-3 flex items-center gap-2 text-sm font-medium">
+                      <ChevronRight className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
                       <Badge variant="outline" className={meta.badgeClass}>
                         {meta.label}
                       </Badge>
@@ -435,8 +488,9 @@ export default function AnomaliesPanel({ anomalies }: AnomaliesPanelProps) {
                 const meta = getSeverityMeta(group[0].severity);
                 const channelMeta = getChannelMeta(group[0].canal);
                 return (
-                  <details key={`dp-${method}`} className={`rounded-md border border-l-4 ${meta.borderClass} bg-card`}>
-                    <summary className="cursor-pointer p-3 flex items-center gap-2 text-sm font-medium">
+                  <details key={`dp-${method}`} className={`group rounded-md border border-l-4 ${meta.borderClass} bg-card`}>
+                    <summary className="cursor-pointer list-none p-3 flex items-center gap-2 text-sm font-medium">
+                      <ChevronRight className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
                       <Badge variant="outline" className={meta.badgeClass}>
                         {meta.label}
                       </Badge>
@@ -445,6 +499,36 @@ export default function AnomaliesPanel({ anomalies }: AnomaliesPanelProps) {
                       </Badge>
                       <span>
                         {group.length} {group.length > 1 ? "paiements directs" : "paiement direct"} — {method}
+                      </span>
+                    </summary>
+                    <div className="px-3 pb-3 space-y-1">
+                      {group.map((anomaly, i) => (
+                        <div key={i} className="text-sm text-muted-foreground pl-1 py-1 border-t first:border-t-0">
+                          <span className="font-medium text-foreground">{anomaly.reference}</span>
+                          {" — "}{anomaly.detail}
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                );
+              })}
+
+              {/* Grouped tva_mismatch sections — one card per rate discrepancy */}
+              {Array.from(tvaMismatchByRate.entries()).map(([rateKey, group]) => {
+                const meta = getSeverityMeta(group[0].severity);
+                const channelMeta = getChannelMeta(group[0].canal);
+                return (
+                  <details key={`tva-${rateKey}`} className={`group rounded-md border border-l-4 ${meta.borderClass} bg-card`}>
+                    <summary className="cursor-pointer list-none p-3 flex items-center gap-2 text-sm font-medium">
+                      <ChevronRight className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
+                      <Badge variant="outline" className={meta.badgeClass}>
+                        {meta.label}
+                      </Badge>
+                      <Badge variant="outline" className={channelMeta.badgeClass}>
+                        {channelMeta.label}
+                      </Badge>
+                      <span>
+                        {group.length} {group.length > 1 ? "factures" : "facture"} avec taux de TVA incohérent — {rateKey}
                       </span>
                     </summary>
                     <div className="px-3 pb-3 space-y-1">
@@ -482,8 +566,9 @@ export default function AnomaliesPanel({ anomalies }: AnomaliesPanelProps) {
                       {anomaly.detail}
                     </div>
                     {anomaly.actual_value && (
-                      <details className="mt-2 pl-1">
-                        <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">
+                      <details className="group mt-2 pl-1">
+                        <summary className="cursor-pointer list-none text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
+                          <ChevronRight className="h-3 w-3 shrink-0 transition-transform group-open:rotate-90" />
                           Voir les références
                         </summary>
                         <div className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap">

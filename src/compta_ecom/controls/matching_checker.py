@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime
 import logging
+import re
 
 from compta_ecom.config.loader import AppConfig
 from compta_ecom.models import Anomaly, NormalizedTransaction
@@ -75,6 +76,8 @@ class MatchingChecker:
         transaction: NormalizedTransaction,
     ) -> list[Anomaly]:
         """Signale les transactions sans payout_date (severity=info)."""
+        if abs(transaction.amount_ttc) < 0.01:
+            return []
         if transaction.payout_date is None:
             return [
                 Anomaly(
@@ -94,31 +97,75 @@ class MatchingChecker:
         transactions: list[NormalizedTransaction],
     ) -> list[Anomaly]:
         """Vérifie que chaque refund a une vente correspondante (référence exacte)."""
-        # Matching naïf par référence exacte — les 3 parsers MVP (Shopify, ManoMano, Mirakl)
-        # utilisent la même référence pour sale et refund. Si un futur canal post-MVP utilise
-        # des références dérivées (ex: suffixe -R), adapter ce contrôle.
         sale_references: set[str] = set()
         for tx in transactions:
             if tx.type == "sale":
                 sale_references.add(tx.reference)
 
+        # Determine the first sale reference number for prior-period detection
+        first_sale_num: int | None = None
+        if sale_references:
+            sale_nums = []
+            for ref in sale_references:
+                m = re.search(r"(\d+)", ref)
+                if m:
+                    sale_nums.append(int(m.group(1)))
+            if sale_nums:
+                first_sale_num = min(sale_nums)
+
         anomalies: list[Anomaly] = []
+        prior_period_refunds: list[NormalizedTransaction] = []
+
         for tx in transactions:
             if tx.type == "refund" and tx.reference not in sale_references:
-                anomalies.append(
-                    Anomaly(
-                        type="orphan_refund",
-                        severity="warning",
-                        reference=tx.reference,
-                        channel=tx.channel,
-                        detail=(
-                            f"Remboursement pour la commande {tx.reference} mais aucune vente "
-                            f"d'origine trouvée — le remboursement est peut-être antérieur à la période exportée"
-                        ),
-                        expected_value="vente correspondante",
-                        actual_value="aucune",
-                    )
+                # Classify: prior period vs true orphan
+                ref_m = re.search(r"(\d+)", tx.reference)
+                ref_num = int(ref_m.group(1)) if ref_m else None
+                is_prior = (
+                    first_sale_num is not None
+                    and ref_num is not None
+                    and ref_num < first_sale_num
                 )
+
+                if is_prior:
+                    prior_period_refunds.append(tx)
+                else:
+                    anomalies.append(
+                        Anomaly(
+                            type="orphan_refund",
+                            severity="warning",
+                            reference=tx.reference,
+                            channel=tx.channel,
+                            detail=(
+                                f"Remboursement pour la commande {tx.reference} mais aucune vente "
+                                f"d'origine trouvée — le remboursement est peut-être antérieur à la période exportée"
+                            ),
+                            expected_value="vente correspondante",
+                            actual_value="aucune",
+                        )
+                    )
+
+        # Emit a single summary anomaly for prior-period refunds
+        if prior_period_refunds:
+            def _ref_num(r: str) -> int:
+                m = re.search(r"(\d+)", r)
+                return int(m.group(1)) if m else 0
+
+            refs_str = ", ".join(
+                sorted([tx.reference for tx in prior_period_refunds], key=_ref_num)
+            )
+            count = len(prior_period_refunds)
+            anomalies.append(
+                Anomaly(
+                    type="prior_period_refund",
+                    severity="info",
+                    reference="",
+                    channel=prior_period_refunds[0].channel,
+                    detail=f"{count} remboursement{'s' if count > 1 else ''} concernent une période antérieure",
+                    expected_value=None,
+                    actual_value=refs_str,
+                )
+            )
 
         return anomalies
 

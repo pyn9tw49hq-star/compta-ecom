@@ -612,7 +612,7 @@ class ShopifyParser(BaseParser):
                         special_type="direct_payment",
                     )
                 else:
-                    if transactions:
+                    if transactions and abs(sale["amount_ttc"]) >= 0.01:
                         orphan_sale_refs.append(ref)
                     tx = NormalizedTransaction(
                         reference=sale["reference"],

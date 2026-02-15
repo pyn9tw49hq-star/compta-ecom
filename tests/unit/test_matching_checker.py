@@ -311,6 +311,12 @@ class TestPayoutCoverage:
         missing_payouts = [a for a in result if a.type == "missing_payout"]
         assert len(missing_payouts) == 0
 
+    def test_zero_amount_no_missing_payout(self) -> None:
+        """Transaction à 0€ avec payout_date=None → pas d'anomalie missing_payout (Issue #6)."""
+        tx = _make_tx(amount_ttc=0.0, commission_ttc=0.0, net_amount=0.0, payout_date=None)
+        result = MatchingChecker._check_payout_coverage(tx)
+        assert result == []
+
     def test_sale_et_refund_sans_payout(self) -> None:
         """Sale et refund sans payout → les deux signalés."""
         config = _make_config()
@@ -409,6 +415,72 @@ class TestRefundMatching:
         result = MatchingChecker._check_refund_matching([sale_shopify, refund_manomano])
         assert len(result) == 1
         assert result[0].channel == "manomano"
+
+
+# --- Tests prior_period_refund (Issue #1) ---
+
+
+class TestPriorPeriodRefund:
+    def test_orphan_refund_prior_period(self) -> None:
+        """Refund ref #500, ventes commençant à #1000 → prior_period_refund info."""
+        sale = _make_tx(reference="#1000", tx_type="sale")
+        refund = _make_tx(
+            reference="#500",
+            tx_type="refund",
+            commission_ttc=-3.50,
+            net_amount=-116.50,
+            amount_ttc=120.0,
+        )
+        result = MatchingChecker._check_refund_matching([sale, refund])
+        assert len(result) == 1
+        assert result[0].type == "prior_period_refund"
+        assert result[0].severity == "info"
+        assert "#500" in result[0].actual_value
+
+    def test_orphan_refund_current_period(self) -> None:
+        """Refund ref #9999, ventes commençant à #1000 → orphan_refund warning."""
+        sale = _make_tx(reference="#1000", tx_type="sale")
+        refund = _make_tx(
+            reference="#9999",
+            tx_type="refund",
+            commission_ttc=-3.50,
+            net_amount=-116.50,
+            amount_ttc=120.0,
+        )
+        result = MatchingChecker._check_refund_matching([sale, refund])
+        assert len(result) == 1
+        assert result[0].type == "orphan_refund"
+        assert result[0].severity == "warning"
+        assert result[0].reference == "#9999"
+
+    def test_multiple_prior_period_refunds_single_anomaly(self) -> None:
+        """3 refunds prior → 1 seule anomalie avec count=3."""
+        sale = _make_tx(reference="#1000", tx_type="sale")
+        refund1 = _make_tx(reference="#100", tx_type="refund", commission_ttc=-1.0, net_amount=-50.0, amount_ttc=51.0)
+        refund2 = _make_tx(reference="#200", tx_type="refund", commission_ttc=-2.0, net_amount=-60.0, amount_ttc=62.0)
+        refund3 = _make_tx(reference="#300", tx_type="refund", commission_ttc=-3.0, net_amount=-70.0, amount_ttc=73.0)
+        result = MatchingChecker._check_refund_matching([sale, refund1, refund2, refund3])
+        assert len(result) == 1
+        assert result[0].type == "prior_period_refund"
+        assert "3 remboursements" in result[0].detail
+        # All refs present in actual_value
+        assert "#100" in result[0].actual_value
+        assert "#200" in result[0].actual_value
+        assert "#300" in result[0].actual_value
+
+    def test_no_sales_fallback(self) -> None:
+        """0 ventes → comportement orphan_refund inchangé (pas de contexte période)."""
+        refund = _make_tx(
+            reference="#500",
+            tx_type="refund",
+            commission_ttc=-3.50,
+            net_amount=-116.50,
+            amount_ttc=120.0,
+        )
+        result = MatchingChecker._check_refund_matching([refund])
+        assert len(result) == 1
+        assert result[0].type == "orphan_refund"
+        assert result[0].severity == "warning"
 
 
 # --- Test d'orchestration et multi-canal ---

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
-import { FileText, Loader2 } from "lucide-react";
+import { ChevronRight, FileText, Loader2 } from "lucide-react";
 import * as Popover from "@radix-ui/react-popover";
 import * as Checkbox from "@radix-ui/react-checkbox";
 import * as RadioGroup from "@radix-ui/react-radio-group";
@@ -258,6 +258,7 @@ export default function AnomalyPdfButton({ anomalies, dateRange }: AnomalyPdfBut
                 return (
                   <details key={key} className="group">
                     <summary className="flex items-center gap-2 cursor-pointer text-sm list-none">
+                      <ChevronRight className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
                       <Checkbox.Root
                         checked={parentChecked}
                         onCheckedChange={() => toggleCategoryTypes(cat.types)}

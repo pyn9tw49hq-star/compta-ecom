@@ -51,18 +51,36 @@ const MOCK_SUMMARY: Summary = {
     manomano: 2000.0,
     decathlon: 750.0,
   },
+  ventilation_ca_par_canal: {
+    shopify: { produits_ht: 35000.0, port_ht: 2500.0, total_ht: 37500.0 },
+    manomano: { produits_ht: 9000.0, port_ht: 1000.0, total_ht: 10000.0 },
+    decathlon: { produits_ht: 3500.0, port_ht: 250.0, total_ht: 3750.0 },
+  },
   repartition_geo_globale: {
-    France: { count: 900, ca_ttc: 40000.0 },
-    Belgique: { count: 200, ca_ttc: 12000.0 },
+    France: { count: 900, ca_ttc: 40000.0, ca_ht: 33333.33 },
+    Belgique: { count: 200, ca_ttc: 12000.0, ca_ht: 10000.0 },
   },
   repartition_geo_par_canal: {
     manomano: {
-      France: { count: 100, ca_ttc: 5000.0 },
-      Belgique: { count: 50, ca_ttc: 4000.0 },
+      France: { count: 100, ca_ttc: 5000.0, ca_ht: 4166.67 },
+      Belgique: { count: 50, ca_ttc: 4000.0, ca_ht: 3333.33 },
     },
     shopify: {
-      France: { count: 800, ca_ttc: 35000.0 },
-      Belgique: { count: 150, ca_ttc: 8000.0 },
+      France: { count: 800, ca_ttc: 35000.0, ca_ht: 29166.67 },
+      Belgique: { count: 150, ca_ttc: 8000.0, ca_ht: 6666.67 },
+    },
+  },
+  tva_par_pays_par_canal: {
+    shopify: {
+      France: [{ taux: 20, montant: 5833.33 }],
+      Belgique: [{ taux: 21, montant: 1400.0 }],
+    },
+    manomano: {
+      France: [{ taux: 20, montant: 833.33 }],
+      Belgique: [{ taux: 21, montant: 700.0 }],
+    },
+    decathlon: {
+      France: [{ taux: 20, montant: 750.0 }],
     },
   },
 };
@@ -178,8 +196,8 @@ describe("StatsBoard", () => {
         />,
       );
 
-      // 1250 → "1 250" (with non-breaking space)
-      expect(screen.getByText(/1\s*250/)).toBeInTheDocument();
+      // 1250 → "1 250" (with non-breaking space); also matches "51 250,00" in financial table
+      expect(screen.getAllByText(/1\s*250/).length).toBeGreaterThanOrEqual(1);
     });
   });
 
@@ -448,12 +466,15 @@ describe("StatsBoard", () => {
   });
 
   describe("Fiscalité & géographie (AC20-21)", () => {
-    it("displays h2 heading 'Fiscalité & géographie'", () => {
+    it("displays h2 headings for Fiscalité and Répartition géographique", () => {
       render(
         <StatsBoard summary={MOCK_SUMMARY} entries={MOCK_ENTRIES} anomalies={MOCK_ANOMALIES} {...htTtcProps} />,
       );
       expect(
-        screen.getByRole("heading", { name: /Fiscalité.*géographie/, level: 2 }),
+        screen.getByRole("heading", { name: /Fiscalité/, level: 2 }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { name: /Répartition géographique/, level: 2 }),
       ).toBeInTheDocument();
     });
 
@@ -473,7 +494,7 @@ describe("StatsBoard", () => {
         <StatsBoard summary={MOCK_SUMMARY} entries={MOCK_ENTRIES} anomalies={MOCK_ANOMALIES} {...htTtcProps} />,
       );
       expect(
-        screen.getByRole("heading", { name: "Répartition géographique", level: 3 }),
+        screen.getByRole("heading", { name: "Répartition géographique", level: 2 }),
       ).toBeInTheDocument();
       // France and Belgique in the global table
       expect(screen.getAllByText("France").length).toBeGreaterThanOrEqual(1);

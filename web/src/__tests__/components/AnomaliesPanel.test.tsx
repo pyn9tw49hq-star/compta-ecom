@@ -12,7 +12,9 @@ const MOCK_ANOMALIES: Anomaly[] = [
     severity: "warning",
     canal: "shopify",
     reference: "#1001",
-    detail: "TVA 20% attendue, 10% trouvée",
+    detail: "TVA 20% attendue, 0% trouvée",
+    expected_value: "20",
+    actual_value: "0",
   },
   {
     type: "orphan_sale",
@@ -104,20 +106,27 @@ describe("AnomaliesPanel", () => {
     });
 
     it("displays all 5 fields for each anomaly (severity, type, canal, reference, detail)", () => {
-      render(<AnomaliesPanel anomalies={[MOCK_ANOMALIES[0]]} />);
+      const flatAnomaly: Anomaly = {
+        type: "amount_mismatch",
+        severity: "warning",
+        canal: "shopify",
+        reference: "#5001",
+        detail: "Écart de 0.02€",
+        expected_value: null,
+        actual_value: null,
+      };
+      render(<AnomaliesPanel anomalies={[flatAnomaly]} />);
 
       // Severity badge
       expect(screen.getByText("Avertissement")).toBeInTheDocument();
       // Type label (French)
-      expect(screen.getByText("Taux de TVA incohérent")).toBeInTheDocument();
+      expect(screen.getByText("Écart de montant")).toBeInTheDocument();
       // Canal badge
       expect(screen.getByText("Shopify")).toBeInTheDocument();
       // Reference
-      expect(screen.getByText("#1001")).toBeInTheDocument();
+      expect(screen.getByText("#5001")).toBeInTheDocument();
       // Detail
-      expect(
-        screen.getByText("TVA 20% attendue, 10% trouvée"),
-      ).toBeInTheDocument();
+      expect(screen.getByText("Écart de 0.02€")).toBeInTheDocument();
     });
 
     it("displays severity counters in header", () => {
@@ -140,17 +149,20 @@ describe("AnomaliesPanel", () => {
       expect(screen.getAllByText("Remboursement sans commande").length).toBeGreaterThanOrEqual(1);
     });
 
-    it("displays French label for direct_payment type", () => {
+    it("displays French label for direct_payment type in grouped summary", () => {
       const anomaly: Anomaly = {
         type: "direct_payment",
         severity: "info",
         canal: "shopify",
         reference: "#DP01",
         detail: "Paiement Klarna détecté",
+        expected_value: null,
+        actual_value: null,
       };
       render(<AnomaliesPanel anomalies={[anomaly]} />);
 
-      expect(screen.getByText("Paiement direct")).toBeInTheDocument();
+      // direct_payment is grouped — summary text contains "paiement direct"
+      expect(screen.getByText(/paiement direct/)).toBeInTheDocument();
     });
 
     it("falls back to raw type value for unknown types", () => {
@@ -311,6 +323,95 @@ describe("AnomaliesPanel", () => {
 
       // Warning and info counters should not appear (they are 0 after filter)
       expect(screen.queryByText(/avertissement/)).not.toBeInTheDocument();
+    });
+  });
+
+  describe("tva_mismatch grouping", () => {
+    it("groups tva_mismatch anomalies by rate discrepancy in a <details>", () => {
+      const tvaMismatchAnomalies: Anomaly[] = [
+        {
+          type: "tva_mismatch",
+          severity: "warning",
+          canal: "shopify",
+          reference: "#A01",
+          detail: "TVA 20% attendue, 0% trouvée",
+          expected_value: "20",
+          actual_value: "0",
+        },
+        {
+          type: "tva_mismatch",
+          severity: "warning",
+          canal: "shopify",
+          reference: "#A02",
+          detail: "TVA 20% attendue, 0% trouvée",
+          expected_value: "20",
+          actual_value: "0",
+        },
+        {
+          type: "tva_mismatch",
+          severity: "warning",
+          canal: "shopify",
+          reference: "#A03",
+          detail: "TVA 20% attendue, 10% trouvée",
+          expected_value: "20",
+          actual_value: "10",
+        },
+      ];
+      render(<AnomaliesPanel anomalies={tvaMismatchAnomalies} />);
+
+      // Two groups: "0% au lieu de 20%" (2 items) and "10% au lieu de 20%" (1 item)
+      const details = document.querySelectorAll("details");
+      expect(details).toHaveLength(2);
+
+      // First group summary: 2 factures
+      expect(screen.getByText(/2 factures avec taux de TVA incohérent — 0% au lieu de 20%/)).toBeInTheDocument();
+      // Second group summary: 1 facture (singular)
+      expect(screen.getByText(/1 facture avec taux de TVA incohérent — 10% au lieu de 20%/)).toBeInTheDocument();
+
+      // Individual references visible inside details
+      expect(screen.getByText("#A01")).toBeInTheDocument();
+      expect(screen.getByText("#A02")).toBeInTheDocument();
+      expect(screen.getByText("#A03")).toBeInTheDocument();
+    });
+
+    it("uses severity badge and channel badge in tva_mismatch group summary", () => {
+      const anomalies: Anomaly[] = [
+        {
+          type: "tva_mismatch",
+          severity: "warning",
+          canal: "decathlon",
+          reference: "#D01",
+          detail: "TVA incohérente",
+          expected_value: "20",
+          actual_value: "0",
+        },
+      ];
+      render(<AnomaliesPanel anomalies={anomalies} />);
+
+      // Severity badge inside the details summary
+      const details = document.querySelector("details");
+      expect(details).not.toBeNull();
+      expect(details!.querySelector("[class*='bg-orange-100']")).not.toBeNull();
+
+      // Channel badge
+      expect(screen.getByText("Décathlon")).toBeInTheDocument();
+    });
+
+    it("handles missing expected_value/actual_value with fallback '?'", () => {
+      const anomalies: Anomaly[] = [
+        {
+          type: "tva_mismatch",
+          severity: "warning",
+          canal: "shopify",
+          reference: "#X01",
+          detail: "TVA incohérente",
+          expected_value: null,
+          actual_value: null,
+        },
+      ];
+      render(<AnomaliesPanel anomalies={anomalies} />);
+
+      expect(screen.getByText(/\?% au lieu de \?%/)).toBeInTheDocument();
     });
   });
 

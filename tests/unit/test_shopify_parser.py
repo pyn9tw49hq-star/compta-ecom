@@ -925,3 +925,58 @@ class TestShopifyParserMultiTax:
         tx = result.transactions[0]
         assert tx.country_code == "380"
         assert tx.tva_rate == 20.0  # Fallback to Tax 1 when no match
+
+
+class TestZeroAmountSale:
+    """Issue #6 — Factures à 0€ (SAV/garantie) ne doivent pas générer de fausses anomalies."""
+
+    def test_zero_amount_sale_no_orphan_summary(self, shopify_config: AppConfig) -> None:
+        """Vente à Total=0 sans charge correspondante → pas dans orphan_sale_summary."""
+        parser = ShopifyParser()
+        sales = {
+            "#1228": {
+                "reference": "#1228",
+                "date": datetime.date(2026, 1, 15),
+                "amount_ht": 0.0,
+                "amount_tva": 0.0,
+                "amount_ttc": 0.0,
+                "shipping_ht": 0.0,
+                "shipping_tva": 0.0,
+                "tva_rate": 20.0,
+                "country_code": "250",
+                "sale_payment_method": "",
+            },
+        }
+        # Non-empty transactions dict (so orphan path is triggered) but no match for #1228
+        transactions = {
+            "#9999": [{"order": "#9999", "type": "charge", "payment_method": "card",
+                        "amount": 50.0, "fee": 1.5, "net": 48.5,
+                        "payout_date": datetime.date(2026, 1, 20), "payout_reference": "P001"}],
+        }
+        result_txs, anomalies = parser._match_and_build(sales, transactions, shopify_config)
+        orphan_summaries = [a for a in anomalies if a.type == "orphan_sale_summary"]
+        assert len(orphan_summaries) == 0
+
+    def test_zero_amount_sale_still_creates_transaction(self, shopify_config: AppConfig) -> None:
+        """Facture à 0€ → la NormalizedTransaction est quand même créée."""
+        parser = ShopifyParser()
+        sales = {
+            "#1228": {
+                "reference": "#1228",
+                "date": datetime.date(2026, 1, 15),
+                "amount_ht": 0.0,
+                "amount_tva": 0.0,
+                "amount_ttc": 0.0,
+                "shipping_ht": 0.0,
+                "shipping_tva": 0.0,
+                "tva_rate": 20.0,
+                "country_code": "250",
+                "sale_payment_method": "",
+            },
+        }
+        transactions: dict[str, list[dict[str, object]]] = {}
+        result_txs, _ = parser._match_and_build(sales, transactions, shopify_config)
+        assert len(result_txs) == 1
+        assert result_txs[0].reference == "#1228"
+        assert result_txs[0].amount_ttc == 0.0
+        assert result_txs[0].type == "sale"
