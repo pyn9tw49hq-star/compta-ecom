@@ -16,6 +16,16 @@ AMOUNT_TOLERANCE = 0.01  # euros
 # cf. Story 2.2 — commission_vat_rate disponible pour extension future
 
 
+def _fmt(v: float) -> str:
+    """Formate un montant en style français (2 décimales, virgule)."""
+    return f"{v:,.2f}".replace(",", " ").replace(".", ",")
+
+
+def _fmt_rate(r: float) -> str:
+    """Formate un taux (enlève .0 inutile)."""
+    return f"{r:g}"
+
+
 class VatChecker:
     """Contrôle de cohérence TVA sur les transactions normalisées."""
 
@@ -86,10 +96,14 @@ class VatChecker:
     def _check_tva_amounts(
         transaction: NormalizedTransaction,
     ) -> list[Anomaly]:
-        """Contrôle 2 — montant TVA total = HT total × taux."""
+        """Contrôle 2 — TVA constatée vs TVA théorique depuis TTC × taux/(100+taux)."""
+        if transaction.tva_rate == 0:
+            return []
+
         total_actual_tva = round(transaction.amount_tva + transaction.shipping_tva, 2)
-        total_ht = round(transaction.amount_ht + transaction.shipping_ht, 2)
-        total_expected_tva = round(total_ht * transaction.tva_rate / 100, 2)
+        total_expected_tva = round(
+            transaction.amount_ttc * transaction.tva_rate / (100 + transaction.tva_rate), 2
+        )
 
         if round(abs(total_actual_tva - total_expected_tva), 2) > AMOUNT_TOLERANCE:
             return [
@@ -99,8 +113,10 @@ class VatChecker:
                     reference=transaction.reference,
                     channel=transaction.channel,
                     detail=(
-                        f"Montant de TVA total incorrect : {total_actual_tva}€ constaté au lieu de "
-                        f"{total_expected_tva}€ calculé ({total_ht}€ HT × {transaction.tva_rate}%)"
+                        f"Montant de TVA incorrect : {_fmt(total_actual_tva)}€ constaté "
+                        f"au lieu de {_fmt(total_expected_tva)}€ attendu "
+                        f"({_fmt(transaction.amount_ttc)}€ TTC / {_fmt(1 + transaction.tva_rate / 100)} "
+                        f"× {_fmt_rate(transaction.tva_rate)}%)"
                     ),
                     expected_value=str(total_expected_tva),
                     actual_value=str(total_actual_tva),

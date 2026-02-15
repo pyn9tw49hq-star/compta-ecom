@@ -156,85 +156,39 @@ class TestCheckRate:
 
 
 class TestCheckTvaAmounts:
-    """Tests pour le contrôle montants TVA (vérification globale total TVA)."""
+    """Tests pour le contrôle montants TVA (TTC × taux / (100 + taux))."""
 
-    def test_montants_coherents(self) -> None:
-        """Montants cohérents (total TVA = round(100 × 20 / 100, 2) = 20.00) → pas d'anomalie."""
-        tx = _make_tx(amount_ht=100.0, amount_tva=20.0, tva_rate=20.0, shipping_ht=0.0, shipping_tva=0.0)
+    def test_tva_correcte(self) -> None:
+        """TTC=120, taux=20% → TVA attendue = 120×20/120 = 20€, réelle = 20€ → pas d'anomalie."""
+        tx = _make_tx(amount_ttc=120.0, amount_tva=20.0, tva_rate=20.0, shipping_tva=0.0)
         anomalies = VatChecker._check_tva_amounts(tx)
         assert anomalies == []
 
-    def test_tva_totale_incoherente(self) -> None:
-        """TVA totale incohérente → tva_amount_mismatch."""
-        # total_actual = 15 + 0 = 15, total_expected = round(100 * 20 / 100, 2) = 20 → écart 5
-        tx = _make_tx(amount_ht=100.0, amount_tva=15.0, tva_rate=20.0, shipping_ht=0.0, shipping_tva=0.0)
+    def test_tva_incorrecte_article_non_taxable(self) -> None:
+        """TTC=108, taux=20% → TVA attendue = 108×20/120 = 18€, réelle = 12.30€ → anomalie."""
+        tx = _make_tx(amount_ttc=108.0, amount_tva=12.30, tva_rate=20.0, shipping_tva=0.0)
         anomalies = VatChecker._check_tva_amounts(tx)
         assert len(anomalies) == 1
         assert anomalies[0].type == "tva_amount_mismatch"
-        assert "15.0€ constaté" in anomalies[0].detail
-        assert "20.0€ calculé" in anomalies[0].detail
+        assert "12,30€ constaté" in anomalies[0].detail
+        assert "18,00€ attendu" in anomalies[0].detail
+        assert "108,00€ TTC / 1,20 × 20%" in anomalies[0].detail
 
-    def test_tva_shipping_incoherente_total(self) -> None:
-        """TVA shipping décalée mais total incohérent → tva_amount_mismatch."""
-        # total_actual = 20 + 5 = 25, total_expected = round(110 * 20 / 100, 2) = 22 → écart 3
-        tx = _make_tx(
-            amount_ht=100.0, amount_tva=20.0, tva_rate=20.0, shipping_ht=10.0, shipping_tva=5.0
-        )
-        anomalies = VatChecker._check_tva_amounts(tx)
-        assert len(anomalies) == 1
-        assert anomalies[0].type == "tva_amount_mismatch"
-
-    def test_ecart_dans_tolerance(self) -> None:
-        """Écart ≤ 0.01€ → dans la tolérance, pas d'anomalie."""
-        # total_expected = round(100 * 20 / 100, 2) = 20.00, total_actual = 20.005 → |diff| = 0.005
-        tx = _make_tx(amount_ht=100.0, amount_tva=20.005, tva_rate=20.0)
+    def test_tva_taux_zero_skip(self) -> None:
+        """Taux=0% → pas de vérification, pas d'anomalie."""
+        tx = _make_tx(tva_rate=0.0, amount_tva=0.0, shipping_tva=0.0, amount_ttc=100.0)
         anomalies = VatChecker._check_tva_amounts(tx)
         assert anomalies == []
 
-    def test_sans_shipping(self) -> None:
-        """Transaction sans shipping (shipping_ht=0, shipping_tva=0) → contrôle OK."""
-        tx = _make_tx(amount_ht=50.0, amount_tva=10.0, tva_rate=20.0, shipping_ht=0.0, shipping_tva=0.0)
-        anomalies = VatChecker._check_tva_amounts(tx)
-        assert anomalies == []
+    def test_arrondi_acceptable(self) -> None:
+        """TTC=99.99, taux=20% → tolérance 0.01€ respectée → pas d'anomalie.
 
-    def test_split_proportionnel_pas_de_faux_positif(self) -> None:
-        """Split proportionnel parser (arrondis cumulés) → total TVA cohérent, pas d'anomalie (Issue #8).
-
-        Simule le cas réel : Subtotal=86.67, Shipping=7.33, Taxes=18.80, Total=112.80.
-        Le parser split la TVA proportionnellement : shipping_tva=1.47, amount_tva=17.33.
-        Individuellement les round() divergent, mais le total (17.33 + 1.47 = 18.80) est correct.
+        expected = round(99.99 × 20 / 120, 2) = 16.67
+        actual = 16.66 → |diff| = 0.01 ≤ AMOUNT_TOLERANCE → OK
         """
-        tx = _make_tx(
-            amount_ht=86.67,
-            amount_tva=17.33,
-            shipping_ht=7.33,
-            shipping_tva=1.47,
-            tva_rate=20.0,
-            amount_ttc=112.80,
-        )
-        # total_actual = 17.33 + 1.47 = 18.80
-        # total_expected = round((86.67 + 7.33) * 20 / 100, 2) = round(94.0 * 0.2, 2) = 18.80
+        tx = _make_tx(amount_ttc=99.99, amount_tva=16.66, tva_rate=20.0, shipping_tva=0.0)
         anomalies = VatChecker._check_tva_amounts(tx)
         assert anomalies == []
-
-    def test_vrai_ecart_tva_detecte(self) -> None:
-        """Vrai écart TVA (total diverge réellement) → anomalie détectée."""
-        # total_actual = 10.0 + 1.0 = 11.0
-        # total_expected = round((100.0 + 10.0) * 20 / 100, 2) = 22.0
-        # |11.0 - 22.0| = 11.0 → anomalie
-        tx = _make_tx(
-            amount_ht=100.0,
-            amount_tva=10.0,
-            shipping_ht=10.0,
-            shipping_tva=1.0,
-            tva_rate=20.0,
-            amount_ttc=121.0,
-        )
-        anomalies = VatChecker._check_tva_amounts(tx)
-        assert len(anomalies) == 1
-        assert anomalies[0].type == "tva_amount_mismatch"
-        assert anomalies[0].expected_value == "22.0"
-        assert anomalies[0].actual_value == "11.0"
 
 
 # ============================================================
