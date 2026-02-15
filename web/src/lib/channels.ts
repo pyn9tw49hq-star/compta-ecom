@@ -22,6 +22,7 @@ const CHANNEL_PATTERNS: Record<string, RegExp[]> = {
   manomano: [
     /^CA Manomano.*\.csv$/i,
     /^Detail versement Manomano.*\.csv$/i,
+    /^Detail commandes manomano.*\.csv$/i,
   ],
   decathlon: [/^Decathlon.*\.csv$/i],
   leroy_merlin: [/^Leroy Merlin.*\.csv$/i],
@@ -165,6 +166,13 @@ export const CHANNEL_CONFIGS: ChannelConfig[] = [
         patternHuman: '"Detail versement Manomano [...].csv"',
         required: true,
         regex: /^Detail versement Manomano.*\.csv$/i,
+      },
+      {
+        key: "order_details",
+        pattern: "Detail commandes manomano*.csv",
+        patternHuman: '"Detail commandes manomano [...].csv"',
+        required: true,
+        regex: /^Detail commandes manomano.*\.csv$/i,
       },
     ],
   },

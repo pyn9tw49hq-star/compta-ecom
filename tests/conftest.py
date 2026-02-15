@@ -32,8 +32,10 @@ def sample_config() -> AppConfig:
         zones_port={"france": "00", "hors_ue": "01", "ue": "02"},
         vat_table={
             "250": {"name": "France", "rate": 20.0, "alpha2": "FR"},
+            "276": {"name": "Allemagne", "rate": 19.0, "alpha2": "DE"},
+            "380": {"name": "Italie", "rate": 22.0, "alpha2": "IT"},
         },
-        alpha2_to_numeric={"FR": "250"},
+        alpha2_to_numeric={"FR": "250", "DE": "276", "IT": "380"},
         channels={
             "shopify": ChannelConfig(
                 files={"sales": "Ventes Shopify*.csv"},

@@ -17,6 +17,7 @@ channels:
     files:
       ca: "ca.csv"
       payouts: "versements_manomano.csv"
+      order_details: "commandes_manomano.csv"
     encoding: utf-8
     separator: ";"
     default_country_code: "250"

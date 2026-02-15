@@ -1,4 +1,4 @@
-"""Tests pour le parser ManoMano (CA + Versements)."""
+"""Tests pour le parser ManoMano (CA, Versements et Detail commandes)."""
 
 from __future__ import annotations
 
@@ -598,3 +598,289 @@ class TestParseResult:
         assert refs["M002"].amount_ttc == 60.00  # abs()
         assert refs["M002"].commission_ttc == 9.00  # signed
         assert refs["M002"].net_amount == -51.00  # signed
+
+
+# =============================================================================
+# Story 2.5 : Tests order_details lookup
+# =============================================================================
+
+
+def _make_od_df(rows: list[dict[str, object]]) -> pd.DataFrame:
+    """Crée un DataFrame order_details."""
+    return pd.DataFrame(rows)
+
+
+class TestOrderDetailsLookup:
+    """Tests pour _parse_order_details()."""
+
+    def test_nominal_multi_pays(self, sample_config: AppConfig, tmp_path: Path) -> None:
+        """3 commandes (FR, DE, IT) avec multi-lignes → lookup correct."""
+        # Arrange
+        df = pd.DataFrame({
+            "Order Reference": ["M001", "M001", "M002", "M003", "M003", "M003"],
+            "Billing Country ISO": ["DE", "DE", "FR", "IT", "IT", "IT"],
+        })
+        od_path = tmp_path / "od.csv"
+        _write_csv(df, od_path)
+        parser = ManoManoParser()
+
+        # Act
+        lookup, anomalies = parser._parse_order_details(od_path, sample_config)
+
+        # Assert
+        assert lookup == {"M001": "276", "M002": "250", "M003": "380"}
+        assert len(anomalies) == 0
+
+    def test_deduplication_multi_lignes(self, sample_config: AppConfig, tmp_path: Path) -> None:
+        """5 lignes pour 2 commandes → lookup 2 entrées."""
+        # Arrange
+        df = pd.DataFrame({
+            "Order Reference": ["M001", "M001", "M001", "M002", "M002"],
+            "Billing Country ISO": ["FR", "FR", "FR", "DE", "DE"],
+        })
+        od_path = tmp_path / "od.csv"
+        _write_csv(df, od_path)
+        parser = ManoManoParser()
+
+        # Act
+        lookup, anomalies = parser._parse_order_details(od_path, sample_config)
+
+        # Assert
+        assert len(lookup) == 2
+        assert lookup["M001"] == "250"
+        assert lookup["M002"] == "276"
+        assert len(anomalies) == 0
+
+    def test_country_conflict(self, sample_config: AppConfig, tmp_path: Path) -> None:
+        """Même Order Reference avec FR puis DE → Anomaly(type='country_conflict') + premier code retenu."""
+        # Arrange
+        df = pd.DataFrame({
+            "Order Reference": ["M001", "M001"],
+            "Billing Country ISO": ["FR", "DE"],
+        })
+        od_path = tmp_path / "od.csv"
+        _write_csv(df, od_path)
+        parser = ManoManoParser()
+
+        # Act
+        lookup, anomalies = parser._parse_order_details(od_path, sample_config)
+
+        # Assert
+        assert lookup["M001"] == "250"  # First occurrence = FR → 250
+        conflict_anomalies = [a for a in anomalies if a.type == "country_conflict"]
+        assert len(conflict_anomalies) == 1
+        assert conflict_anomalies[0].reference == "M001"
+
+    def test_unknown_alpha2(self, sample_config: AppConfig, tmp_path: Path) -> None:
+        """Alpha-2 inconnu → Anomaly(type='unknown_country_alpha2') + absence du lookup."""
+        # Arrange
+        df = pd.DataFrame({
+            "Order Reference": ["M001"],
+            "Billing Country ISO": ["XX"],
+        })
+        od_path = tmp_path / "od.csv"
+        _write_csv(df, od_path)
+        parser = ManoManoParser()
+
+        # Act
+        lookup, anomalies = parser._parse_order_details(od_path, sample_config)
+
+        # Assert
+        assert "M001" not in lookup
+        assert len(anomalies) == 1
+        assert anomalies[0].type == "unknown_country_alpha2"
+        assert anomalies[0].actual_value == "XX"
+
+    def test_missing_country_iso_empty(self, sample_config: AppConfig, tmp_path: Path) -> None:
+        """Billing Country ISO vide → Anomaly(type='missing_country_iso') + absence du lookup."""
+        # Arrange
+        df = pd.DataFrame({
+            "Order Reference": ["M001"],
+            "Billing Country ISO": [""],
+        })
+        od_path = tmp_path / "od.csv"
+        _write_csv(df, od_path)
+        parser = ManoManoParser()
+
+        # Act
+        lookup, anomalies = parser._parse_order_details(od_path, sample_config)
+
+        # Assert
+        assert "M001" not in lookup
+        assert len(anomalies) == 1
+        assert anomalies[0].type == "missing_country_iso"
+
+    def test_missing_column(self, sample_config: AppConfig, tmp_path: Path) -> None:
+        """Colonne manquante → ParseError."""
+        # Arrange
+        df = pd.DataFrame({"Order Reference": ["M001"]})
+        od_path = tmp_path / "od.csv"
+        _write_csv(df, od_path)
+        parser = ManoManoParser()
+
+        # Act & Assert
+        with pytest.raises(ParseError):
+            parser._parse_order_details(od_path, sample_config)
+
+
+class TestParseWithCountryLookup:
+    """Tests pour parse() avec/sans order_details — résolution pays par transaction."""
+
+    def test_parse_with_order_details_multi_pays(
+        self, sample_config: AppConfig, tmp_path: Path
+    ) -> None:
+        """2 transactions CA (M001=DE, M002=FR) → country_code et tva_rate résolus par lookup."""
+        # Arrange
+        ca_df = pd.DataFrame({
+            "reference": ["M001", "M002"],
+            "type": ["ORDER", "ORDER"],
+            "createdAt": ["2026-01-15", "2026-01-16"],
+            "amountVatIncl": [119.00, 120.00],
+            "commissionVatIncl": [-18.00, -18.00],
+            "commissionVatExcl": [-15.00, -15.00],
+            "vatOnCommission": [-3.00, -3.00],
+            "netAmount": [101.00, 102.00],
+            "productPriceVatExcl": [100.00, 100.00],
+            "vatOnProduct": [19.00, 20.00],
+            "shippingPriceVatExcl": [0.00, 0.00],
+            "vatOnShipping": [0.00, 0.00],
+        })
+        payout_df = _make_payout_df([
+            {"REFERENCE": "M001", "TYPE": "ORDER", "PAYOUT_REFERENCE": "PAY001", "PAYOUT_DATE": "2026-01-31", "AMOUNT": 101.00},
+            {"REFERENCE": "M002", "TYPE": "ORDER", "PAYOUT_REFERENCE": "PAY001", "PAYOUT_DATE": "2026-01-31", "AMOUNT": 102.00},
+        ])
+        od_df = pd.DataFrame({
+            "Order Reference": ["M001", "M002"],
+            "Billing Country ISO": ["DE", "FR"],
+        })
+        ca_path = tmp_path / "ca.csv"
+        payout_path = tmp_path / "payouts.csv"
+        od_path = tmp_path / "od.csv"
+        _write_csv(ca_df, ca_path)
+        _write_csv(payout_df, payout_path)
+        _write_csv(od_df, od_path)
+        parser = ManoManoParser()
+
+        # Act
+        result = parser.parse(
+            {"ca": ca_path, "payouts": payout_path, "order_details": od_path},
+            sample_config,
+        )
+
+        # Assert
+        refs = {t.reference: t for t in result.transactions}
+        assert refs["M001"].country_code == "276"
+        assert refs["M001"].tva_rate == 19.0
+        assert refs["M002"].country_code == "250"
+        assert refs["M002"].tva_rate == 20.0
+
+    def test_parse_without_order_details_retrocompat(
+        self, sample_config: AppConfig, tmp_path: Path
+    ) -> None:
+        """files sans clé order_details → tout = France 250 (comportement story 2.1)."""
+        # Arrange
+        ca_df = _make_ca_df()
+        payout_df = _make_payout_df()
+        ca_path = tmp_path / "ca.csv"
+        payout_path = tmp_path / "payouts.csv"
+        _write_csv(ca_df, ca_path)
+        _write_csv(payout_df, payout_path)
+        parser = ManoManoParser()
+
+        # Act
+        result = parser.parse({"ca": ca_path, "payouts": payout_path}, sample_config)
+
+        # Assert
+        assert len(result.transactions) == 1
+        tx = result.transactions[0]
+        assert tx.country_code == "250"
+        assert tx.tva_rate == 20.0
+        # No order_reference_not_in_lookup anomaly (lookup is empty, not active)
+        assert not any(a.type == "order_reference_not_in_lookup" for a in result.anomalies)
+
+    def test_parse_ref_absent_from_lookup(
+        self, sample_config: AppConfig, tmp_path: Path
+    ) -> None:
+        """Référence CA absente du lookup → country_code='250' + Anomaly info."""
+        # Arrange
+        ca_df = _make_ca_df()  # M001
+        payout_df = _make_payout_df()
+        od_df = pd.DataFrame({
+            "Order Reference": ["M999"],
+            "Billing Country ISO": ["DE"],
+        })
+        ca_path = tmp_path / "ca.csv"
+        payout_path = tmp_path / "payouts.csv"
+        od_path = tmp_path / "od.csv"
+        _write_csv(ca_df, ca_path)
+        _write_csv(payout_df, payout_path)
+        _write_csv(od_df, od_path)
+        parser = ManoManoParser()
+
+        # Act
+        result = parser.parse(
+            {"ca": ca_path, "payouts": payout_path, "order_details": od_path},
+            sample_config,
+        )
+
+        # Assert
+        tx = result.transactions[0]
+        assert tx.country_code == "250"
+        assert tx.tva_rate == 20.0
+        info_anomalies = [a for a in result.anomalies if a.type == "order_reference_not_in_lookup"]
+        assert len(info_anomalies) == 1
+        assert info_anomalies[0].severity == "info"
+
+    def test_parse_full_integration_with_od(
+        self, sample_config: AppConfig, tmp_path: Path
+    ) -> None:
+        """Intégration complète : CA + Versements + order_details via tmp_path CSV."""
+        # Arrange
+        ca_df = pd.DataFrame({
+            "reference": ["M001", "M002", "M003"],
+            "type": ["ORDER", "ORDER", "REFUND"],
+            "createdAt": ["2026-01-15", "2026-01-16", "2026-01-17"],
+            "amountVatIncl": [119.00, 122.00, -120.00],
+            "commissionVatIncl": [-17.85, -18.30, 18.00],
+            "commissionVatExcl": [-14.88, -15.25, 15.00],
+            "vatOnCommission": [-2.97, -3.05, 3.00],
+            "netAmount": [101.15, 103.70, -102.00],
+            "productPriceVatExcl": [100.00, 100.00, -100.00],
+            "vatOnProduct": [19.00, 22.00, -20.00],
+            "shippingPriceVatExcl": [0.00, 0.00, 0.00],
+            "vatOnShipping": [0.00, 0.00, 0.00],
+        })
+        payout_df = pd.DataFrame({
+            "REFERENCE": ["M001", "M002", "M003"],
+            "TYPE": ["ORDER", "ORDER", "REFUND"],
+            "PAYOUT_REFERENCE": ["PAY001", "PAY001", "PAY001"],
+            "PAYOUT_DATE": ["2026-01-31", "2026-01-31", "2026-01-31"],
+            "AMOUNT": [101.15, 103.70, -102.00],
+        })
+        od_df = pd.DataFrame({
+            "Order Reference": ["M001", "M002", "M003"],
+            "Billing Country ISO": ["DE", "IT", "FR"],
+        })
+        ca_path = tmp_path / "ca.csv"
+        payout_path = tmp_path / "payouts.csv"
+        od_path = tmp_path / "od.csv"
+        _write_csv(ca_df, ca_path)
+        _write_csv(payout_df, payout_path)
+        _write_csv(od_df, od_path)
+        parser = ManoManoParser()
+
+        # Act
+        result = parser.parse(
+            {"ca": ca_path, "payouts": payout_path, "order_details": od_path},
+            sample_config,
+        )
+
+        # Assert
+        refs = {t.reference: t for t in result.transactions}
+        assert refs["M001"].country_code == "276"
+        assert refs["M001"].tva_rate == 19.0
+        assert refs["M002"].country_code == "380"
+        assert refs["M002"].tva_rate == 22.0
+        assert refs["M003"].country_code == "250"
+        assert refs["M003"].tva_rate == 20.0
+        assert len(result.anomalies) == 0

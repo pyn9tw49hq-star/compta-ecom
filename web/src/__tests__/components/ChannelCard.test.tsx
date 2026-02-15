@@ -80,6 +80,13 @@ const manomanoFiles: FileSlotConfig[] = [
     required: true,
     regex: /^Detail versement Manomano.*\.csv$/i,
   },
+  {
+    key: "order_details",
+    pattern: "Detail commandes manomano*.csv",
+    patternHuman: '"Detail commandes manomano [...].csv"',
+    required: true,
+    regex: /^Detail commandes manomano.*\.csv$/i,
+  },
 ];
 
 describe("ChannelCard", () => {
@@ -153,7 +160,7 @@ describe("ChannelCard", () => {
     expect(screen.queryByText("Incomplet")).not.toBeInTheDocument();
   });
 
-  it("displays correct counter for ManoMano (2 required files)", () => {
+  it("displays correct counter for ManoMano (3 required files)", () => {
     const files: UploadedFile[] = [
       createUploadedFile("CA Manomano 2026.csv", "manomano"),
     ];
@@ -170,7 +177,7 @@ describe("ChannelCard", () => {
       />,
     );
 
-    expect(screen.getByText("1 / 2 obligatoires")).toBeInTheDocument();
+    expect(screen.getByText("1 / 3 obligatoires")).toBeInTheDocument();
   });
 
   it("has aria-expanded attribute matching isExpanded prop", () => {

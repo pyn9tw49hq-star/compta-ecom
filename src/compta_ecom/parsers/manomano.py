@@ -1,4 +1,4 @@
-"""Parser pour les fichiers CSV ManoMano (CA et Versements)."""
+"""Parser pour les fichiers CSV ManoMano (CA, Versements et Detail commandes)."""
 
 from __future__ import annotations
 
@@ -59,6 +59,8 @@ PAYOUT_COLUMN_ALIASES: dict[str, list[str]] = {
     "AMOUNT": ["NET_AMOUNT"],
 }
 
+ORDER_DETAILS_REQUIRED_COLUMNS = ["Order Reference", "Billing Country ISO"]
+
 CA_AMOUNT_COLUMNS = [
     "amountVatIncl",
     "commissionVatIncl",
@@ -75,8 +77,90 @@ CA_AMOUNT_COLUMNS = [
 class ManoManoParser(BaseParser):
     """Parser pour les fichiers CSV ManoMano."""
 
+    def _parse_order_details(
+        self, od_path: Path | BytesIO, config: AppConfig
+    ) -> tuple[dict[str, str], list[Anomaly]]:
+        """Parse le fichier Detail commandes ManoMano (lookup pays).
+
+        Retourne :
+        - lookup_dict : {order_reference: country_code_numérique} (dédupliqué)
+        - anomalies : anomalies collectées (conflits pays, alpha-2 inconnu, ISO vide)
+        """
+        channel_config = config.channels["manomano"]
+        try:
+            df = pd.read_csv(
+                od_path,
+                sep=channel_config.separator,
+                encoding=channel_config.encoding,
+                usecols=ORDER_DETAILS_REQUIRED_COLUMNS,
+            )
+        except ValueError as e:
+            raise ParseError(str(e)) from e
+        self.validate_columns(df, ORDER_DETAILS_REQUIRED_COLUMNS)
+
+        anomalies: list[Anomaly] = []
+
+        # Detect country conflicts before deduplication
+        grouped = df.groupby("Order Reference")["Billing Country ISO"].nunique()
+        conflict_refs = grouped[grouped > 1].index
+        for ref in conflict_refs:
+            values = df.loc[df["Order Reference"] == ref, "Billing Country ISO"].unique().tolist()
+            anomalies.append(Anomaly(
+                type="country_conflict",
+                severity="warning",
+                reference=str(ref),
+                channel="manomano",
+                detail=f"Codes pays contradictoires pour la commande : {values}",
+                expected_value=None,
+                actual_value=str(values),
+            ))
+            logger.warning("Pays contradictoires pour %s : %s", ref, values)
+
+        # Deduplicate: keep first occurrence per Order Reference
+        deduped = df.drop_duplicates(subset=["Order Reference"], keep="first")
+
+        lookup: dict[str, str] = {}
+        for _, row in deduped.iterrows():
+            ref = str(row["Order Reference"])
+            alpha2_raw = row["Billing Country ISO"]
+
+            # Empty/NaN check
+            if pd.isna(alpha2_raw) or str(alpha2_raw).strip() == "":
+                anomalies.append(Anomaly(
+                    type="missing_country_iso",
+                    severity="warning",
+                    reference=ref,
+                    channel="manomano",
+                    detail="Billing Country ISO vide ou manquant",
+                    expected_value="Code alpha-2 (FR, DE, IT…)",
+                    actual_value=None,
+                ))
+                logger.warning("Billing Country ISO vide pour %s", ref)
+                continue
+
+            alpha2_upper = str(alpha2_raw).strip().upper()
+            numeric_code = config.alpha2_to_numeric.get(alpha2_upper)
+
+            if numeric_code is None:
+                anomalies.append(Anomaly(
+                    type="unknown_country_alpha2",
+                    severity="warning",
+                    reference=ref,
+                    channel="manomano",
+                    detail=f"Code alpha-2 « {alpha2_upper} » absent de la table TVA",
+                    expected_value="Code alpha-2 connu (FR, DE, IT…)",
+                    actual_value=alpha2_upper,
+                ))
+                logger.warning("Alpha-2 inconnu pour %s : %s", ref, alpha2_upper)
+                continue
+
+            lookup[ref] = numeric_code
+
+        return lookup, anomalies
+
     def _parse_ca(
-        self, ca_path: Path | BytesIO, config: AppConfig
+        self, ca_path: Path | BytesIO, config: AppConfig,
+        country_lookup: dict[str, str] | None = None,
     ) -> tuple[list[dict[str, Any]], list[Anomaly]]:
         """Parse le fichier CA ManoMano.
 
@@ -103,12 +187,14 @@ class ManoManoParser(BaseParser):
         df = self.apply_column_aliases(df, CA_COLUMN_ALIASES)
         self.validate_columns(df, CA_REQUIRED_COLUMNS)
 
-        country_code = channel_config.default_country_code
-        if country_code is None:
+        default_country_code = channel_config.default_country_code
+        if default_country_code is None:
             raise ParseError("default_country_code requis pour le canal manomano")
 
-        tva_rate_raw: Any = config.vat_table[country_code]["rate"]
-        tva_rate = float(tva_rate_raw)
+        tva_rate_default = float(config.vat_table[default_country_code]["rate"])
+
+        if country_lookup is None:
+            country_lookup = {}
 
         for col in CA_AMOUNT_COLUMNS:
             df[col] = pd.to_numeric(df[col], errors="coerce")
@@ -162,6 +248,25 @@ class ManoManoParser(BaseParser):
             parsed_date: datetime.date | None = None
             if pd.notna(date_val):
                 parsed_date = date_val.date()
+
+            # Per-line country resolution via lookup
+            if country_lookup and ref in country_lookup:
+                country_code = country_lookup[ref]
+                tva_rate = float(config.vat_table[country_code]["rate"])
+            else:
+                country_code = default_country_code
+                tva_rate = tva_rate_default
+                if country_lookup and ref not in country_lookup:
+                    anomalies.append(Anomaly(
+                        type="order_reference_not_in_lookup",
+                        severity="info",
+                        reference=ref,
+                        channel="manomano",
+                        detail="Référence CA absente du fichier Detail commandes — fallback sur pays par défaut",
+                        expected_value=None,
+                        actual_value=ref,
+                    ))
+                    logger.info("Référence %s absente du lookup order_details", ref)
 
             rows.append({
                 "reference": ref,
@@ -324,8 +429,16 @@ class ManoManoParser(BaseParser):
 
         channel_config = config.channels["manomano"]
 
+        # Parse order_details (lookup pays) if provided
+        od_source = files.get("order_details")
+        if od_source is not None and not isinstance(od_source, list):
+            country_lookup, od_anomalies = self._parse_order_details(od_source, config)
+        else:
+            country_lookup = {}
+            od_anomalies = []
+
         # Parse CA
-        ca_rows, ca_anomalies = self._parse_ca(ca_path, config)
+        ca_rows, ca_anomalies = self._parse_ca(ca_path, config, country_lookup)
 
         # Parse Versements
         payout_df = pd.read_csv(payouts_path, sep=channel_config.separator, encoding=channel_config.encoding)
@@ -335,7 +448,7 @@ class ManoManoParser(BaseParser):
         special_rows, lookup_dict, payout_anomalies = self._parse_payout_lines(payout_df, config)
         payout_summaries, summary_anomalies = self._aggregate_payout_summaries(payout_df)
 
-        all_anomalies = ca_anomalies + payout_anomalies + summary_anomalies
+        all_anomalies = od_anomalies + ca_anomalies + payout_anomalies + summary_anomalies
 
         # Build NormalizedTransaction from CA rows with payout enrichment
         ca_transactions: list[NormalizedTransaction] = []

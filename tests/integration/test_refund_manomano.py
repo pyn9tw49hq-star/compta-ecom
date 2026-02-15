@@ -23,6 +23,7 @@ def manomano_parse_result(sample_config: AppConfig):
     files = {
         "ca": FIXTURES_DIR / "ca_refund.csv",
         "payouts": FIXTURES_DIR / "versements_manomano_refund.csv",
+        "order_details": FIXTURES_DIR / "commandes_manomano.csv",
     }
     return parser.parse(files, sample_config)
 

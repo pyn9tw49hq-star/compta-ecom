@@ -92,9 +92,9 @@ describe("CHANNEL_CONFIGS", () => {
     expect(shopify.files.filter((f) => !f.required)).toHaveLength(2);
   });
 
-  it("ManoMano has 2 required files", () => {
+  it("ManoMano has 3 required files", () => {
     const manomano = CHANNEL_CONFIGS.find((c) => c.key === "manomano")!;
-    expect(manomano.files).toHaveLength(2);
+    expect(manomano.files).toHaveLength(3);
     expect(manomano.files.every((f) => f.required)).toBe(true);
   });
 
@@ -110,10 +110,10 @@ describe("CHANNEL_CONFIGS", () => {
     expect(lm.files[0].required).toBe(true);
   });
 
-  it("has 7 required + 2 optional = 9 total file slots", () => {
+  it("has 8 required + 2 optional = 10 total file slots", () => {
     const allFiles = CHANNEL_CONFIGS.flatMap((c) => c.files);
-    expect(allFiles).toHaveLength(9);
-    expect(allFiles.filter((f) => f.required)).toHaveLength(7);
+    expect(allFiles).toHaveLength(10);
+    expect(allFiles.filter((f) => f.required)).toHaveLength(8);
     expect(allFiles.filter((f) => !f.required)).toHaveLength(2);
   });
 

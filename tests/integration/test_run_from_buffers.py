@@ -22,6 +22,7 @@ SHOPIFY_PAYOUTS_HEADER = "Payout Date,Charges,Refunds,Fees,Total"
 
 MANOMANO_CA_HEADER = "reference;type;createdAt;amountVatIncl;commissionVatIncl;commissionVatExcl;vatOnCommission;netAmount;productPriceVatExcl;vatOnProduct;shippingPriceVatExcl;vatOnShipping"
 MANOMANO_VERSEMENTS_HEADER = "REFERENCE;TYPE;PAYOUT_REFERENCE;PAYOUT_DATE;AMOUNT"
+MANOMANO_OD_HEADER = "Order Reference;Billing Country ISO"
 
 DECATHLON_HEADER = "Numéro de commande;Type;Date de commande;Date du cycle de paiement;Montant"
 
@@ -50,6 +51,10 @@ def _build_test_data() -> dict[str, str]:
         "versements_manomano.csv": (
             f"{MANOMANO_VERSEMENTS_HEADER}\n"
             "M001;ORDER;PAY001;2026-01-31;102.00\n"
+        ),
+        "commandes_manomano.csv": (
+            f"{MANOMANO_OD_HEADER}\n"
+            "M001;FR\n"
         ),
         "decathlon_data.csv": (
             f"{DECATHLON_HEADER}\n"
