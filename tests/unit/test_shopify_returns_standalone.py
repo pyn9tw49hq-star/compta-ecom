@@ -415,6 +415,71 @@ class TestBufferPatternMatching:
         assert "payout_details" not in result["shopify"]
 
 
+class TestCaseInsensitiveBufferMatching:
+    """Tests que _detect_files_from_buffers matche les noms de fichiers indépendamment de la casse."""
+
+    def test_manomano_lowercase_filename_matches_titlecase_pattern(self) -> None:
+        """'ca manomano.csv' (minuscule) matche le pattern 'CA Manomano*.csv' (titre)."""
+        config = AppConfig(
+            clients={},
+            fournisseurs={},
+            psp={},
+            transit="58000000",
+            banque="51200000",
+            comptes_speciaux={},
+            comptes_vente_prefix="707",
+            canal_codes={},
+            comptes_tva_prefix="4457",
+            vat_table={},
+            channels={
+                "manomano": ChannelConfig(
+                    files={
+                        "ca": "CA Manomano*.csv",
+                        "payouts": "Detail versement Manomano*.csv",
+                    },
+                    encoding="utf-8",
+                    separator=";",
+                ),
+            },
+        )
+        orch = PipelineOrchestrator()
+        buffers = {
+            "ca manomano.csv": b"dummy",
+            "detail versement manomano.csv": b"dummy",
+        }
+        result = orch._detect_files_from_buffers(buffers, config.channels)
+        assert "manomano" in result
+        assert "ca" in result["manomano"]
+        assert "payouts" in result["manomano"]
+
+    def test_uppercase_filename_matches_titlecase_pattern(self) -> None:
+        """'CA MANOMANO.csv' (majuscule) matche le pattern 'CA Manomano*.csv'."""
+        config = AppConfig(
+            clients={},
+            fournisseurs={},
+            psp={},
+            transit="58000000",
+            banque="51200000",
+            comptes_speciaux={},
+            comptes_vente_prefix="707",
+            canal_codes={},
+            comptes_tva_prefix="4457",
+            vat_table={},
+            channels={
+                "manomano": ChannelConfig(
+                    files={"ca": "CA Manomano*.csv"},
+                    encoding="utf-8",
+                    separator=";",
+                ),
+            },
+        )
+        orch = PipelineOrchestrator()
+        buffers = {"CA MANOMANO.csv": b"dummy"}
+        result = orch._detect_files_from_buffers(buffers, config.channels)
+        assert "manomano" in result
+        assert "ca" in result["manomano"]
+
+
 class TestConfigValidation:
     """Tests de la validation de required_file_groups dans loader.py."""
 

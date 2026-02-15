@@ -403,7 +403,7 @@ class PipelineOrchestrator:
                 matched: list[tuple[str, bytes]] = []
                 for filename, content in files.items():
                     basename = filename.split("/")[-1] if "/" in filename else filename
-                    if fnmatch.fnmatch(basename, match_pattern):
+                    if fnmatch.fnmatch(basename.lower(), match_pattern.lower()):
                         matched.append((filename, content))
 
                 if not matched:
@@ -412,7 +412,7 @@ class PipelineOrchestrator:
                     if nfd_pattern != match_pattern:
                         for filename, content in files.items():
                             basename = filename.split("/")[-1] if "/" in filename else filename
-                            if fnmatch.fnmatch(basename, nfd_pattern):
+                            if fnmatch.fnmatch(basename.lower(), nfd_pattern.lower()):
                                 matched.append((filename, content))
 
                 if file_key in multi_files:
