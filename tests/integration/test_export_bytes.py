@@ -116,7 +116,7 @@ class TestExportCsvToBytes:
         assert raw[:3] == b"\xef\xbb\xbf"
 
         result.seek(0)
-        df = pd.read_csv(result, encoding="utf-8-sig")
+        df = pd.read_csv(result, encoding="utf-8-sig", sep=";")
         assert len(df) == 3
         assert list(df.columns) == [
             "date", "journal", "account", "label", "debit", "credit",
@@ -128,7 +128,7 @@ class TestExportCsvToBytes:
         assert isinstance(result, BytesIO)
 
         result.seek(0)
-        df = pd.read_csv(result, encoding="utf-8-sig")
+        df = pd.read_csv(result, encoding="utf-8-sig", sep=";")
         assert len(df) == 0
         assert "date" in df.columns
 
@@ -147,7 +147,7 @@ class TestExportAnomaliesCsvToBytes:
         assert raw[:3] == b"\xef\xbb\xbf"
 
         result.seek(0)
-        df = pd.read_csv(result, encoding="utf-8-sig")
+        df = pd.read_csv(result, encoding="utf-8-sig", sep=";")
         assert len(df) == 1
         assert list(df.columns) == [
             "type", "severity", "reference", "channel", "detail",
@@ -160,6 +160,6 @@ class TestExportAnomaliesCsvToBytes:
         assert isinstance(result, BytesIO)
 
         result.seek(0)
-        df = pd.read_csv(result, encoding="utf-8-sig")
+        df = pd.read_csv(result, encoding="utf-8-sig", sep=";")
         assert len(df) == 0
         assert "type" in df.columns

@@ -72,6 +72,13 @@ def sample_config() -> AppConfig:
         commission_vat_rate=20.0,
     )
     config.comptes_charges_marketplace = {
+        "manomano": {
+            "commission": "62220300",
+            "tva_deductible": "44566001",
+            "abonnement": "61311111",
+            "penalite": "62220300",
+            "eco_contribution": "60730000",
+        },
         "decathlon": {"commission": "62220800", "abonnement": "61311112"},
         "leroy_merlin": {"commission": "62220900", "abonnement": "61311113", "tva_deductible": "44566001"},
     }

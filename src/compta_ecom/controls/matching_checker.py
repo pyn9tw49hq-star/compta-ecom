@@ -7,7 +7,7 @@ import logging
 import re
 
 from compta_ecom.config.loader import AppConfig
-from compta_ecom.models import Anomaly, NormalizedTransaction
+from compta_ecom.models import Anomaly, NormalizedTransaction, channel_display_name
 
 logger = logging.getLogger(__name__)
 
@@ -17,19 +17,57 @@ class MatchingChecker:
 
     @staticmethod
     def check(
-        transactions: list[NormalizedTransaction], config: AppConfig
+        transactions: list[NormalizedTransaction],
+        config: AppConfig,
+        *,
+        _today: datetime.date | None = None,
     ) -> list[Anomaly]:
         """Vérifie la cohérence montant, couverture payout et matching refund."""
         if len(transactions) == 0:
             return []
 
+        today = _today or datetime.date.today()
         anomalies: list[Anomaly] = []
+        pending_manomano_refs: list[str] = []
 
         for tx in transactions:
             if tx.special_type is not None:
                 continue
             anomalies.extend(MatchingChecker._check_amount_coherence(tx, config))
+
+            # ManoMano current-month orders: paiement attendu M+1, pas d'anomalie
+            if (
+                tx.channel == "manomano"
+                and tx.payout_date is None
+                and abs(tx.amount_ttc) >= 0.01
+            ):
+                ref_match = re.match(r"^(\d{4})", tx.reference)
+                if ref_match:
+                    yymm = ref_match.group(1)
+                    ref_year = 2000 + int(yymm[:2])
+                    ref_month = int(yymm[2:4])
+                    if 1 <= ref_month <= 12 and (ref_year, ref_month) >= (today.year, today.month):
+                        pending_manomano_refs.append(tx.reference)
+                        continue
+
             anomalies.extend(MatchingChecker._check_payout_coverage(tx))
+
+        if pending_manomano_refs:
+            count = len(pending_manomano_refs)
+            anomalies.append(
+                Anomaly(
+                    type="pending_manomano_payout",
+                    severity="info",
+                    reference="",
+                    channel="manomano",
+                    detail=(
+                        f"Les reversements de {count} commande{'s' if count > 1 else ''} "
+                        f"du mois en cours seront reversés en début de mois prochain"
+                    ),
+                    expected_value=None,
+                    actual_value=", ".join(pending_manomano_refs),
+                )
+            )
 
         anomalies.extend(MatchingChecker._check_refund_matching(transactions))
         anomalies.extend(MatchingChecker._check_payment_delay(transactions))
@@ -79,13 +117,14 @@ class MatchingChecker:
         if abs(transaction.amount_ttc) < 0.01:
             return []
         if transaction.payout_date is None:
+            channel_display = channel_display_name(transaction.channel)
             return [
                 Anomaly(
                     type="missing_payout",
                     severity="info",
                     reference=transaction.reference,
                     channel=transaction.channel,
-                    detail="Cette transaction n'a pas encore de date de versement — le virement bancaire est probablement en attente chez Shopify",
+                    detail=f"Cette transaction n'a pas encore de date de versement — le virement bancaire est probablement en attente chez {channel_display}",
                     expected_value="date de versement",
                     actual_value="None",
                 )

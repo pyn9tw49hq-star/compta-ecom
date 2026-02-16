@@ -133,3 +133,15 @@ class ParseResult:
     payouts: list[PayoutSummary]
     anomalies: list[Anomaly]
     channel: str
+
+
+# --- Utilitaire d'affichage canal ---
+
+_CHANNEL_DISPLAY_NAMES: dict[str, str] = {
+    "manomano": "ManoMano",
+}
+
+
+def channel_display_name(channel: str) -> str:
+    """Retourne le nom d'affichage du canal."""
+    return _CHANNEL_DISPLAY_NAMES.get(channel, channel.replace("_", " ").title())

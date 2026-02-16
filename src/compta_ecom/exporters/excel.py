@@ -152,7 +152,7 @@ def export_csv_to_bytes(entries: list[AccountingEntry]) -> BytesIO:
     ]
     df = pd.DataFrame(entries_data, columns=ENTRIES_COLUMNS)
     buffer = BytesIO()
-    df.to_csv(buffer, index=False, encoding="utf-8-sig")
+    df.to_csv(buffer, index=False, encoding="utf-8-sig", sep=";")
     buffer.seek(0)
     return buffer
 
@@ -173,7 +173,7 @@ def export_anomalies_csv_to_bytes(anomalies: list[Anomaly]) -> BytesIO:
     ]
     df = pd.DataFrame(anomalies_data, columns=ANOMALIES_COLUMNS)
     buffer = BytesIO()
-    df.to_csv(buffer, index=False, encoding="utf-8-sig")
+    df.to_csv(buffer, index=False, encoding="utf-8-sig", sep=";")
     buffer.seek(0)
     return buffer
 

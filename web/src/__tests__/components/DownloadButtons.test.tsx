@@ -184,7 +184,7 @@ describe("DownloadButtons", () => {
         );
       });
 
-      expect(mockDownloadExcel).toHaveBeenCalledWith(MOCK_FILES, undefined);
+      expect(mockDownloadExcel).toHaveBeenCalledWith(MOCK_FILES, undefined, undefined);
       expect(mockCreateObjectURL).toHaveBeenCalled();
     });
 
@@ -265,7 +265,7 @@ describe("DownloadButtons", () => {
       const csvText = await getBlobText(0);
       // Headers
       expect(csvText).toContain(
-        "date,journal,account,label,debit,credit,piece_number,lettrage,channel,entry_type",
+        "date;journal;account;label;debit;credit;piece_number;lettrage;channel;entry_type",
       );
       // Data mapped correctly (compte → account column, canal → channel column)
       expect(csvText).toContain("411000");
@@ -294,7 +294,7 @@ describe("DownloadButtons", () => {
 
       const csvText = await getBlobText(1);
       // Headers use English names
-      expect(csvText).toContain("type,severity,reference,channel,detail");
+      expect(csvText).toContain("type;severity;reference;channel;detail");
       // Data present with canal value mapped under channel column
       expect(csvText).toContain("tva_mismatch");
       expect(csvText).toContain("shopify");

@@ -69,20 +69,55 @@ def _resolve_config(request: Request, overrides_json: str | None) -> object:
     return config
 
 
+def _validate_date_range(
+    date_from: str | None,
+    date_to: str | None,
+) -> tuple[datetime.date | None, datetime.date | None]:
+    """Valide et parse les paramètres de plage de dates."""
+    if date_from is None and date_to is None:
+        return None, None
+    if (date_from is None) != (date_to is None):
+        raise HTTPException(
+            status_code=422,
+            detail="date_from et date_to doivent être fournis ensemble.",
+        )
+    try:
+        parsed_from = datetime.date.fromisoformat(date_from)  # type: ignore[arg-type]
+        parsed_to = datetime.date.fromisoformat(date_to)  # type: ignore[arg-type]
+    except ValueError:
+        raise HTTPException(
+            status_code=422,
+            detail="Format de date invalide. Utilisez YYYY-MM-DD.",
+        )
+    if parsed_from > parsed_to:
+        raise HTTPException(
+            status_code=422,
+            detail="date_from doit être antérieure ou égale à date_to.",
+        )
+    return parsed_from, parsed_to
+
+
 @router.post("/api/process")
 async def process(
     request: Request,
     files: list[UploadFile],
     overrides: str | None = Form(None),
+    date_from: str | None = Form(None),
+    date_to: str | None = Form(None),
 ) -> JSONResponse:
     """Upload CSV → JSON (entries, anomalies, summary)."""
     files_dict = await _validate_and_read_files(files)
+
+    # Validation des paramètres de plage de dates
+    parsed_date_from, parsed_date_to = _validate_date_range(date_from, date_to)
 
     config = _resolve_config(request, overrides)
     pipeline = PipelineOrchestrator()
 
     try:
-        entries, anomalies, summary, transactions = pipeline.run_from_buffers(files_dict, config)
+        entries, anomalies, summary, transactions = pipeline.run_from_buffers(
+            files_dict, config, date_from=parsed_date_from, date_to=parsed_date_to,
+        )
     except ParseError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except NoResultError as e:
@@ -110,15 +145,21 @@ async def download_excel(
     request: Request,
     files: list[UploadFile],
     overrides: str | None = Form(None),
+    date_from: str | None = Form(None),
+    date_to: str | None = Form(None),
 ) -> StreamingResponse:
     """Upload CSV → fichier .xlsx en téléchargement."""
     files_dict = await _validate_and_read_files(files)
+
+    parsed_date_from, parsed_date_to = _validate_date_range(date_from, date_to)
 
     config = _resolve_config(request, overrides)
     pipeline = PipelineOrchestrator()
 
     try:
-        entries, anomalies, _summary, _transactions = pipeline.run_from_buffers(files_dict, config)
+        entries, anomalies, _summary, _transactions = pipeline.run_from_buffers(
+            files_dict, config, date_from=parsed_date_from, date_to=parsed_date_to,
+        )
     except ParseError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except NoResultError as e:
@@ -161,10 +202,18 @@ async def defaults(request: Request) -> JSONResponse:
             tva_deductible = chan_charges["tva_deductible"]
             break
 
+    # Commissions PSP (comptes 627xxx)
+    psp_commissions = {
+        name: psp_cfg.commission
+        for name, psp_cfg in config.psp.items()
+        if psp_cfg.commission
+    }
+
     return JSONResponse(content={
         "clients": config.clients,
         "fournisseurs": config.fournisseurs,
         "charges": charges,
+        "psp_commissions": psp_commissions,
         "tva_deductible": tva_deductible,
         "journaux": {
             "ventes": config.journaux_vente,

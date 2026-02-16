@@ -118,6 +118,40 @@ describe("processFiles", () => {
     const files = [createMockFile("test.csv")];
     await expect(processFiles(files)).rejects.toThrow("Failed to fetch");
   });
+
+  it("appends date_from and date_to when dateRange is provided", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(MOCK_RESPONSE),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const files = [createMockFile("Ventes Shopify.csv")];
+    const dateRange = {
+      from: new Date("2026-01-01T12:00:00Z"),
+      to: new Date("2026-01-31T12:00:00Z"),
+    };
+    await processFiles(files, undefined, dateRange);
+
+    const formData = mockFetch.mock.calls[0][1].body as FormData;
+    expect(formData.get("date_from")).toBe("2026-01-01");
+    expect(formData.get("date_to")).toBe("2026-01-31");
+  });
+
+  it("does not append date params when dateRange is undefined", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(MOCK_RESPONSE),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const files = [createMockFile("Ventes Shopify.csv")];
+    await processFiles(files);
+
+    const formData = mockFetch.mock.calls[0][1].body as FormData;
+    expect(formData.get("date_from")).toBeNull();
+    expect(formData.get("date_to")).toBeNull();
+  });
 });
 
 describe("downloadExcel", () => {
@@ -151,5 +185,25 @@ describe("downloadExcel", () => {
 
     const files = [createMockFile("bad.csv")];
     await expect(downloadExcel(files)).rejects.toThrow("Fichier invalide");
+  });
+
+  it("appends date_from and date_to when dateRange is provided", async () => {
+    const blob = new Blob(["fake-excel"]);
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      blob: () => Promise.resolve(blob),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const files = [createMockFile("Ventes Shopify.csv")];
+    const dateRange = {
+      from: new Date("2026-02-01T12:00:00Z"),
+      to: new Date("2026-02-28T12:00:00Z"),
+    };
+    await downloadExcel(files, undefined, dateRange);
+
+    const formData = mockFetch.mock.calls[0][1].body as FormData;
+    expect(formData.get("date_from")).toBe("2026-02-01");
+    expect(formData.get("date_to")).toBe("2026-02-28");
   });
 });

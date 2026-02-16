@@ -842,10 +842,26 @@ class ShopifyParser(BaseParser):
                     )
                 )
 
-            # Calcul tva_rate depuis les montants
+            # Calcul tva_rate : préférer le taux fiable de la vente d'origine (extrait du Tax Name)
+            # Ne calculer depuis les montants qu'en fallback (retour orphelin sans vente)
             base = nets + shipping
-            if base > 0 and taxes > 0:
+            if sale is not None:
+                tva_rate = fallback_tva_rate
+            elif base > 0 and taxes > 0:
                 tva_rate = round(taxes / base * 100, 2)
+                if tva_rate > 30.0:
+                    anomalies.append(
+                        Anomaly(
+                            type="return_tva_rate_aberrant",
+                            severity="warning",
+                            reference=ref,
+                            channel="shopify",
+                            detail=f"Taux TVA calculé aberrant ({tva_rate}%) sur remboursement orphelin — fallback au taux par défaut ({fallback_tva_rate}%)",
+                            expected_value=str(fallback_tva_rate),
+                            actual_value=str(tva_rate),
+                        )
+                    )
+                    tva_rate = fallback_tva_rate
             else:
                 tva_rate = fallback_tva_rate
 

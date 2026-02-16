@@ -5,12 +5,14 @@ import { Download, FileDown, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { downloadExcel } from "@/lib/api";
 import type { AccountOverrides, Entry, Anomaly } from "@/lib/types";
+import type { DateRange } from "@/lib/datePresets";
 
 interface DownloadButtonsProps {
   files: File[];
   entries: Entry[];
   anomalies: Anomaly[];
   overrides?: AccountOverrides;
+  dateRange?: DateRange;
 }
 
 /** Return today's date as YYYY-MM-DD. */
@@ -24,14 +26,14 @@ function getDateSuffix(): string {
  */
 function generateCsv(headers: string[], rows: string[][]): string {
   const escape = (val: string): string => {
-    if (val.includes(",") || val.includes('"') || val.includes("\n")) {
+    if (val.includes(";") || val.includes('"') || val.includes("\n")) {
       return `"${val.replace(/"/g, '""')}"`;
     }
     return val;
   };
-  const lines = [headers.join(",")];
+  const lines = [headers.join(";")];
   for (const row of rows) {
-    lines.push(row.map(escape).join(","));
+    lines.push(row.map(escape).join(";"));
   }
   return lines.join("\n");
 }
@@ -75,6 +77,7 @@ export default function DownloadButtons({
   entries,
   anomalies,
   overrides,
+  dateRange,
 }: DownloadButtonsProps) {
   const [downloadingExcel, setDownloadingExcel] = useState(false);
   const [downloadingCsv, setDownloadingCsv] = useState(false);
@@ -86,7 +89,7 @@ export default function DownloadButtons({
     setError(null);
     setDownloadingExcel(true);
     try {
-      const blob = await downloadExcel(files, overrides);
+      const blob = await downloadExcel(files, overrides, dateRange);
       triggerDownload(blob, `ecritures-${getDateSuffix()}.xlsx`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "";

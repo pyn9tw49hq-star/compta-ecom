@@ -41,7 +41,6 @@ def _make_transaction(**overrides: object) -> NormalizedTransaction:
 @pytest.mark.parametrize(
     ("channel", "fournisseur_account", "client_account"),
     [
-        ("manomano", "FMANO", "411MANO"),
         ("decathlon", "62220800", "CDECATHLON"),
     ],
 )
@@ -206,12 +205,134 @@ class TestLeroyMerlinCommissionWithTVA:
         assert entries[2].lettrage == "2025-07-01"
 
 
-class TestMarketplaceCommissionRefund:
-    """Tests des 3 cas refund (AC21)."""
+class TestManoManoCommissionWithTVA:
+    """ManoMano : commissions éclatées en HT + TVA déductible + client TTC (#14)."""
+
+    def test_sale_produces_three_entries(self, sample_config: AppConfig) -> None:
+        """Vente ManoMano : 3 lignes — charge HT + TVA déductible + client TTC."""
+        tx = _make_transaction(
+            channel="manomano",
+            commission_ttc=-18.00,
+            commission_ht=-15.00,
+        )
+
+        entries = generate_marketplace_commission(tx, sample_config)
+
+        assert len(entries) == 3
+        # Charge HT au débit
+        assert entries[0].account == "62220300"
+        assert entries[0].debit == 15.00
+        assert entries[0].credit == 0.0
+        # TVA déductible au débit
+        assert entries[1].account == "44566001"
+        assert entries[1].debit == 3.00
+        assert entries[1].credit == 0.0
+        # Client TTC au crédit
+        assert entries[2].account == "411MANO"
+        assert entries[2].debit == 0.0
+        assert entries[2].credit == 18.00
 
     def test_refund_commission_restituee(self, sample_config: AppConfig) -> None:
-        """commission_ttc > 0 (restituée) → 411 D, 401 C."""
+        """Remboursement commission ManoMano : client D TTC, charge C HT, TVA C."""
         tx = _make_transaction(
+            channel="manomano",
+            type="refund",
+            commission_ttc=18.00,
+            commission_ht=15.00,
+        )
+
+        entries = generate_marketplace_commission(tx, sample_config)
+
+        assert len(entries) == 3
+        # Client TTC au débit
+        assert entries[0].account == "411MANO"
+        assert entries[0].debit == 18.00
+        # Charge HT au crédit
+        assert entries[1].account == "62220300"
+        assert entries[1].credit == 15.00
+        # TVA déductible au crédit
+        assert entries[2].account == "44566001"
+        assert entries[2].credit == 3.00
+
+    def test_sale_balance(self, sample_config: AppConfig) -> None:
+        """Équilibre débit/crédit vérifié (vente)."""
+        tx = _make_transaction(
+            channel="manomano",
+            commission_ttc=-18.00,
+            commission_ht=-15.00,
+        )
+        entries = generate_marketplace_commission(tx, sample_config)
+        assert round(sum(e.debit for e in entries), 2) == round(
+            sum(e.credit for e in entries), 2
+        )
+
+    def test_refund_balance(self, sample_config: AppConfig) -> None:
+        """Équilibre débit/crédit vérifié (remboursement)."""
+        tx = _make_transaction(
+            channel="manomano",
+            type="refund",
+            commission_ttc=18.00,
+            commission_ht=15.00,
+        )
+        entries = generate_marketplace_commission(tx, sample_config)
+        assert round(sum(e.debit for e in entries), 2) == round(
+            sum(e.credit for e in entries), 2
+        )
+
+    def test_sale_exact_spec_amounts(self, sample_config: AppConfig) -> None:
+        """Vente ManoMano avec montants exacts : HT=1.02, TTC=1.22."""
+        tx = _make_transaction(
+            channel="manomano",
+            commission_ttc=-1.22,
+            commission_ht=-1.02,
+        )
+
+        entries = generate_marketplace_commission(tx, sample_config)
+
+        assert len(entries) == 3
+        assert entries[0].account == "62220300"
+        assert entries[0].debit == 1.02
+        assert entries[1].account == "44566001"
+        assert entries[1].debit == 0.20
+        assert entries[2].account == "411MANO"
+        assert entries[2].credit == 1.22
+
+    def test_lettrage_split(self, sample_config: AppConfig) -> None:
+        """ManoMano : charge et TVA sans lettrage, client lettré par payout_reference."""
+        tx = _make_transaction(
+            channel="manomano",
+            reference="MM-001",
+            commission_ttc=-18.00,
+            commission_ht=-15.00,
+            payout_reference="PAY-2025-01",
+        )
+        entries = generate_marketplace_commission(tx, sample_config)
+
+        # Charge au débit → pas de lettrage
+        assert entries[0].account == "62220300"
+        assert entries[0].lettrage == ""
+        # TVA au débit → pas de lettrage
+        assert entries[1].account == "44566001"
+        assert entries[1].lettrage == ""
+        # Client au crédit → lettrage = payout_reference
+        assert entries[2].account == "411MANO"
+        assert entries[2].lettrage == "PAY-2025-01"
+
+    def test_journal_achats(self, sample_config: AppConfig) -> None:
+        """Journal = 'AC' pour les commissions ManoMano (compte de charge configuré)."""
+        tx = _make_transaction(commission_ttc=-18.00, commission_ht=-15.00)
+        entries = generate_marketplace_commission(tx, sample_config)
+        for e in entries:
+            assert e.journal == "AC"
+
+
+class TestMarketplaceCommissionRefund:
+    """Tests des 3 cas refund (AC21) — canal Décathlon (2 écritures, sans TVA déductible)."""
+
+    def test_refund_commission_restituee(self, sample_config: AppConfig) -> None:
+        """commission_ttc > 0 (restituée) → client D, charge C."""
+        tx = _make_transaction(
+            channel="decathlon",
             type="refund",
             commission_ttc=15.00,
         )
@@ -219,16 +340,17 @@ class TestMarketplaceCommissionRefund:
         entries = generate_marketplace_commission(tx, sample_config)
 
         assert len(entries) == 2
-        assert entries[0].account == "411MANO"
+        assert entries[0].account == "CDECATHLON"
         assert entries[0].debit == 15.00
         assert entries[0].credit == 0.0
-        assert entries[1].account == "FMANO"
+        assert entries[1].account == "62220800"
         assert entries[1].debit == 0.0
         assert entries[1].credit == 15.00
 
     def test_refund_commission_non_restituee(self, sample_config: AppConfig) -> None:
-        """commission_ttc < 0 + type=refund → 401 D, 411 C (même sens que vente)."""
+        """commission_ttc < 0 + type=refund → charge D, client C (même sens que vente)."""
         tx = _make_transaction(
+            channel="decathlon",
             type="refund",
             commission_ttc=-12.00,
         )
@@ -236,16 +358,17 @@ class TestMarketplaceCommissionRefund:
         entries = generate_marketplace_commission(tx, sample_config)
 
         assert len(entries) == 2
-        assert entries[0].account == "FMANO"
+        assert entries[0].account == "62220800"
         assert entries[0].debit == 12.00
         assert entries[0].credit == 0.0
-        assert entries[1].account == "411MANO"
+        assert entries[1].account == "CDECATHLON"
         assert entries[1].debit == 0.0
         assert entries[1].credit == 12.00
 
     def test_refund_commission_zero(self, sample_config: AppConfig) -> None:
         """commission_ttc == 0.0 → liste vide."""
         tx = _make_transaction(
+            channel="decathlon",
             type="refund",
             commission_ttc=0.0,
         )
@@ -256,7 +379,7 @@ class TestMarketplaceCommissionRefund:
 
     def test_refund_balance(self, sample_config: AppConfig) -> None:
         """Équilibre vérifié sur refund commission restituée."""
-        tx = _make_transaction(type="refund", commission_ttc=15.00)
+        tx = _make_transaction(channel="decathlon", type="refund", commission_ttc=15.00)
         entries = generate_marketplace_commission(tx, sample_config)
         assert round(sum(e.debit for e in entries), 2) == round(
             sum(e.credit for e in entries), 2
@@ -264,7 +387,7 @@ class TestMarketplaceCommissionRefund:
 
     def test_refund_non_restituee_balance(self, sample_config: AppConfig) -> None:
         """Équilibre vérifié sur refund commission non restituée."""
-        tx = _make_transaction(type="refund", commission_ttc=-12.00)
+        tx = _make_transaction(channel="decathlon", type="refund", commission_ttc=-12.00)
         entries = generate_marketplace_commission(tx, sample_config)
         assert round(sum(e.debit for e in entries), 2) == round(
             sum(e.credit for e in entries), 2
@@ -300,22 +423,22 @@ class TestMarketplaceCommissionLabels:
     """Vérification des libellés."""
 
     def test_label_sale(self, sample_config: AppConfig) -> None:
-        """Libellé vente : 'Commission #MM001 Manomano'."""
+        """Libellé vente : 'Commission #MM001 ManoMano'."""
         tx = _make_transaction(reference="#MM001", channel="manomano")
         entries = generate_marketplace_commission(tx, sample_config)
-        assert entries[0].label == "Commission #MM001 Manomano"
+        assert entries[0].label == "Commission #MM001 ManoMano"
 
     def test_label_refund(self, sample_config: AppConfig) -> None:
-        """Libellé refund : 'Remb. commission #R001 Manomano'."""
-        tx = _make_transaction(reference="#R001", type="refund", commission_ttc=10.0)
+        """Libellé refund : 'Remb. commission #R001 ManoMano'."""
+        tx = _make_transaction(reference="#R001", type="refund", commission_ttc=18.0, commission_ht=15.0)
         entries = generate_marketplace_commission(tx, sample_config)
-        assert entries[0].label == "Remb. commission #R001 Manomano"
+        assert entries[0].label == "Remb. commission #R001 ManoMano"
 
     def test_label_refund_non_restituee(self, sample_config: AppConfig) -> None:
-        """Refund non restituée : libellé 'Remb. commission' même si commission > 0."""
-        tx = _make_transaction(reference="#R002", type="refund", commission_ttc=-12.0)
+        """Refund non restituée : libellé 'Remb. commission' même si commission < 0."""
+        tx = _make_transaction(reference="#R002", type="refund", commission_ttc=-18.0, commission_ht=-15.0)
         entries = generate_marketplace_commission(tx, sample_config)
-        assert entries[0].label == "Remb. commission #R002 Manomano"
+        assert entries[0].label == "Remb. commission #R002 ManoMano"
 
     def test_label_multiword_channel(self, sample_config: AppConfig) -> None:
         """Canal multi-mots : 'leroy_merlin' → 'Leroy Merlin'."""
@@ -336,12 +459,12 @@ class TestMarketplaceCommissionMetadata:
         for e in entries:
             assert e.entry_type == "commission"
 
-    def test_journal_reglement(self, sample_config: AppConfig) -> None:
-        """Journal = 'RG' pour les canaux sans compte de charge (ManoMano)."""
+    def test_journal_achats_manomano(self, sample_config: AppConfig) -> None:
+        """Journal = 'AC' pour les commissions ManoMano (compte de charge configuré)."""
         tx = _make_transaction(commission_ttc=-18.00)
         entries = generate_marketplace_commission(tx, sample_config)
         for e in entries:
-            assert e.journal == "RG"
+            assert e.journal == "AC"
 
     def test_journal_achats_decathlon(self, sample_config: AppConfig) -> None:
         """Journal = 'AC' pour les commissions Decathlon (compte de charge configuré)."""
@@ -369,12 +492,20 @@ class TestMarketplaceCommissionMetadata:
             assert e.date == datetime.date(2024, 6, 1)
 
     def test_piece_number_and_lettrage(self, sample_config: AppConfig) -> None:
-        """piece_number et lettrage = reference (pour canal non-decathlon)."""
-        tx = _make_transaction(reference="#9999", commission_ttc=-18.00)
+        """piece_number = reference ; lettrage par type de compte (charge/TVA vide, client = reference)."""
+        tx = _make_transaction(reference="#9999", commission_ttc=-18.00, commission_ht=-15.00)
         entries = generate_marketplace_commission(tx, sample_config)
         for e in entries:
             assert e.piece_number == "#9999"
-            assert e.lettrage == "#9999"
+        # Charge account → pas de lettrage
+        assert entries[0].account == "62220300"
+        assert entries[0].lettrage == ""
+        # TVA → pas de lettrage
+        assert entries[1].account == "44566001"
+        assert entries[1].lettrage == ""
+        # Client → lettrage = reference (fallback, payout_reference is None)
+        assert entries[2].account == "411MANO"
+        assert entries[2].lettrage == "#9999"
 
 
 class TestDecathlonLettrageByPayoutCycle:

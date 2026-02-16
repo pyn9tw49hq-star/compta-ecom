@@ -174,12 +174,15 @@ class TestGenerateEntries:
                 channel="manomano",
                 special_type="SUBSCRIPTION",
                 payment_method=None,
+                net_amount=-60.0,
+                amount_ht=50.0,
+                amount_tva=10.0,
             ),
         ]
 
         entries, anomalies = generate_entries(transactions, [], sample_config)
 
-        assert len(entries) == 2
+        assert len(entries) == 3
         assert all(e.entry_type == "fee" for e in entries)
         assert len(anomalies) == 0
 
@@ -290,8 +293,8 @@ class TestGenerateEntriesMixedMarketplacePSP:
         # Shopify settlement: 2 settlement (511 + 411)
         assert len(settlement_type_entries) == 2
 
-        # 1 commission PSP (Shopify 627) + 2 commission marketplace (MM01) + 2 commission marketplace (MM02)
-        assert len(commission_type_entries) == 5
+        # 1 commission PSP (Shopify 627) + 3 commission marketplace (MM01 HT+TVA+client) + 3 commission marketplace (MM02 HT+TVA+client)
+        assert len(commission_type_entries) == 7
 
         # Payout: 2 lines (511 D + 512 C)
         assert len(payout_type_entries) == 2
@@ -378,7 +381,9 @@ class TestDispatchFinalStory24:
                 channel="manomano",
                 special_type="SUBSCRIPTION",
                 payment_method=None,
-                net_amount=-100.0,
+                net_amount=-60.0,
+                amount_ht=50.0,
+                amount_tva=10.0,
                 commission_ttc=0.0,
                 commission_ht=None,
                 payout_date=payout_date,
@@ -412,16 +417,16 @@ class TestDispatchFinalStory24:
         assert len(refund_entries) == 3
         # SHOP01 settlement: 2
         assert len(settlement_entries) == 2
-        # SHOP01 commission(1) + MM01 commission(2) + MM02 commission(2)
-        assert len(commission_entries) == 5
-        # MM01 payout(2) + MM02 payout(2) + ADJ01 payout(2)
-        assert len(payout_entries) == 6
-        # SUB01 fee(2) - les abonnements sont maintenant des "fee" pas des "payout"
-        assert len(fee_entries) == 2
+        # SHOP01 commission(1) + MM01 commission(3 HT+TVA+client) + MM02 commission(3 HT+TVA+client)
+        assert len(commission_entries) == 7
+        # ADJ01 payout(2) — MM01/MM02 n'ont plus de payout 512 (#16: commission in charges_mp)
+        assert len(payout_entries) == 2
+        # SUB01 fee(3) - charge HT + TVA + 411MANO TTC
+        assert len(fee_entries) == 3
 
         # Verify marketplace payout entries by channel
         mm_payouts = [e for e in payout_entries if e.channel == "manomano"]
-        assert len(mm_payouts) == 6
+        assert len(mm_payouts) == 2
 
         assert len(anomalies) == 0
 
@@ -451,7 +456,7 @@ class TestDispatchFinalStory24:
         payout_entries = [e for e in entries if e.entry_type == "payout"]
 
         assert len(sale_entries) == 3  # 411 + 707 + 4457
-        assert len(commission_entries) == 2  # FMANO + 411MANO
+        assert len(commission_entries) == 3  # 62220300 + 44566001 + 411MANO (#14)
         assert len(payout_entries) == 0  # No payout_date → no payout
 
     def test_payout_summary_manomano_generates_entries(

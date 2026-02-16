@@ -128,25 +128,31 @@ class TestManoManoRefundEntries:
         manomano_refund: NormalizedTransaction,
         sample_config: AppConfig,
     ) -> None:
-        """Écritures commission marketplace refund : 411 D, 401 C (commission_ttc > 0, restituée)."""
+        """Écritures commission refund ManoMano : 411MANO D TTC, 62220300 C HT, 44566001 C TVA (#14)."""
         entries = generate_marketplace_commission(manomano_refund, sample_config)
 
-        assert len(entries) == 2
+        assert len(entries) == 3
 
-        entry_401 = [e for e in entries if e.account == "FMANO"]
+        entry_charge = [e for e in entries if e.account == "62220300"]
+        entry_tva = [e for e in entries if e.account == "44566001"]
         entry_411 = [e for e in entries if e.account == "411MANO"]
 
-        assert len(entry_401) == 1
+        assert len(entry_charge) == 1
+        assert len(entry_tva) == 1
         assert len(entry_411) == 1
 
         # commission_ttc = 18 (positive → marketplace rembourse la commission)
-        # 411 au débit (client débité)
+        # 411MANO au débit TTC
         assert entry_411[0].debit == 18.00
         assert entry_411[0].credit == 0.0
 
-        # 401 au crédit (fournisseur crédité)
-        assert entry_401[0].credit == 18.00
-        assert entry_401[0].debit == 0.0
+        # 62220300 au crédit HT
+        assert entry_charge[0].credit == 15.00
+        assert entry_charge[0].debit == 0.0
+
+        # 44566001 au crédit TVA
+        assert entry_tva[0].credit == 3.00
+        assert entry_tva[0].debit == 0.0
 
     def test_commission_balance(
         self,
@@ -162,11 +168,22 @@ class TestManoManoRefundEntries:
         manomano_refund: NormalizedTransaction,
         sample_config: AppConfig,
     ) -> None:
-        """piece_number et lettrage = référence commande d'origine."""
+        """piece_number = référence ; lettrage adapté par type de compte (#14)."""
         sale_entries = generate_sale_entries(manomano_refund, sample_config)
         commission_entries = generate_marketplace_commission(manomano_refund, sample_config)
 
         for e in sale_entries + commission_entries:
             assert e.piece_number == "MR001"
-            if e.account.startswith("411") or e.account.startswith("511"):
-                assert e.lettrage == "MR001"
+
+        # Écritures vente : 411MANO lettré par reference
+        sale_411 = [e for e in sale_entries if e.account == "411MANO"]
+        assert len(sale_411) == 1
+        assert sale_411[0].lettrage == "MR001"
+
+        # Écritures commission : charge/TVA sans lettrage, 411MANO lettré par payout_reference
+        comm_411 = [e for e in commission_entries if e.account == "411MANO"]
+        comm_charge = [e for e in commission_entries if e.account == "62220300"]
+        comm_tva = [e for e in commission_entries if e.account == "44566001"]
+        assert comm_charge[0].lettrage == ""
+        assert comm_tva[0].lettrage == ""
+        assert comm_411[0].lettrage == "RPAY001"

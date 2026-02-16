@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from compta_ecom.config.loader import AppConfig
 from compta_ecom.engine.accounts import verify_balance
-from compta_ecom.models import AccountingEntry, NormalizedTransaction
+from compta_ecom.models import AccountingEntry, NormalizedTransaction, channel_display_name
 
 
 def generate_settlement_entries(
@@ -28,7 +28,7 @@ def generate_settlement_entries(
         )
     commission_account = psp_config.commission
     client_account = config.clients[transaction.channel]
-    canal_display = transaction.channel.replace("_", " ").title()
+    canal_display = channel_display_name(transaction.channel)
     is_refund = transaction.type == "refund"
     label_prefix = "Remb. PSP" if is_refund else "Règlement"
     # Orphan settlements: transactions without matching sale — mark label for FEC traceability

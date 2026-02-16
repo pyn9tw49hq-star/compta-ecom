@@ -9,7 +9,7 @@ from compta_ecom.engine.accounts import (
     resolve_shipping_zone,
     verify_balance,
 )
-from compta_ecom.models import AccountingEntry, NormalizedTransaction
+from compta_ecom.models import AccountingEntry, NormalizedTransaction, channel_display_name
 
 
 def generate_sale_entries(
@@ -63,7 +63,7 @@ def _build_entries(
     config: AppConfig,
     client_lettrage: str = "",
 ) -> list[AccountingEntry]:
-    canal_display = transaction.channel.replace("_", " ").title()
+    canal_display = channel_display_name(transaction.channel)
     journal = config.journaux_vente[transaction.channel]
     is_sale = transaction.type == "sale"
     label_prefix = "Vente" if is_sale else "Avoir"

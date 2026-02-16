@@ -6,7 +6,7 @@ import logging
 
 from compta_ecom.config.loader import AppConfig
 from compta_ecom.engine.accounts import verify_balance
-from compta_ecom.models import AccountingEntry, NormalizedTransaction, PayoutSummary
+from compta_ecom.models import AccountingEntry, NormalizedTransaction, PayoutSummary, channel_display_name
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +17,12 @@ _SPECIAL_LABELS: dict[str, str] = {
     "REFUND_PENALTY": "Pénalité remb.",
 }
 
+_SPECIAL_TYPE_TO_CONFIG_KEY: dict[str, str] = {
+    "SUBSCRIPTION": "abonnement",
+    "REFUND_PENALTY": "penalite",
+    "ECO_CONTRIBUTION": "eco_contribution",
+}
+
 
 def _resolve_payout_account(
     transaction: NormalizedTransaction, config: AppConfig
@@ -24,13 +30,14 @@ def _resolve_payout_account(
     """Résout le compte de contrepartie pour le reversement.
 
     Priorité :
-    1. SUBSCRIPTION + comptes_charges_marketplace.abonnement → compte de charge
+    1. special_type mappé vers comptes_charges_marketplace → compte de charge
     2. special_type in comptes_speciaux → compte spécial
     3. sinon → fournisseur
     """
-    if transaction.special_type == "SUBSCRIPTION":
+    config_key = _SPECIAL_TYPE_TO_CONFIG_KEY.get(transaction.special_type or "")
+    if config_key is not None:
         charges_mp = config.comptes_charges_marketplace.get(transaction.channel, {})
-        charge_account = charges_mp.get("abonnement")
+        charge_account = charges_mp.get(config_key)
         if charge_account is not None:
             return charge_account
     if (
@@ -62,54 +69,52 @@ def generate_marketplace_payout(
         return []
 
     account = _resolve_payout_account(transaction, config)
-    canal_display = transaction.channel.replace("_", " ").title()
+    canal_display = channel_display_name(transaction.channel)
     label_prefix = _SPECIAL_LABELS.get(
         transaction.special_type or "", "Reversement"
     )
     label = f"{label_prefix} {transaction.reference} {canal_display}"
 
-    # Déterminer le type d'écriture et le compte banque/client
-    if transaction.special_type == "SUBSCRIPTION":
+    # Déterminer si le type spécial a un compte de charge configuré
+    charges_mp = config.comptes_charges_marketplace.get(transaction.channel, {})
+    config_key = _SPECIAL_TYPE_TO_CONFIG_KEY.get(transaction.special_type or "")
+    has_charge_account = config_key is not None and config_key in charges_mp
+
+    if has_charge_account:
         entry_type = "fee"
-        # Frais d'abonnement: utiliser le compte client au lieu de la banque
         bank_or_client_account = config.clients[transaction.channel]
     else:
         entry_type = "payout"
         bank_or_client_account = config.banque
-
-    amount = round(abs(net), 2)
 
     # Frais d'abonnement : date d'écriture = date de création (transaction.date)
     # Autres reversements : date d'écriture = date du cycle de paiement (payout_date)
     entry_date = transaction.date if transaction.special_type == "SUBSCRIPTION" else transaction.payout_date
 
     # Lettrage : les comptes de charge (classe 6) n'ont jamais de lettrage.
-    # Pour Décathlon SUBSCRIPTION, le compte client est lettré par cycle de paiement.
-    charges_mp = config.comptes_charges_marketplace.get(transaction.channel, {})
-    has_charge_account = (
-        transaction.special_type == "SUBSCRIPTION" and "abonnement" in charges_mp
-    )
+    # Le compte client est lettré par payout_reference pour le rapprochement.
     journal = config.journal_achats if has_charge_account else config.journal_reglement
     tva_deductible_account = charges_mp.get("tva_deductible")
     default_lettrage = transaction.reference
 
     if has_charge_account:
         client_ref = transaction.payout_reference or transaction.reference
-    elif (
-        transaction.channel in ("decathlon", "leroy_merlin")
-        and transaction.special_type == "SUBSCRIPTION"
-        and transaction.payout_reference
-    ):
-        client_ref = transaction.payout_reference
     else:
         client_ref = default_lettrage
 
-    # Calculer la TVA déductible pour les abonnements avec charge account
+    # Déterminer montants HT/TVA pour les types avec compte de charge
     fee_tva = 0.0
+    amount = round(abs(net), 2)
     if has_charge_account and tva_deductible_account is not None:
-        channel_config = config.channels.get(transaction.channel)
-        if channel_config and channel_config.commission_vat_rate:
-            fee_tva = round(amount * channel_config.commission_vat_rate / 100, 2)
+        if transaction.amount_tva > 0:
+            # TVA fournie par le parser (ManoMano special types)
+            amount = round(transaction.amount_ht, 2)
+            fee_tva = round(transaction.amount_tva, 2)
+        else:
+            # Fallback : calculer depuis commission_vat_rate (LM subscriptions)
+            channel_config = config.channels.get(transaction.channel)
+            if channel_config and channel_config.commission_vat_rate:
+                fee_tva = round(amount * channel_config.commission_vat_rate / 100, 2)
 
     if fee_tva > 0:
         # Abonnement avec TVA déductible : 3 écritures (charge HT + TVA + client TTC)
@@ -262,7 +267,7 @@ def generate_marketplace_payout_from_summary(
     client_account = config.clients[payout.channel]
     transit_account = config.transit
     date_str = payout.payout_date.strftime("%Y-%m-%d")
-    label = f"Reversement {payout.channel.replace('_', ' ').title()} {date_str}"
+    label = f"Reversement {channel_display_name(payout.channel)} {date_str}"
     ref = payout.payout_reference or f"PAYOUT-{date_str}"
 
     # Les montants de paiement sont négatifs (sortie d'argent du marketplace)

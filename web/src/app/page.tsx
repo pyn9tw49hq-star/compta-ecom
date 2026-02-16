@@ -122,6 +122,14 @@ export default function Home() {
   }, [files]);
 
   // --- Period filtering ---
+  const filteredEntries = useMemo(() => {
+    if (!result) return [];
+    return result.entries.filter((e) => {
+      const d = new Date(e.date + "T00:00:00");
+      return d >= dateRange.from && d <= dateRange.to;
+    });
+  }, [result, dateRange]);
+
   const filteredTransactions = useMemo(() => {
     if (!result) return [];
     return result.transactions.filter((t) => {
@@ -178,6 +186,7 @@ export default function Home() {
       const response = await processFiles(
         files.map((f) => f.file),
         account.modifiedCount > 0 ? account.overrides : undefined,
+        dateRange,
       );
       setResult(response);
     } catch (err) {
@@ -185,7 +194,7 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
-  }, [files, account.overrides, account.modifiedCount]);
+  }, [files, account.overrides, account.modifiedCount, dateRange]);
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
@@ -273,9 +282,10 @@ export default function Home() {
             <div className="flex gap-2 flex-wrap">
               <DownloadButtons
                 files={files.map((f) => f.file)}
-                entries={result.entries}
-                anomalies={result.anomalies}
+                entries={filteredEntries}
+                anomalies={filteredAnomalies}
                 overrides={account.modifiedCount > 0 ? account.overrides : undefined}
+                dateRange={dateRange}
               />
               {filteredSummary && (
                 <FlashPdfButton
@@ -289,7 +299,7 @@ export default function Home() {
           </div>
           <PeriodFilter dateRange={dateRange} onChange={setDateRange} />
           <TabsContent value="ecritures">
-            <EntriesTable entries={result.entries} />
+            <EntriesTable entries={filteredEntries} />
           </TabsContent>
           <TabsContent value="anomalies">
             <div className="flex items-center justify-between mb-4">
@@ -300,7 +310,7 @@ export default function Home() {
           </TabsContent>
           <TabsContent value="resume">
             {filteredSummary && (
-              <StatsBoard summary={filteredSummary} entries={result.entries} anomalies={filteredAnomalies} htTtcMode={htTtcMode} onHtTtcModeChange={setHtTtcMode} />
+              <StatsBoard summary={filteredSummary} entries={filteredEntries} anomalies={filteredAnomalies} htTtcMode={htTtcMode} onHtTtcModeChange={setHtTtcMode} />
             )}
           </TabsContent>
         </Tabs>

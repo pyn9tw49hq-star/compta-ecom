@@ -68,6 +68,14 @@ const GROUPS: GroupDef[] = [
         ],
       },
       {
+        subtitle: "COMMISSIONS PSP",
+        fields: [
+          { label: "Card (Shopify)", path: "psp_commissions.card" },
+          { label: "PayPal", path: "psp_commissions.paypal" },
+          { label: "Klarna", path: "psp_commissions.klarna" },
+        ],
+      },
+      {
         subtitle: "ABONNEMENTS",
         fields: [
           { label: "Decathlon", path: "charges.abonnements.decathlon" },
@@ -102,6 +110,7 @@ const GROUPS: GroupDef[] = [
 function getRegexForPath(path: string, groupRegex: ValidationRegex): ValidationRegex {
   if (path === "tva_deductible") return RE_COMPTE_CHARGE;
   if (path.startsWith("charges.")) return RE_COMPTE_CHARGE;
+  if (path.startsWith("psp_commissions.")) return RE_COMPTE_CHARGE;
   return groupRegex;
 }
 

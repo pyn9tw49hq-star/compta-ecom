@@ -259,6 +259,54 @@ class TestParseReturnsTvaRate:
         ret002 = next(t for t in txs if t.reference == "#TEST_RET002")
         assert ret002.tva_rate == 20.0
 
+    def test_tva_rate_partial_refund_uses_sale_rate(
+        self, shopify_config: AppConfig
+    ) -> None:
+        """Issue #10 : remboursement partiel nets=1€, taxes=8.26€ → doit utiliser le taux de la vente (20%), pas 826%."""
+        csv = (
+            "Jour,Nom de la commande,Retours nets,Expédition retournée,"
+            "Taxes retournées,Frais de retour,Total des retours\n"
+            "2026-01-20,#1139,-1.00,0.00,-8.26,0.00,-9.26\n"
+        )
+        buf = BytesIO(csv.encode("utf-8"))
+        sale_data: dict[str, dict[str, Any]] = {
+            "#1139": {
+                "reference": "#1139",
+                "date": datetime.date(2026, 1, 10),
+                "amount_ht": 100.0,
+                "amount_tva": 20.0,
+                "amount_ttc": 120.0,
+                "shipping_ht": 0.0,
+                "shipping_tva": 0.0,
+                "tva_rate": 20.0,
+                "country_code": "250",
+            },
+        }
+        parser = ShopifyParser()
+        txs, anomalies = parser._parse_returns(buf, sale_data, shopify_config)
+        assert len(txs) == 1
+        assert txs[0].tva_rate == 20.0
+        assert not any(a.type == "return_tva_rate_aberrant" for a in anomalies)
+
+    def test_tva_rate_orphan_return_aberrant_guard(
+        self, shopify_config: AppConfig
+    ) -> None:
+        """Issue #10 : retour orphelin avec taux calculé > 30% → fallback + anomalie."""
+        csv = (
+            "Jour,Nom de la commande,Retours nets,Expédition retournée,"
+            "Taxes retournées,Frais de retour,Total des retours\n"
+            "2026-01-20,#9999,-1.00,0.00,-8.26,0.00,-9.26\n"
+        )
+        buf = BytesIO(csv.encode("utf-8"))
+        parser = ShopifyParser()
+        txs, anomalies = parser._parse_returns(buf, {}, shopify_config)
+        assert len(txs) == 1
+        # Fallback to default 20% (no matching sale → country 250, rate 20)
+        assert txs[0].tva_rate == 20.0
+        aberrant = [a for a in anomalies if a.type == "return_tva_rate_aberrant"]
+        assert len(aberrant) == 1
+        assert "826" in aberrant[0].detail
+
 
 class TestParseReturnsTvaVentilation:
     """Tests de la ventilation TVA produit/port."""

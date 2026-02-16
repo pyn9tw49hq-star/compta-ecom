@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from compta_ecom.config.loader import AppConfig
 from compta_ecom.engine.accounts import verify_balance
-from compta_ecom.models import AccountingEntry, NormalizedTransaction
+from compta_ecom.models import AccountingEntry, NormalizedTransaction, channel_display_name
 
 
 def generate_direct_payment_entries(
@@ -23,7 +23,7 @@ def generate_direct_payment_entries(
         return []
 
     client_account = config.clients[transaction.channel]
-    canal_display = transaction.channel.replace("_", " ").title()
+    canal_display = channel_display_name(transaction.channel)
     label = f"Règlement direct {transaction.reference} {canal_display}"
 
     entries = [

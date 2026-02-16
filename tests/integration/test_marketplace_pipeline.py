@@ -80,14 +80,14 @@ class TestMultiChannelPipeline:
         # Count by entry_type
         payout_entries = [r for r in data_rows if r[9] == "payout"]
         fee_entries = [r for r in data_rows if r[9] == "fee"]
-        # ManoMano: M001 payout(2) + M002 payout(2) + ADJ001 payout(2) + PayoutSummary PAY001(2) = 8 payout
-        # ManoMano: SUB001 fee(2) = 2 fee
+        # ManoMano: ADJ001 payout(2) + PayoutSummary PAY001(2) = 4 payout (#16: plus de 512 unitaire)
+        # ManoMano: SUB001 fee(3) = 3 fee (charge HT + TVA + 411MANO TTC)
         # Décathlon: Paiement PayoutSummary(2) = 2 payout (pas de payout individuel 512)
         # Décathlon: SUBDEC001 fee(2) = 2 fee
         # Leroy Merlin: Paiement PayoutSummary(2) = 2 payout (pas de payout individuel 512)
         # Shopify: payout PSP from PayoutSummary(2) = 2 payout
         mm_payouts = [r for r in payout_entries if r[8] == "manomano"]
-        assert len(mm_payouts) == 8
+        assert len(mm_payouts) == 4
 
         dec_payouts = [r for r in payout_entries if r[8] == "decathlon"]
         assert len(dec_payouts) == 2
@@ -97,7 +97,7 @@ class TestMultiChannelPipeline:
 
         # Vérifier les entrées fee (frais d'abonnement)
         mm_fees = [r for r in fee_entries if r[8] == "manomano"]
-        assert len(mm_fees) == 2
+        assert len(mm_fees) == 3
         dec_fees = [r for r in fee_entries if r[8] == "decathlon"]
         assert len(dec_fees) == 2
 

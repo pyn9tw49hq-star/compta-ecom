@@ -132,13 +132,15 @@ class TestGuardClauses:
             special_type="SUBSCRIPTION",
             date=creation_date,
             payout_date=None,
-            net_amount=-70.0,
+            net_amount=-60.0,
+            amount_ht=50.0,
+            amount_tva=10.0,
             commission_ttc=0.0,
             commission_ht=None,
         )
         entries = generate_marketplace_payout(tx, sample_config)
 
-        assert len(entries) == 2
+        assert len(entries) == 3
         assert all(e.date == creation_date for e in entries)
         assert all(e.entry_type == "fee" for e in entries)
 
@@ -167,40 +169,58 @@ class TestSpecialTypes:
         assert all(e.date == payout_date for e in entries)
 
     def test_eco_contribution(self, sample_config: AppConfig) -> None:
-        """ECO_CONTRIBUTION : net_amount=-30.00 → FMANO D, 51200000 C."""
+        """ECO_CONTRIBUTION : 60730000 D HT + 44566001 D TVA + 411MANO C TTC."""
         tx = _make_transaction(
             special_type="ECO_CONTRIBUTION",
             net_amount=-30.0,
+            amount_ht=25.0,
+            amount_tva=5.0,
             commission_ttc=0.0,
             commission_ht=None,
         )
         entries = generate_marketplace_payout(tx, sample_config)
 
-        assert len(entries) == 2
-        assert entries[0].account == "FMANO"
-        assert entries[0].debit == 30.0
-        assert entries[1].account == "51200000"
-        assert entries[1].credit == 30.0
+        assert len(entries) == 3
+        # Charge HT au débit
+        assert entries[0].account == "60730000"
+        assert entries[0].debit == 25.0
+        assert entries[0].lettrage == ""
+        # TVA déductible au débit
+        assert entries[1].account == "44566001"
+        assert entries[1].debit == 5.0
+        assert entries[1].lettrage == ""
+        # Client TTC au crédit
+        assert entries[2].account == "411MANO"
+        assert entries[2].credit == 30.0
+        assert all(e.entry_type == "fee" for e in entries)
 
     def test_subscription_manomano(self, sample_config: AppConfig) -> None:
-        """SUBSCRIPTION ManoMano : FMANO D, 411MANO C (compte client)."""
+        """SUBSCRIPTION ManoMano : 61311111 D HT + 44566001 D TVA + 411MANO C TTC."""
         tx = _make_transaction(
             channel="manomano",
             special_type="SUBSCRIPTION",
-            net_amount=-100.0,
+            net_amount=-60.0,
+            amount_ht=50.0,
+            amount_tva=10.0,
             commission_ttc=0.0,
             commission_ht=None,
         )
         entries = generate_marketplace_payout(tx, sample_config)
 
-        assert len(entries) == 2
-        assert entries[0].account == "FMANO"
-        assert entries[0].debit == 100.0
-        assert entries[1].account == "411MANO"
-        assert entries[1].credit == 100.0
+        assert len(entries) == 3
+        # Charge HT au débit
+        assert entries[0].account == "61311111"
+        assert entries[0].debit == 50.0
+        assert entries[0].lettrage == ""
+        # TVA déductible au débit
+        assert entries[1].account == "44566001"
+        assert entries[1].debit == 10.0
+        assert entries[1].lettrage == ""
+        # Client TTC au crédit
+        assert entries[2].account == "411MANO"
+        assert entries[2].credit == 60.0
         # Vérifier que entry_type est "fee" pour les abonnements
-        assert entries[0].entry_type == "fee"
-        assert entries[1].entry_type == "fee"
+        assert all(e.entry_type == "fee" for e in entries)
 
     def test_subscription_decathlon(self, sample_config: AppConfig) -> None:
         """SUBSCRIPTION Décathlon : 61311112 D, CDECATHLON C (compte client)."""
@@ -228,6 +248,8 @@ class TestSpecialTypes:
             channel="leroy_merlin",
             special_type="SUBSCRIPTION",
             net_amount=-39.00,
+            amount_ht=0.0,
+            amount_tva=0.0,
             commission_ttc=0.0,
             commission_ht=None,
         )
@@ -259,6 +281,8 @@ class TestSpecialTypes:
             channel="leroy_merlin",
             special_type="SUBSCRIPTION",
             net_amount=39.00,
+            amount_ht=0.0,
+            amount_tva=0.0,
             commission_ttc=0.0,
             commission_ht=None,
         )
@@ -281,30 +305,40 @@ class TestSpecialTypes:
         assert all(e.entry_type == "fee" for e in entries)
 
     def test_refund_penalty(self, sample_config: AppConfig) -> None:
-        """REFUND_PENALTY : FMANO D, 51200000 C."""
+        """REFUND_PENALTY : 62220300 D HT + 44566001 D TVA + 411MANO C TTC."""
         tx = _make_transaction(
             special_type="REFUND_PENALTY",
-            net_amount=-20.0,
+            net_amount=-24.0,
+            amount_ht=20.0,
+            amount_tva=4.0,
             commission_ttc=0.0,
             commission_ht=None,
         )
         entries = generate_marketplace_payout(tx, sample_config)
 
-        assert len(entries) == 2
-        assert entries[0].account == "FMANO"
+        assert len(entries) == 3
+        # Charge HT au débit
+        assert entries[0].account == "62220300"
         assert entries[0].debit == 20.0
-        assert entries[1].account == "51200000"
-        assert entries[1].credit == 20.0
+        assert entries[0].lettrage == ""
+        # TVA déductible au débit
+        assert entries[1].account == "44566001"
+        assert entries[1].debit == 4.0
+        assert entries[1].lettrage == ""
+        # Client TTC au crédit
+        assert entries[2].account == "411MANO"
+        assert entries[2].credit == 24.0
+        assert all(e.entry_type == "fee" for e in entries)
 
 
 class TestLabels:
     """Tests des libellés."""
 
     def test_label_regular(self, sample_config: AppConfig) -> None:
-        """Libellé régulier : 'Reversement CMD-001 Manomano'."""
+        """Libellé régulier : 'Reversement CMD-001 ManoMano'."""
         tx = _make_transaction()
         entries = generate_marketplace_payout(tx, sample_config)
-        assert entries[0].label == "Reversement CMD-001 Manomano"
+        assert entries[0].label == "Reversement CMD-001 ManoMano"
 
     def test_label_adjustment(self, sample_config: AppConfig) -> None:
         """Libellé ADJUSTMENT : 'Ajustement ...'."""
@@ -314,19 +348,28 @@ class TestLabels:
 
     def test_label_subscription(self, sample_config: AppConfig) -> None:
         """Libellé SUBSCRIPTION : 'Abonnement ...'."""
-        tx = _make_transaction(special_type="SUBSCRIPTION", net_amount=-100.0)
+        tx = _make_transaction(
+            special_type="SUBSCRIPTION", net_amount=-60.0,
+            amount_ht=50.0, amount_tva=10.0,
+        )
         entries = generate_marketplace_payout(tx, sample_config)
         assert entries[0].label.startswith("Abonnement")
 
     def test_label_eco_contribution(self, sample_config: AppConfig) -> None:
         """Libellé ECO_CONTRIBUTION : 'Éco-contribution ...'."""
-        tx = _make_transaction(special_type="ECO_CONTRIBUTION", net_amount=-30.0)
+        tx = _make_transaction(
+            special_type="ECO_CONTRIBUTION", net_amount=-30.0,
+            amount_ht=25.0, amount_tva=5.0,
+        )
         entries = generate_marketplace_payout(tx, sample_config)
         assert entries[0].label.startswith("Éco-contribution")
 
     def test_label_refund_penalty(self, sample_config: AppConfig) -> None:
         """Libellé REFUND_PENALTY : 'Pénalité remb. ...'."""
-        tx = _make_transaction(special_type="REFUND_PENALTY", net_amount=-20.0)
+        tx = _make_transaction(
+            special_type="REFUND_PENALTY", net_amount=-24.0,
+            amount_ht=20.0, amount_tva=4.0,
+        )
         entries = generate_marketplace_payout(tx, sample_config)
         assert entries[0].label.startswith("Pénalité remb.")
 
@@ -370,6 +413,8 @@ class TestEntryMetadata:
             channel="leroy_merlin",
             special_type="SUBSCRIPTION",
             net_amount=-39.00,
+            amount_ht=0.0,
+            amount_tva=0.0,
             commission_ttc=0.0,
             commission_ht=None,
         )
@@ -397,7 +442,9 @@ class TestEntryMetadata:
             special_type="SUBSCRIPTION",
             date=creation_date,
             payout_date=payout_date,
-            net_amount=-40.0,
+            net_amount=-60.0,
+            amount_ht=50.0,
+            amount_tva=10.0,
             commission_ttc=0.0,
             commission_ht=None,
         )
@@ -588,17 +635,83 @@ class TestDecathlonSubscriptionLettrageByPayoutCycle:
         assert entries[1].account == "CDECATHLON"
         assert entries[1].lettrage == "ABO-DEC-001"
 
-    def test_subscription_manomano_unaffected(self, sample_config: AppConfig) -> None:
-        """SUBSCRIPTION ManoMano : lettrage = reference pour tous (pas de split)."""
+    def test_subscription_manomano_lettrage(self, sample_config: AppConfig) -> None:
+        """SUBSCRIPTION ManoMano : charge/TVA sans lettrage, 411MANO lettré par payout_reference."""
         tx = _make_transaction(
             channel="manomano",
             reference="ABO-MM-001",
             special_type="SUBSCRIPTION",
-            net_amount=-100.0,
+            net_amount=-60.0,
+            amount_ht=50.0,
+            amount_tva=10.0,
             commission_ttc=0.0,
             commission_ht=None,
             payout_reference="2025-07-01",
         )
         entries = generate_marketplace_payout(tx, sample_config)
-        for e in entries:
-            assert e.lettrage == "ABO-MM-001"
+
+        assert len(entries) == 3
+        # Charge : pas de lettrage
+        assert entries[0].lettrage == ""
+        # TVA : pas de lettrage
+        assert entries[1].lettrage == ""
+        # Client 411MANO : lettrage = payout_reference
+        assert entries[2].lettrage == "2025-07-01"
+
+
+class TestManoManoSpecialTypesThreeEntries:
+    """Tests des 3 types spéciaux ManoMano avec écritures HT + TVA + 411MANO."""
+
+    @pytest.mark.parametrize(
+        "special_type,charge_account,ht,tva,ttc",
+        [
+            ("SUBSCRIPTION", "61311111", 50.0, 10.0, 60.0),
+            ("ECO_CONTRIBUTION", "60730000", 25.0, 5.0, 30.0),
+            ("REFUND_PENALTY", "62220300", 20.0, 4.0, 24.0),
+        ],
+    )
+    def test_three_entries_balance(
+        self,
+        sample_config: AppConfig,
+        special_type: str,
+        charge_account: str,
+        ht: float,
+        tva: float,
+        ttc: float,
+    ) -> None:
+        """Chaque type spécial produit 3 écritures équilibrées D/C."""
+        tx = _make_transaction(
+            special_type=special_type,
+            net_amount=-ttc,
+            amount_ht=ht,
+            amount_tva=tva,
+            commission_ttc=0.0,
+            commission_ht=None,
+            payout_reference="PAY-BATCH-001",
+        )
+        entries = generate_marketplace_payout(tx, sample_config)
+
+        assert len(entries) == 3
+        # Charge HT
+        assert entries[0].account == charge_account
+        assert entries[0].debit == ht
+        assert entries[0].credit == 0.0
+        # TVA déductible
+        assert entries[1].account == "44566001"
+        assert entries[1].debit == tva
+        assert entries[1].credit == 0.0
+        # Client TTC
+        assert entries[2].account == "411MANO"
+        assert entries[2].debit == 0.0
+        assert entries[2].credit == ttc
+        # Équilibre D/C
+        total_debit = sum(e.debit for e in entries)
+        total_credit = sum(e.credit for e in entries)
+        assert total_debit == total_credit
+        # Lettrage : seul le client est lettré
+        assert entries[0].lettrage == ""
+        assert entries[1].lettrage == ""
+        assert entries[2].lettrage == "PAY-BATCH-001"
+        # Métadonnées
+        assert all(e.entry_type == "fee" for e in entries)
+        assert all(e.journal == "AC" for e in entries)

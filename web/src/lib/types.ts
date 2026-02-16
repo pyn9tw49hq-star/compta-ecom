@@ -71,6 +71,7 @@ export interface AccountDefaults {
     commissions: Record<string, string>;
     abonnements: Record<string, string>;
   };
+  psp_commissions: Record<string, string>;
   tva_deductible: string;
   journaux: {
     ventes: Record<string, string>;
@@ -86,6 +87,7 @@ export type AccountOverrides = {
     commissions?: Record<string, string>;
     abonnements?: Record<string, string>;
   };
+  psp_commissions?: Record<string, string>;
   tva_deductible?: string;
   journaux?: {
     ventes?: Record<string, string>;

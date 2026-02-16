@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime
 import fnmatch
 import logging
 import unicodedata
@@ -75,12 +76,16 @@ class PipelineOrchestrator:
         self,
         files: dict[str, bytes],
         config: AppConfig,
+        date_from: datetime.date | None = None,
+        date_to: datetime.date | None = None,
     ) -> tuple[list[AccountingEntry], list[Anomaly], dict[str, object], list[NormalizedTransaction]]:
         """Exécute le pipeline à partir de fichiers en mémoire.
 
         Args:
             files: Dictionnaire {nom_fichier: contenu_bytes}.
             config: Configuration de l'application.
+            date_from: Date de début du filtre (inclusive). Optionnel.
+            date_to: Date de fin du filtre (inclusive). Optionnel.
 
         Returns:
             Tuple (écritures, anomalies, résumé, transactions_uniques).
@@ -110,6 +115,25 @@ class PipelineOrchestrator:
                 "Aucun canal n'a produit de résultat. "
                 "Vérifiez les fichiers CSV et la configuration."
             )
+
+        # Filtrage par plage de dates (optionnel)
+        if date_from and date_to:
+            filtered_results: list[ParseResult] = []
+            for pr in all_parse_results:
+                filtered_txs = [t for t in pr.transactions if date_from <= t.date <= date_to]
+                filtered_payouts = [p for p in pr.payouts if date_from <= p.payout_date <= date_to]
+                retained_refs = {t.reference for t in filtered_txs}
+                filtered_anomalies = [
+                    a for a in pr.anomalies
+                    if not a.reference or a.reference in retained_refs
+                ]
+                filtered_results.append(ParseResult(
+                    transactions=filtered_txs,
+                    payouts=filtered_payouts,
+                    anomalies=filtered_anomalies,
+                    channel=pr.channel,
+                ))
+            all_parse_results = filtered_results
 
         entries, all_anomalies = self._process_parse_results(all_parse_results, config)
         summary = self._build_summary(entries, all_parse_results, config)

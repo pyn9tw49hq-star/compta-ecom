@@ -205,7 +205,8 @@ class ManoManoParser(BaseParser):
         anomalies: list[Anomaly] = []
 
         for idx, row in df.iterrows():
-            ref = str(row["reference"])
+            ref_raw = row["reference"]
+            ref = str(ref_raw) if pd.notna(ref_raw) else ""
 
             # Check for NaN in amount columns
             has_nan = False
@@ -304,6 +305,9 @@ class ManoManoParser(BaseParser):
             raise ParseError("default_country_code requis pour le canal manomano")
 
         df["AMOUNT"] = pd.to_numeric(df["AMOUNT"], errors="coerce")
+        has_amount_ht = "AMOUNT_HT" in df.columns
+        if has_amount_ht:
+            df["AMOUNT_HT"] = pd.to_numeric(df["AMOUNT_HT"], errors="coerce")
         df["PAYOUT_DATE"] = pd.to_datetime(df["PAYOUT_DATE"], format=DATE_FORMAT_PAYOUT, errors="coerce")
 
         special_rows: list[dict[str, Any]] = []
@@ -311,9 +315,11 @@ class ManoManoParser(BaseParser):
         anomalies: list[Anomaly] = []
 
         for idx, row in df.iterrows():
-            ref = str(row["REFERENCE"])
+            ref_raw = row["REFERENCE"]
+            ref = str(ref_raw) if pd.notna(ref_raw) else ""
             raw_type = str(row["TYPE"])
-            payout_ref = str(row["PAYOUT_REFERENCE"])
+            payout_ref_raw = row["PAYOUT_REFERENCE"]
+            payout_ref = str(payout_ref_raw) if pd.notna(payout_ref_raw) else ""
 
             if raw_type not in KNOWN_PAYOUT_TYPES:
                 anomalies.append(Anomaly(
@@ -358,12 +364,21 @@ class ManoManoParser(BaseParser):
                 continue
 
             if raw_type in SPECIAL_TYPES:
+                amount_val = round(float(row["AMOUNT"]), 2)
+                amount_ht = 0.0
+                amount_tva = 0.0
+                if has_amount_ht and pd.notna(row.get("AMOUNT_HT")):
+                    ht_val = round(float(row["AMOUNT_HT"]), 2)
+                    amount_ht = round(abs(ht_val), 2)
+                    amount_tva = round(abs(ht_val - amount_val), 2)
                 special_rows.append({
                     "reference": ref,
                     "special_type": raw_type,
                     "type": "sale",
                     "date": payout_date,
-                    "net_amount": round(float(row["AMOUNT"]), 2),
+                    "net_amount": amount_val,
+                    "amount_ht": amount_ht,
+                    "amount_tva": amount_tva,
                     "payout_date": payout_date,
                     "payout_reference": payout_ref,
                     "country_code": country_code,
@@ -515,8 +530,8 @@ class ManoManoParser(BaseParser):
                 channel="manomano",
                 date=row["date"],
                 type="sale",
-                amount_ht=0.00,
-                amount_tva=0.00,
+                amount_ht=float(row["amount_ht"]),
+                amount_tva=float(row["amount_tva"]),
                 amount_ttc=0.00,
                 shipping_ht=0.00,
                 shipping_tva=0.00,

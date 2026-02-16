@@ -562,3 +562,105 @@ class TestOrchestration:
         assert len(orphans) == 1
         assert orphans[0].channel == "mirakl"
         assert orphans[0].reference == "#K001"
+
+
+# --- Tests ManoMano YYMM current-month filter (Issue #11) ---
+
+
+class TestManoManoCurrentMonthPayout:
+    """Refs ManoMano YYMM du mois courant → info groupée, pas missing_payout."""
+
+    def test_manomano_current_month_no_missing_payout(self) -> None:
+        """Ref '260200001', today=2026-02 → pending_manomano_payout info, pas de warning."""
+        config = _make_config()
+        today = datetime.date(2026, 2, 15)
+        tx = _make_tx(
+            reference="260200001",
+            channel="manomano",
+            payout_date=None,
+            payment_method=None,
+        )
+        result = MatchingChecker.check([tx], config, _today=today)
+
+        missing = [a for a in result if a.type == "missing_payout"]
+        assert len(missing) == 0
+
+        pending = [a for a in result if a.type == "pending_manomano_payout"]
+        assert len(pending) == 1
+        assert pending[0].severity == "info"
+        assert "1 commande" in pending[0].detail
+        assert "mois en cours" in pending[0].detail
+        assert "260200001" in pending[0].actual_value
+
+    def test_manomano_older_month_missing_payout(self) -> None:
+        """Ref '251200001', today=2026-02 → anomalie missing_payout classique."""
+        config = _make_config()
+        today = datetime.date(2026, 2, 15)
+        tx = _make_tx(
+            reference="251200001",
+            channel="manomano",
+            payout_date=None,
+            payment_method=None,
+        )
+        result = MatchingChecker.check([tx], config, _today=today)
+
+        missing = [a for a in result if a.type == "missing_payout"]
+        assert len(missing) == 1
+        assert missing[0].reference == "251200001"
+
+        pending = [a for a in result if a.type == "pending_manomano_payout"]
+        assert len(pending) == 0
+
+    def test_non_manomano_unaffected(self) -> None:
+        """Ref shopify sans payout → anomalie missing_payout normale."""
+        config = _make_config()
+        today = datetime.date(2026, 2, 15)
+        tx = _make_tx(
+            reference="260200001",
+            channel="shopify",
+            payout_date=None,
+        )
+        result = MatchingChecker.check([tx], config, _today=today)
+
+        missing = [a for a in result if a.type == "missing_payout"]
+        assert len(missing) == 1
+        assert missing[0].reference == "260200001"
+        assert missing[0].channel == "shopify"
+
+        pending = [a for a in result if a.type == "pending_manomano_payout"]
+        assert len(pending) == 0
+
+    def test_manomano_ref_without_yymm(self) -> None:
+        """Ref ManoMano sans format YYMM → comportement standard (missing_payout)."""
+        config = _make_config()
+        today = datetime.date(2026, 2, 15)
+        tx = _make_tx(
+            reference="ABC-123",
+            channel="manomano",
+            payout_date=None,
+            payment_method=None,
+        )
+        result = MatchingChecker.check([tx], config, _today=today)
+
+        missing = [a for a in result if a.type == "missing_payout"]
+        assert len(missing) == 1
+        assert missing[0].reference == "ABC-123"
+
+        pending = [a for a in result if a.type == "pending_manomano_payout"]
+        assert len(pending) == 0
+
+    def test_manomano_multiple_current_month_grouped(self) -> None:
+        """Plusieurs refs du mois courant → 1 seule info groupée."""
+        config = _make_config()
+        today = datetime.date(2026, 2, 15)
+        tx1 = _make_tx(reference="260200001", channel="manomano", payout_date=None, payment_method=None)
+        tx2 = _make_tx(reference="260200002", channel="manomano", payout_date=None, payment_method=None)
+        tx3 = _make_tx(reference="260200003", channel="manomano", payout_date=None, payment_method=None)
+        result = MatchingChecker.check([tx1, tx2, tx3], config, _today=today)
+
+        pending = [a for a in result if a.type == "pending_manomano_payout"]
+        assert len(pending) == 1
+        assert "3 commandes" in pending[0].detail
+        assert "260200001" in pending[0].actual_value
+        assert "260200002" in pending[0].actual_value
+        assert "260200003" in pending[0].actual_value

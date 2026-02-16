@@ -64,6 +64,7 @@ class AccountOverridesSchema(BaseModel):
     clients: dict[str, str] | None = None
     fournisseurs: dict[str, str] | None = None
     charges: ChargesOverride | None = None
+    psp_commissions: dict[str, str] | None = None
     tva_deductible: str | None = None
     journaux: JournauxVentesOverride | None = None
 
@@ -71,6 +72,11 @@ class AccountOverridesSchema(BaseModel):
     @classmethod
     def validate_tiers(cls, v: dict[str, str] | None) -> dict[str, str] | None:
         return _check_dict_values(v, RE_COMPTE_TIERS, "Compte tiers")
+
+    @field_validator("psp_commissions")
+    @classmethod
+    def validate_psp_commissions(cls, v: dict[str, str] | None) -> dict[str, str] | None:
+        return _check_dict_values(v, RE_COMPTE_CHARGE, "Commission PSP")
 
     @field_validator("tva_deductible")
     @classmethod
@@ -115,6 +121,13 @@ def apply_overrides(config: AppConfig, overrides: dict[str, Any]) -> AppConfig:
             if "tva_deductible" in chan_charges:
                 chan_charges["tva_deductible"] = schema.tva_deductible
         replacements["comptes_charges_marketplace"] = new_charges_mp
+
+    if schema.psp_commissions:
+        new_psp = {name: dataclasses.replace(cfg) for name, cfg in config.psp.items()}
+        for name, compte in schema.psp_commissions.items():
+            if name in new_psp:
+                new_psp[name] = dataclasses.replace(new_psp[name], commission=compte)
+        replacements["psp"] = new_psp
 
     if schema.journaux:
         if schema.journaux.ventes:
