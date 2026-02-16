@@ -86,6 +86,22 @@ class TestExtractVatRate:
     def test_decimal_rate(self) -> None:
         assert _extract_vat_rate("TVA 5.5%") == 5.5
 
+    def test_french_comma_decimal(self) -> None:
+        """FR TVA 18,826% (virgule décimale française) → 18.826."""
+        assert _extract_vat_rate("FR TVA 18,826%") == 18.826
+
+    def test_french_comma_simple(self) -> None:
+        """FR TVA 5,5% → 5.5."""
+        assert _extract_vat_rate("FR TVA 5,5%") == 5.5
+
+    def test_aberrant_rate_rejected(self) -> None:
+        """Taux > 100% rejeté → 0.0."""
+        assert _extract_vat_rate("FAKE 200%") == 0.0
+
+    def test_zero_rate(self) -> None:
+        """FR TVA 0% → 0.0."""
+        assert _extract_vat_rate("FR TVA 0%") == 0.0
+
 
 class TestShopifyParserNominal:
     def test_single_order(self, tmp_path: Path, shopify_config: AppConfig) -> None:

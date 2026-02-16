@@ -26,7 +26,7 @@ import PeriodFilter from "@/components/PeriodFilter";
 import { useAccountOverrides } from "@/hooks/useAccountOverrides";
 import { processFiles, fetchDefaults } from "@/lib/api";
 import { CHANNEL_CONFIGS, matchFileToSlot } from "@/lib/channels";
-import { DEFAULT_PRESET, getPresetRange } from "@/lib/datePresets";
+import { DEFAULT_PRESET, getPresetRange, computeDataRange } from "@/lib/datePresets";
 import { computeSummary } from "@/lib/computeSummary";
 import type { DateRange } from "@/lib/datePresets";
 import type { UploadedFile, ProcessResponse, ChannelStatus, FileSlotConfig } from "@/lib/types";
@@ -186,15 +186,24 @@ export default function Home() {
       const response = await processFiles(
         files.map((f) => f.file),
         account.modifiedCount > 0 ? account.overrides : undefined,
-        dateRange,
       );
       setResult(response);
+
+      // Auto-detect date range from all entry and transaction dates
+      const allDates = [
+        ...response.entries.map((e) => e.date),
+        ...response.transactions.map((t) => t.date),
+      ];
+      const dataRange = computeDataRange(allDates);
+      if (dataRange) {
+        setDateRange(dataRange);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erreur inconnue");
     } finally {
       setLoading(false);
     }
-  }, [files, account.overrides, account.modifiedCount, dateRange]);
+  }, [files, account.overrides, account.modifiedCount]);
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">

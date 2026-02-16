@@ -57,6 +57,7 @@ CA_COLUMN_ALIASES: dict[str, list[str]] = {
 }
 PAYOUT_COLUMN_ALIASES: dict[str, list[str]] = {
     "AMOUNT": ["NET_AMOUNT"],
+    "AMOUNT_HT": ["AMOUNT_VAT_EXCL"],
 }
 
 ORDER_DETAILS_REQUIRED_COLUMNS = ["Order Reference", "Billing Country ISO"]
@@ -278,8 +279,8 @@ class ManoManoParser(BaseParser):
                 "amount_ttc": round(abs(float(row["amountVatIncl"])), 2),
                 "shipping_ht": round(abs(float(row["shippingPriceVatExcl"])), 2),
                 "shipping_tva": round(abs(float(row["vatOnShipping"])), 2),
-                "commission_ttc": round(float(row["commissionVatIncl"]), 2),
-                "commission_ht": round(float(row["commissionVatExcl"]), 2),
+                "commission_ttc": -round(abs(float(row["commissionVatIncl"])), 2) if tx_type == "sale" else round(abs(float(row["commissionVatIncl"])), 2),
+                "commission_ht": -round(abs(float(row["commissionVatExcl"])), 2) if tx_type == "sale" else round(abs(float(row["commissionVatExcl"])), 2),
                 "net_amount": round(float(row["netAmount"]), 2),
                 "country_code": country_code,
                 "tva_rate": tva_rate,
@@ -457,6 +458,7 @@ class ManoManoParser(BaseParser):
 
         # Parse Versements
         payout_df = pd.read_csv(payouts_path, sep=channel_config.separator, encoding=channel_config.encoding)
+        payout_df = self.strip_whitespace(payout_df)
         payout_df = self.apply_column_aliases(payout_df, PAYOUT_COLUMN_ALIASES)
         self.validate_columns(payout_df, PAYOUT_REQUIRED_COLUMNS)
 

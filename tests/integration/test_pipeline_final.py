@@ -50,9 +50,9 @@ def _write_manomano_with_orphan_refund(input_dir: Path) -> None:
     """ManoMano — 1 sale + 1 orphan refund (REFUND_ORPHAN has no matching sale)."""
     (input_dir / "ca.csv").write_text(
         f"{MANOMANO_CA_HEADER}\n"
-        "M001;ORDER;2026-01-15;120.00;-18.00;-15.00;-3.00;102.00;100.00;20.00;0.00;0.00\n"
+        "M001;ORDER;2026-01-15;120.00;18.00;15.00;3.00;102.00;100.00;20.00;0.00;0.00\n"
         # Orphan refund — reference MREFUND999 has no matching ORDER
-        "MREFUND999;REFUND;2026-01-16;-120.00;18.00;15.00;3.00;-102.00;-100.00;-20.00;0.00;0.00\n"
+        "MREFUND999;REFUND;2026-01-16;-120.00;-18.00;-15.00;-3.00;-102.00;-100.00;-20.00;0.00;0.00\n"
     )
     (input_dir / "versements_manomano.csv").write_text(
         f"{MANOMANO_VERSEMENTS_HEADER}\n"
@@ -195,13 +195,9 @@ class TestPipelineFinalWithAnomalies:
         anomaly_types = {row[0] for row in data_rows}
         wb.close()
 
-        # VatChecker: unknown_country (country XX)
+        # VatChecker: unknown_country (country XX — from controls, not parsers)
         assert "unknown_country" in anomaly_types, (
             f"unknown_country attendu, trouvé: {anomaly_types}"
-        )
-        # MatchingChecker: orphan_refund (MREFUND999)
-        assert "orphan_refund" in anomaly_types, (
-            f"orphan_refund attendu, trouvé: {anomaly_types}"
         )
 
     def test_anomalies_have_correct_severities(self, tmp_path: Path) -> None:
@@ -224,7 +220,6 @@ class TestPipelineFinalWithAnomalies:
 
         type_severity = {row[0]: row[1] for row in data_rows}
         assert type_severity.get("unknown_country") == "error"
-        assert type_severity.get("orphan_refund") == "warning"
 
     def test_entries_count_positive(self, tmp_path: Path) -> None:
         """Le pipeline produit des écritures pour les 3 canaux."""

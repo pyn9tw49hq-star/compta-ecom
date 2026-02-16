@@ -222,37 +222,38 @@ describe("AnomaliesPanel", () => {
   });
 
   describe("default sort", () => {
-    it("displays errors first", () => {
+    it("displays info first", () => {
       render(<AnomaliesPanel anomalies={MOCK_ANOMALIES} />);
 
       // Get all severity badges in order
       const allBadges = screen.getAllByText(/^(Erreur|Avertissement|Info)$/);
       // Filter to only the flat card badges (not counter badges, not grouped <details>)
-      // First flat card badge should be "Erreur"
+      // First flat card badge should be "Info"
       const cardBadges = allBadges.filter(
         (el) => el.closest("[class*='border-l-4']") !== null && el.closest("details") === null,
       );
-      expect(cardBadges[0]).toHaveTextContent("Erreur");
+      expect(cardBadges[0]).toHaveTextContent("Info");
     });
 
-    it("displays info after warning", () => {
+    it("displays errors after warning in flat cards", () => {
       render(<AnomaliesPanel anomalies={MOCK_ANOMALIES} />);
 
+      // Only check flat cards (exclude grouped <details> which have fixed DOM order)
       const cardBadges = screen
         .getAllByText(/^(Erreur|Avertissement|Info)$/)
-        .filter((el) => el.closest("[class*='border-l-4']") !== null);
+        .filter((el) => el.closest("[class*='border-l-4']") !== null && el.closest("details") === null);
 
-      // Find last warning and first info
+      // Find last warning and first error among flat cards
       const lastWarningIdx = cardBadges.reduce(
         (acc, el, idx) =>
           el.textContent === "Avertissement" ? idx : acc,
         -1,
       );
-      const firstInfoIdx = cardBadges.findIndex(
-        (el) => el.textContent === "Info",
+      const firstErrorIdx = cardBadges.findIndex(
+        (el) => el.textContent === "Erreur",
       );
 
-      expect(lastWarningIdx).toBeLessThan(firstInfoIdx);
+      expect(lastWarningIdx).toBeLessThan(firstErrorIdx);
     });
   });
 

@@ -24,9 +24,9 @@ def _make_ca_df(**overrides: object) -> pd.DataFrame:
         "type": ["ORDER"],
         "createdAt": ["2026-01-15"],
         "amountVatIncl": [120.00],
-        "commissionVatIncl": [-18.00],
-        "commissionVatExcl": [-15.00],
-        "vatOnCommission": [-3.00],
+        "commissionVatIncl": [18.00],
+        "commissionVatExcl": [15.00],
+        "vatOnCommission": [3.00],
         "netAmount": [102.00],
         "productPriceVatExcl": [83.33],
         "vatOnProduct": [16.67],
@@ -108,8 +108,8 @@ class TestParseCA:
         assert row.get("special_type") is None
 
     def test_nominal_refund(self, sample_config: AppConfig, tmp_path: Path) -> None:
-        """REFUND → montants positifs (abs), type='refund', commission signée."""
-        # Arrange
+        """REFUND → montants positifs (abs), type='refund', commission normalisée positive."""
+        # Arrange — real ManoMano signs: negative commissions for REFUND
         df = _make_ca_df(
             type="REFUND",
             amountVatIncl=-120.00,
@@ -117,9 +117,9 @@ class TestParseCA:
             vatOnProduct=-16.67,
             shippingPriceVatExcl=-8.33,
             vatOnShipping=-1.67,
-            commissionVatIncl=18.00,
-            commissionVatExcl=15.00,
-            vatOnCommission=3.00,
+            commissionVatIncl=-18.00,
+            commissionVatExcl=-15.00,
+            vatOnCommission=-3.00,
             netAmount=-102.00,
         )
         ca_path = tmp_path / "ca.csv"
@@ -564,9 +564,9 @@ class TestParseResult:
             "type": ["ORDER", "REFUND"],
             "createdAt": ["2026-01-15", "2026-01-16"],
             "amountVatIncl": [120.00, -60.00],
-            "commissionVatIncl": [-18.00, 9.00],
-            "commissionVatExcl": [-15.00, 7.50],
-            "vatOnCommission": [-3.00, 1.50],
+            "commissionVatIncl": [18.00, -9.00],
+            "commissionVatExcl": [15.00, -7.50],
+            "vatOnCommission": [3.00, -1.50],
             "netAmount": [102.00, -51.00],
             "productPriceVatExcl": [83.33, -41.67],
             "vatOnProduct": [16.67, -8.33],
@@ -596,7 +596,7 @@ class TestParseResult:
         assert refs["M001"].amount_ttc == 120.00
         assert refs["M002"].type == "refund"
         assert refs["M002"].amount_ttc == 60.00  # abs()
-        assert refs["M002"].commission_ttc == 9.00  # signed
+        assert refs["M002"].commission_ttc == 9.00  # normalized: refund → positive
         assert refs["M002"].net_amount == -51.00  # signed
 
 
@@ -736,9 +736,9 @@ class TestParseWithCountryLookup:
             "type": ["ORDER", "ORDER"],
             "createdAt": ["2026-01-15", "2026-01-16"],
             "amountVatIncl": [119.00, 120.00],
-            "commissionVatIncl": [-18.00, -18.00],
-            "commissionVatExcl": [-15.00, -15.00],
-            "vatOnCommission": [-3.00, -3.00],
+            "commissionVatIncl": [18.00, 18.00],
+            "commissionVatExcl": [15.00, 15.00],
+            "vatOnCommission": [3.00, 3.00],
             "netAmount": [101.00, 102.00],
             "productPriceVatExcl": [100.00, 100.00],
             "vatOnProduct": [19.00, 20.00],
@@ -841,9 +841,9 @@ class TestParseWithCountryLookup:
             "type": ["ORDER", "ORDER", "REFUND"],
             "createdAt": ["2026-01-15", "2026-01-16", "2026-01-17"],
             "amountVatIncl": [119.00, 122.00, -120.00],
-            "commissionVatIncl": [-17.85, -18.30, 18.00],
-            "commissionVatExcl": [-14.88, -15.25, 15.00],
-            "vatOnCommission": [-2.97, -3.05, 3.00],
+            "commissionVatIncl": [17.85, 18.30, -18.00],
+            "commissionVatExcl": [14.88, 15.25, -15.00],
+            "vatOnCommission": [2.97, 3.05, -3.00],
             "netAmount": [101.15, 103.70, -102.00],
             "productPriceVatExcl": [100.00, 100.00, -100.00],
             "vatOnProduct": [19.00, 22.00, -20.00],
@@ -884,3 +884,243 @@ class TestParseWithCountryLookup:
         assert refs["M003"].country_code == "250"
         assert refs["M003"].tva_rate == 20.0
         assert len(result.anomalies) == 0
+
+
+# =============================================================================
+# Issue #19 : Tests AMOUNT_VAT_EXCL alias + HT/TVA split pour types spéciaux
+# =============================================================================
+
+
+class TestAmountVatExclAlias:
+    """Tests pour l'alias AMOUNT_VAT_EXCL → AMOUNT_HT dans les versements."""
+
+    def test_subscription_extracts_ht_tva(self, sample_config: AppConfig) -> None:
+        """SUBSCRIPTION avec AMOUNT_VAT_EXCL → amount_ht > 0 et amount_tva > 0."""
+        df = _make_payout_df([
+            {
+                "REFERENCE": "SUB001", "TYPE": "SUBSCRIPTION",
+                "PAYOUT_REFERENCE": "PAY001", "PAYOUT_DATE": "2026-01-31",
+                "AMOUNT": -49.90, "AMOUNT_VAT_EXCL": -41.58,
+            },
+        ])
+        parser = ManoManoParser()
+        # apply_column_aliases simulates what parse() does before _parse_payout_lines
+        df = parser.apply_column_aliases(df, {"AMOUNT": ["NET_AMOUNT"], "AMOUNT_HT": ["AMOUNT_VAT_EXCL"]})
+        specials, _, anomalies = parser._parse_payout_lines(df, sample_config)
+
+        assert len(specials) == 1
+        assert specials[0]["amount_ht"] == 41.58
+        assert specials[0]["amount_tva"] == 8.32
+        assert specials[0]["net_amount"] == -49.90
+        assert len(anomalies) == 0
+
+    def test_eco_contribution_extracts_ht_tva(self, sample_config: AppConfig) -> None:
+        """ECO_CONTRIBUTION avec AMOUNT_VAT_EXCL → HT/TVA calculés correctement."""
+        df = _make_payout_df([
+            {
+                "REFERENCE": "ECO001", "TYPE": "ECO_CONTRIBUTION",
+                "PAYOUT_REFERENCE": "PAY001", "PAYOUT_DATE": "2026-01-31",
+                "AMOUNT": -20.56, "AMOUNT_VAT_EXCL": -17.13,
+            },
+        ])
+        parser = ManoManoParser()
+        df = parser.apply_column_aliases(df, {"AMOUNT": ["NET_AMOUNT"], "AMOUNT_HT": ["AMOUNT_VAT_EXCL"]})
+        specials, _, _ = parser._parse_payout_lines(df, sample_config)
+
+        assert specials[0]["amount_ht"] == 17.13
+        assert specials[0]["amount_tva"] == 3.43
+
+    def test_refund_penalty_extracts_ht_tva(self, sample_config: AppConfig) -> None:
+        """REFUND_PENALTY avec AMOUNT_VAT_EXCL → HT/TVA calculés correctement."""
+        df = _make_payout_df([
+            {
+                "REFERENCE": "PEN001", "TYPE": "REFUND_PENALTY",
+                "PAYOUT_REFERENCE": "PAY001", "PAYOUT_DATE": "2026-01-31",
+                "AMOUNT": -15.00, "AMOUNT_VAT_EXCL": -12.50,
+            },
+        ])
+        parser = ManoManoParser()
+        df = parser.apply_column_aliases(df, {"AMOUNT": ["NET_AMOUNT"], "AMOUNT_HT": ["AMOUNT_VAT_EXCL"]})
+        specials, _, _ = parser._parse_payout_lines(df, sample_config)
+
+        assert specials[0]["amount_ht"] == 12.50
+        assert specials[0]["amount_tva"] == 2.50
+
+    def test_alias_applied_in_full_parse(self, sample_config: AppConfig, tmp_path: Path) -> None:
+        """parse() avec CSV AMOUNT_VAT_EXCL → NormalizedTransaction avec amount_ht/amount_tva."""
+        ca_df = _make_ca_df()
+        payout_df = pd.DataFrame({
+            "REFERENCE": ["M001", "SUB001"],
+            "TYPE": ["ORDER", "SUBSCRIPTION"],
+            "PAYOUT_REFERENCE": ["PAY001", "PAY001"],
+            "PAYOUT_DATE": ["2026-01-31", "2026-01-31"],
+            "AMOUNT": [102.00, -49.90],
+            "AMOUNT_VAT_EXCL": [None, -41.58],
+        })
+        ca_path = tmp_path / "ca.csv"
+        payout_path = tmp_path / "payouts.csv"
+        _write_csv(ca_df, ca_path)
+        _write_csv(payout_df, payout_path)
+        parser = ManoManoParser()
+
+        result = parser.parse({"ca": ca_path, "payouts": payout_path}, sample_config)
+
+        special_tx = [t for t in result.transactions if t.special_type == "SUBSCRIPTION"]
+        assert len(special_tx) == 1
+        assert special_tx[0].amount_ht == 41.58
+        assert special_tx[0].amount_tva == 8.32
+
+    def test_without_ht_column_fallback_zero(self, sample_config: AppConfig) -> None:
+        """Sans colonne AMOUNT_HT ni AMOUNT_VAT_EXCL → amount_ht=0, amount_tva=0 (fallback TTC)."""
+        df = _make_payout_df([
+            {
+                "REFERENCE": "SUB001", "TYPE": "SUBSCRIPTION",
+                "PAYOUT_REFERENCE": "PAY001", "PAYOUT_DATE": "2026-01-31",
+                "AMOUNT": -49.90,
+            },
+        ])
+        parser = ManoManoParser()
+        specials, _, _ = parser._parse_payout_lines(df, sample_config)
+
+        assert specials[0]["amount_ht"] == 0.0
+        assert specials[0]["amount_tva"] == 0.0
+
+
+class TestSpecialTypesParserToEngine:
+    """Tests intégration parser→moteur : types spéciaux → écritures HT+TVA+TTC."""
+
+    def test_eco_contribution_ht_tva_split(self, sample_config: AppConfig, tmp_path: Path) -> None:
+        """ECO_CONTRIBUTION → 60730000 D (HT) + 44566001 D (TVA) + 411MANO C (TTC)."""
+        from compta_ecom.engine.marketplace_payout_entries import generate_marketplace_payout
+
+        ca_df = _make_ca_df()
+        payout_df = pd.DataFrame({
+            "REFERENCE": ["M001", "ECO001"],
+            "TYPE": ["ORDER", "ECO_CONTRIBUTION"],
+            "PAYOUT_REFERENCE": ["PAY001", "PAY001"],
+            "PAYOUT_DATE": ["2026-01-31", "2026-01-31"],
+            "AMOUNT": [102.00, -20.56],
+            "AMOUNT_VAT_EXCL": [None, -17.13],
+        })
+        ca_path = tmp_path / "ca.csv"
+        payout_path = tmp_path / "payouts.csv"
+        _write_csv(ca_df, ca_path)
+        _write_csv(payout_df, payout_path)
+        parser = ManoManoParser()
+
+        result = parser.parse({"ca": ca_path, "payouts": payout_path}, sample_config)
+        eco_tx = [t for t in result.transactions if t.special_type == "ECO_CONTRIBUTION"][0]
+        entries = generate_marketplace_payout(eco_tx, sample_config)
+
+        assert len(entries) == 3
+        assert entries[0].account == "60730000"
+        assert entries[0].debit == 17.13
+        assert entries[1].account == "44566001"
+        assert entries[1].debit == 3.43
+        assert entries[2].account == "411MANO"
+        assert entries[2].credit == 20.56
+
+    def test_refund_penalty_ht_tva_split(self, sample_config: AppConfig, tmp_path: Path) -> None:
+        """REFUND_PENALTY → 62220300 D (HT) + 44566001 D (TVA) + 411MANO C (TTC)."""
+        from compta_ecom.engine.marketplace_payout_entries import generate_marketplace_payout
+
+        ca_df = _make_ca_df()
+        payout_df = pd.DataFrame({
+            "REFERENCE": ["M001", "PEN001"],
+            "TYPE": ["ORDER", "REFUND_PENALTY"],
+            "PAYOUT_REFERENCE": ["PAY001", "PAY001"],
+            "PAYOUT_DATE": ["2026-01-31", "2026-01-31"],
+            "AMOUNT": [102.00, -15.00],
+            "AMOUNT_VAT_EXCL": [None, -12.50],
+        })
+        ca_path = tmp_path / "ca.csv"
+        payout_path = tmp_path / "payouts.csv"
+        _write_csv(ca_df, ca_path)
+        _write_csv(payout_df, payout_path)
+        parser = ManoManoParser()
+
+        result = parser.parse({"ca": ca_path, "payouts": payout_path}, sample_config)
+        pen_tx = [t for t in result.transactions if t.special_type == "REFUND_PENALTY"][0]
+        entries = generate_marketplace_payout(pen_tx, sample_config)
+
+        assert len(entries) == 3
+        assert entries[0].account == "62220300"
+        assert entries[0].debit == 12.50
+        assert entries[1].account == "44566001"
+        assert entries[1].debit == 2.50
+        assert entries[2].account == "411MANO"
+        assert entries[2].credit == 15.00
+
+    def test_subscription_ht_tva_split(self, sample_config: AppConfig, tmp_path: Path) -> None:
+        """SUBSCRIPTION → 61311111 D (HT) + 44566001 D (TVA) + 411MANO C (TTC)."""
+        from compta_ecom.engine.marketplace_payout_entries import generate_marketplace_payout
+
+        ca_df = _make_ca_df()
+        payout_df = pd.DataFrame({
+            "REFERENCE": ["M001", "SUB001"],
+            "TYPE": ["ORDER", "SUBSCRIPTION"],
+            "PAYOUT_REFERENCE": ["PAY001", "PAY001"],
+            "PAYOUT_DATE": ["2026-01-31", "2026-01-31"],
+            "AMOUNT": [102.00, -49.90],
+            "AMOUNT_VAT_EXCL": [None, -41.58],
+        })
+        ca_path = tmp_path / "ca.csv"
+        payout_path = tmp_path / "payouts.csv"
+        _write_csv(ca_df, ca_path)
+        _write_csv(payout_df, payout_path)
+        parser = ManoManoParser()
+
+        result = parser.parse({"ca": ca_path, "payouts": payout_path}, sample_config)
+        sub_tx = [t for t in result.transactions if t.special_type == "SUBSCRIPTION"][0]
+        entries = generate_marketplace_payout(sub_tx, sample_config)
+
+        assert len(entries) == 3
+        assert entries[0].account == "61311111"
+        assert entries[0].debit == 41.58
+        assert entries[1].account == "44566001"
+        assert entries[1].debit == 8.32
+        assert entries[2].account == "411MANO"
+        assert entries[2].credit == 49.90
+
+    @pytest.mark.parametrize(
+        "special_type,amount,amount_vat_excl",
+        [
+            ("SUBSCRIPTION", -49.90, -41.58),
+            ("ECO_CONTRIBUTION", -20.56, -17.13),
+            ("REFUND_PENALTY", -15.00, -12.50),
+        ],
+    )
+    def test_balance_all_special_types(
+        self,
+        sample_config: AppConfig,
+        tmp_path: Path,
+        special_type: str,
+        amount: float,
+        amount_vat_excl: float,
+    ) -> None:
+        """Somme débit == somme crédit pour chaque type spécial (parser→moteur)."""
+        from compta_ecom.engine.marketplace_payout_entries import generate_marketplace_payout
+
+        ca_df = _make_ca_df()
+        payout_df = pd.DataFrame({
+            "REFERENCE": ["M001", "SPEC001"],
+            "TYPE": ["ORDER", special_type],
+            "PAYOUT_REFERENCE": ["PAY001", "PAY001"],
+            "PAYOUT_DATE": ["2026-01-31", "2026-01-31"],
+            "AMOUNT": [102.00, amount],
+            "AMOUNT_VAT_EXCL": [None, amount_vat_excl],
+        })
+        ca_path = tmp_path / "ca.csv"
+        payout_path = tmp_path / "payouts.csv"
+        _write_csv(ca_df, ca_path)
+        _write_csv(payout_df, payout_path)
+        parser = ManoManoParser()
+
+        result = parser.parse({"ca": ca_path, "payouts": payout_path}, sample_config)
+        spec_tx = [t for t in result.transactions if t.special_type == special_type][0]
+        entries = generate_marketplace_payout(spec_tx, sample_config)
+
+        total_debit = sum(e.debit for e in entries)
+        total_credit = sum(e.credit for e in entries)
+        assert total_debit == total_credit
+        assert total_debit > 0

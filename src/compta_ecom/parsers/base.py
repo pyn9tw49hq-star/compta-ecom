@@ -37,6 +37,18 @@ class BaseParser(ABC):
             df = df.rename(columns=rename_map)
         return df
 
+    @staticmethod
+    def strip_whitespace(df: pd.DataFrame) -> pd.DataFrame:
+        """Strip whitespace from column names and string cell values.
+
+        Handles CSV files with spaces around separators (e.g. ` ; `).
+        """
+        df.columns = df.columns.str.strip()
+        for col in df.columns:
+            if pd.api.types.is_string_dtype(df[col]):
+                df[col] = df[col].str.strip()
+        return df
+
     def validate_columns(self, df: pd.DataFrame, required: list[str]) -> None:
         """Vérifie que toutes les colonnes requises sont présentes dans le DataFrame.
 

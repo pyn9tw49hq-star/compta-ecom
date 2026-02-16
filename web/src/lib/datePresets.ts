@@ -42,3 +42,16 @@ export function getPresetRange(key: Exclude<PresetKey, "custom">, now: Date = ne
       return { from: subDays(now, 90), to: now };
   }
 }
+
+/**
+ * Compute the date range that covers all provided ISO date strings.
+ * Rounds to month boundaries (start of earliest month → end of latest month).
+ * Returns null if the array is empty.
+ */
+export function computeDataRange(dates: string[]): DateRange | null {
+  if (dates.length === 0) return null;
+  const timestamps = dates.map((d) => new Date(d + "T00:00:00").getTime());
+  const min = new Date(Math.min(...timestamps));
+  const max = new Date(Math.max(...timestamps));
+  return { from: startOfMonth(min), to: endOfMonth(max) };
+}

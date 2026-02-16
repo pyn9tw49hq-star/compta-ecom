@@ -30,6 +30,7 @@ class MatchingChecker:
         anomalies: list[Anomaly] = []
         pending_manomano_refs: list[str] = []
         overdue_manomano_refs: list[str] = []
+        prior_period_manomano_refund_refs: list[str] = []
 
         for tx in transactions:
             if tx.special_type is not None:
@@ -50,6 +51,10 @@ class MatchingChecker:
                     if 1 <= ref_month <= 12:
                         if (ref_year, ref_month) >= (today.year, today.month):
                             pending_manomano_refs.append(tx.reference)
+                            continue
+                        elif tx.type == "refund":
+                            # Refunds for old periods are normal — not overdue
+                            prior_period_manomano_refund_refs.append(tx.reference)
                             continue
                         else:
                             overdue_manomano_refs.append(tx.reference)
@@ -91,6 +96,23 @@ class MatchingChecker:
                 )
             )
 
+        if prior_period_manomano_refund_refs:
+            count = len(prior_period_manomano_refund_refs)
+            anomalies.append(
+                Anomaly(
+                    type="prior_period_manomano_refund",
+                    severity="info",
+                    reference="",
+                    channel="manomano",
+                    detail=(
+                        f"{count} remboursement{'s' if count > 1 else ''} "
+                        f"ManoMano concernent des commandes de périodes antérieures"
+                    ),
+                    expected_value=None,
+                    actual_value=", ".join(prior_period_manomano_refund_refs),
+                )
+            )
+
         anomalies.extend(MatchingChecker._check_refund_matching(transactions))
         anomalies.extend(MatchingChecker._check_payment_delay(transactions))
 
@@ -100,7 +122,7 @@ class MatchingChecker:
     def _check_amount_coherence(
         transaction: NormalizedTransaction, config: AppConfig
     ) -> list[Anomaly]:
-        """Vérifie amount_ttc ≈ abs(commission_ttc + net_amount)."""
+        """Vérifie amount_ttc ≈ commission_ttc + net_amount (deux formules de signe)."""
         if (
             transaction.commission_ttc == 0.0
             and transaction.net_amount == 0.0
@@ -108,8 +130,22 @@ class MatchingChecker:
         ):
             return []
 
-        expected = abs(round(transaction.commission_ttc + transaction.net_amount, 2))
-        diff = round(abs(transaction.amount_ttc - expected), 2)
+        # Formula 1: |commission + net| — works when signs are consistent
+        # (e.g. Shopify refund commission kept: +3.50 + -120 = -116.50)
+        expected_sum = abs(round(transaction.commission_ttc + transaction.net_amount, 2))
+        diff_sum = round(abs(transaction.amount_ttc - expected_sum), 2)
+
+        # Formula 2: |commission| + |net| — works when commission sign is
+        # flipped (e.g. ManoMano sale: commission=-15.43, net=103.27)
+        expected_parts = round(abs(transaction.commission_ttc) + abs(transaction.net_amount), 2)
+        diff_parts = round(abs(abs(transaction.amount_ttc) - expected_parts), 2)
+
+        if diff_sum <= diff_parts:
+            expected = expected_sum
+            diff = diff_sum
+        else:
+            expected = expected_parts
+            diff = diff_parts
 
         if diff > config.matching_tolerance:
             return [
@@ -181,6 +217,11 @@ class MatchingChecker:
             if tx.special_type == "orphan_settlement":
                 continue
             if tx.type == "refund" and tx.reference not in sale_references:
+                # ManoMano refunds are handled by the YYMM-specific logic
+                # in check() — skip here to avoid duplicate anomalies
+                if tx.channel == "manomano":
+                    continue
+
                 # Classify: prior period vs true orphan
                 ref_m = re.search(r"(\d+)", tx.reference)
                 ref_num = int(ref_m.group(1)) if ref_m else None

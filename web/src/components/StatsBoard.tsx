@@ -255,9 +255,15 @@ export default function StatsBoard({ summary, entries, anomalies, htTtcMode, onH
                   </Badge>
                 )}
                 {vatAnomalyStats.rateCount > 0 && (
-                  <Badge variant="outline" className={getVatAnomalyRateBadgeClass(vatAnomalyStats.rateRate)}>
-                    Taux TVA incohérent : {formatPercent(vatAnomalyStats.rateRate)} — {formatCurrency(vatAnomalyStats.rateMismatchTotal)} €
-                  </Badge>
+                  vatAnomalyStats.rateMismatchTotal === 0 ? (
+                    <Badge variant="outline" className={getVatAnomalyRateBadgeClass(vatAnomalyStats.rateRate)}>
+                      Taux TVA incohérent : {vatAnomalyStats.rateCount} {vatAnomalyStats.rateCount > 1 ? "factures" : "facture"} — 0,00 € d&apos;impact
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className={getVatAnomalyRateBadgeClass(vatAnomalyStats.rateRate)}>
+                      Taux TVA incohérent : {formatPercent(vatAnomalyStats.rateRate)} — {formatCurrency(vatAnomalyStats.rateMismatchTotal)} €
+                    </Badge>
+                  )
                 )}
               </div>
             )}

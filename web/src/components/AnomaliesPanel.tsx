@@ -20,7 +20,7 @@ export const SEVERITY_META: Record<string, SeverityMeta> = {
     label: "Erreur",
     badgeClass: "bg-red-100 text-red-800 border-red-300 dark:bg-red-900 dark:text-red-200 dark:border-red-700",
     borderClass: "border-red-500",
-    order: 0,
+    order: 2,
   },
   warning: {
     label: "Avertissement",
@@ -32,7 +32,7 @@ export const SEVERITY_META: Record<string, SeverityMeta> = {
     label: "Info",
     badgeClass: "bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-900 dark:text-blue-200 dark:border-blue-700",
     borderClass: "border-blue-500",
-    order: 2,
+    order: 0,
   },
 };
 
@@ -51,6 +51,7 @@ export const ANOMALY_CATEGORIES: Record<string, { label: string; types: string[]
       "missing_payout", "payout_detail_mismatch", "payout_missing_details",
       "orphan_payout_detail", "mixed_psp_payout", "unknown_psp_detail",
       "payout_detail_refund_discovered", "direct_payment",
+      "prior_period_manomano_refund",
     ],
   },
   retours: {
@@ -109,6 +110,7 @@ export const ANOMALY_TYPE_LABELS: Record<string, string> = {
   prior_period_refund: "Remboursements période antérieure",
   pending_manomano_payout: "Reversements ManoMano en attente",
   overdue_manomano_payout: "Reversements ManoMano en retard",
+  prior_period_manomano_refund: "Remboursements ManoMano période antérieure",
   return_tva_rate_aberrant: "Taux TVA aberrant sur remboursement",
 };
 
@@ -257,9 +259,9 @@ export default function AnomaliesPanel({ anomalies }: AnomaliesPanelProps) {
     <div>
       {/* Severity counters */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        {severityCounts.error > 0 && (
-          <Badge variant="outline" className={SEVERITY_META.error.badgeClass}>
-            {severityCounts.error} {severityCounts.error > 1 ? "erreurs" : "erreur"}
+        {severityCounts.info > 0 && (
+          <Badge variant="outline" className={SEVERITY_META.info.badgeClass}>
+            {severityCounts.info} {severityCounts.info > 1 ? "infos" : "info"}
           </Badge>
         )}
         {severityCounts.warning > 0 && (
@@ -267,9 +269,9 @@ export default function AnomaliesPanel({ anomalies }: AnomaliesPanelProps) {
             {severityCounts.warning} {severityCounts.warning > 1 ? "avertissements" : "avertissement"}
           </Badge>
         )}
-        {severityCounts.info > 0 && (
-          <Badge variant="outline" className={SEVERITY_META.info.badgeClass}>
-            {severityCounts.info} {severityCounts.info > 1 ? "infos" : "info"}
+        {severityCounts.error > 0 && (
+          <Badge variant="outline" className={SEVERITY_META.error.badgeClass}>
+            {severityCounts.error} {severityCounts.error > 1 ? "erreurs" : "erreur"}
           </Badge>
         )}
         {isFiltered && (
@@ -346,7 +348,7 @@ export default function AnomaliesPanel({ anomalies }: AnomaliesPanelProps) {
       <div className="space-y-2">
         {(() => {
           const GROUPED_TYPES = new Set(["missing_payout", "orphan_sale_summary", "orphan_sale", "direct_payment", "tva_mismatch"]);
-          const PRIOR_PERIOD_TYPES = new Set(["prior_period_settlement", "prior_period_refund"]);
+          const PRIOR_PERIOD_TYPES = new Set(["prior_period_settlement", "prior_period_refund", "prior_period_manomano_refund"]);
           const grouped = sortedAnomalies.filter((a) => GROUPED_TYPES.has(a.type));
           const priorPeriod = sortedAnomalies.filter((a) => PRIOR_PERIOD_TYPES.has(a.type));
           const others = sortedAnomalies.filter((a) => !GROUPED_TYPES.has(a.type) && !PRIOR_PERIOD_TYPES.has(a.type));

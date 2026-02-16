@@ -404,8 +404,23 @@ class TestRefundMatching:
     def test_refund_canal_sans_vente_ce_canal(self) -> None:
         """Refund d'un canal sans aucune vente de ce canal → orphan_refund."""
         sale_shopify = _make_tx(reference="#1001", channel="shopify")
-        refund_manomano = _make_tx(
+        refund_decathlon = _make_tx(
             reference="#2001",
+            channel="decathlon",
+            tx_type="refund",
+            commission_ttc=-5.0,
+            net_amount=-95.0,
+            amount_ttc=100.0,
+        )
+        result = MatchingChecker._check_refund_matching([sale_shopify, refund_decathlon])
+        assert len(result) == 1
+        assert result[0].channel == "decathlon"
+
+    def test_manomano_refund_skipped_in_refund_matching(self) -> None:
+        """ManoMano refund sans vente → pas d'orphan_refund (géré par YYMM)."""
+        sale_shopify = _make_tx(reference="#1001", channel="shopify")
+        refund_manomano = _make_tx(
+            reference="M260200001",
             channel="manomano",
             tx_type="refund",
             commission_ttc=-5.0,
@@ -413,8 +428,7 @@ class TestRefundMatching:
             amount_ttc=100.0,
         )
         result = MatchingChecker._check_refund_matching([sale_shopify, refund_manomano])
-        assert len(result) == 1
-        assert result[0].channel == "manomano"
+        assert len(result) == 0
 
 
 # --- Tests prior_period_refund (Issue #1) ---
@@ -707,3 +721,181 @@ class TestManoManoCurrentMonthPayout:
         pending = [a for a in result if a.type == "pending_manomano_payout"]
         assert len(pending) == 1
         assert "260200001" in pending[0].actual_value
+
+
+# --- Tests ManoMano prior-period refunds (Issue #17) ---
+
+
+class TestManoManoPriorPeriodRefund:
+    """Refunds ManoMano d'une période ancienne → info, pas warning."""
+
+    def test_manomano_refund_old_period_is_info(self) -> None:
+        """Refund ref 'M251200001', today=2026-02 → prior_period_manomano_refund (info), PAS overdue."""
+        config = _make_config()
+        today = datetime.date(2026, 2, 15)
+        sale = _make_tx(
+            reference="M260200001",
+            channel="manomano",
+            tx_type="sale",
+            payout_date=None,
+            payment_method=None,
+        )
+        refund = _make_tx(
+            reference="M251200001",
+            channel="manomano",
+            tx_type="refund",
+            payout_date=None,
+            payment_method=None,
+            commission_ttc=-3.50,
+            net_amount=-116.50,
+            amount_ttc=120.0,
+        )
+        result = MatchingChecker.check([sale, refund], config, _today=today)
+
+        prior = [a for a in result if a.type == "prior_period_manomano_refund"]
+        assert len(prior) == 1
+        assert prior[0].severity == "info"
+        assert "M251200001" in (prior[0].actual_value or "")
+
+        overdue = [a for a in result if a.type == "overdue_manomano_payout"]
+        assert len(overdue) == 0
+
+    def test_manomano_sale_old_period_is_warning(self) -> None:
+        """Sale ref 'M251200001', today=2026-02 → overdue_manomano_payout (warning) inchangé."""
+        config = _make_config()
+        today = datetime.date(2026, 2, 15)
+        tx = _make_tx(
+            reference="M251200001",
+            channel="manomano",
+            tx_type="sale",
+            payout_date=None,
+            payment_method=None,
+        )
+        result = MatchingChecker.check([tx], config, _today=today)
+
+        overdue = [a for a in result if a.type == "overdue_manomano_payout"]
+        assert len(overdue) == 1
+        assert overdue[0].severity == "warning"
+        assert "M251200001" in (overdue[0].actual_value or "")
+
+        prior = [a for a in result if a.type == "prior_period_manomano_refund"]
+        assert len(prior) == 0
+
+    def test_manomano_refund_current_month_no_anomaly(self) -> None:
+        """Refund ref 'M260200001' (mois courant), today=2026-02 → pending, pas d'anomalie overdue ni prior."""
+        config = _make_config()
+        today = datetime.date(2026, 2, 15)
+        tx = _make_tx(
+            reference="M260200001",
+            channel="manomano",
+            tx_type="refund",
+            payout_date=None,
+            payment_method=None,
+            commission_ttc=-3.50,
+            net_amount=-116.50,
+            amount_ttc=120.0,
+        )
+        result = MatchingChecker.check([tx], config, _today=today)
+
+        overdue = [a for a in result if a.type == "overdue_manomano_payout"]
+        assert len(overdue) == 0
+
+        prior = [a for a in result if a.type == "prior_period_manomano_refund"]
+        assert len(prior) == 0
+
+        pending = [a for a in result if a.type == "pending_manomano_payout"]
+        assert len(pending) == 1
+
+    def test_non_manomano_unaffected(self) -> None:
+        """Canal Shopify refund sans payout → missing_payout, pas de prior_period_manomano_refund."""
+        config = _make_config()
+        today = datetime.date(2026, 2, 15)
+        tx = _make_tx(
+            reference="251200001",
+            channel="shopify",
+            tx_type="refund",
+            payout_date=None,
+            commission_ttc=-3.50,
+            net_amount=-116.50,
+            amount_ttc=120.0,
+        )
+        result = MatchingChecker.check([tx], config, _today=today)
+
+        missing = [a for a in result if a.type == "missing_payout"]
+        assert len(missing) == 1
+        assert missing[0].channel == "shopify"
+
+        prior = [a for a in result if a.type == "prior_period_manomano_refund"]
+        assert len(prior) == 0
+
+
+# --- Bug fix: pas de doublon prior_period pour ManoMano ---
+
+
+class TestManoManoNoDuplicatePriorPeriod:
+    """ManoMano refunds ne doivent PAS produire prior_period_refund en doublon."""
+
+    def test_manomano_refund_no_duplicate_prior_period(self) -> None:
+        """Refund ManoMano ancien → prior_period_manomano_refund SEUL, pas de prior_period_refund."""
+        config = _make_config()
+        today = datetime.date(2026, 2, 15)
+        # Sale Shopify (pour que _check_refund_matching ait un first_sale_num)
+        sale = _make_tx(reference="#1100", channel="shopify", tx_type="sale")
+        # Refund ManoMano ancien (YYMM=2512 < 2602)
+        refund = _make_tx(
+            reference="M251286828100",
+            channel="manomano",
+            tx_type="refund",
+            payout_date=None,
+            payment_method=None,
+            commission_ttc=-3.50,
+            net_amount=-116.50,
+            amount_ttc=120.0,
+        )
+        result = MatchingChecker.check([sale, refund], config, _today=today)
+
+        # Doit avoir prior_period_manomano_refund (YYMM logic)
+        manomano_prior = [a for a in result if a.type == "prior_period_manomano_refund"]
+        assert len(manomano_prior) == 1
+
+        # Ne doit PAS avoir prior_period_refund (generic logic)
+        generic_prior = [a for a in result if a.type == "prior_period_refund"]
+        assert len(generic_prior) == 0
+
+        # Ne doit PAS avoir orphan_refund
+        orphan = [a for a in result if a.type == "orphan_refund"]
+        assert len(orphan) == 0
+
+
+# --- Bug fix: commission négative ManoMano cohérence montant ---
+
+
+class TestManoManoNegativeCommissionCoherence:
+    """Commission négative (convention ManoMano) ne doit pas produire de faux écart."""
+
+    def test_manomano_sale_negative_commission_no_mismatch(self) -> None:
+        """ManoMano sale: commission=-15.43, net=103.27, ttc=118.70 → pas d'anomalie."""
+        config = _make_config()
+        tx = _make_tx(
+            reference="M260287725252",
+            channel="manomano",
+            commission_ttc=-15.43,
+            net_amount=103.27,
+            amount_ttc=118.70,
+        )
+        result = MatchingChecker._check_amount_coherence(tx, config)
+        assert result == []
+
+    def test_manomano_sale_negative_commission_with_ecart(self) -> None:
+        """ManoMano sale: vrai écart → anomalie détectée."""
+        config = _make_config()
+        tx = _make_tx(
+            reference="M260287725252",
+            channel="manomano",
+            commission_ttc=-15.43,
+            net_amount=100.00,  # manque 3.27€ → écart
+            amount_ttc=118.70,
+        )
+        result = MatchingChecker._check_amount_coherence(tx, config)
+        assert len(result) == 1
+        assert result[0].type == "amount_mismatch"

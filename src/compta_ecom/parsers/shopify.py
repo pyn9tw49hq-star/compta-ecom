@@ -96,11 +96,21 @@ def _extract_ref_number(ref: str) -> int | None:
 
 
 def _extract_vat_rate(tax_name: object) -> float:
-    """Extraire le taux TVA depuis Tax 1 Name. Ex: 'FR TVA 20%' -> 20.0."""
+    """Extraire le taux TVA depuis Tax 1 Name. Ex: 'FR TVA 20%' -> 20.0.
+
+    Gère la notation décimale française (virgule) : 'FR TVA 18,826%' -> 18.826.
+    Rejette les taux aberrants (> 100%).
+    """
     if not tax_name or not isinstance(tax_name, str):
         return 0.0
-    match = re.search(r"(\d+(?:\.\d+)?)%", tax_name)
-    return float(match.group(1)) if match else 0.0
+    match = re.search(r"(\d+(?:[.,]\d+)?)%", tax_name)
+    if not match:
+        return 0.0
+    rate_str = match.group(1).replace(",", ".")
+    rate = float(rate_str)
+    if rate > 100.0:
+        return 0.0
+    return rate
 
 
 class ShopifyParser(BaseParser):

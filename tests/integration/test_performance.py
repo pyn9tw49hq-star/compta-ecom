@@ -91,8 +91,8 @@ def _generate_manomano_csvs(input_dir: Path, count: int) -> None:
         net = round(ttc - commission_ttc, 2)
 
         ca_lines.append(
-            f"{ref};ORDER;2026-01-{(i % 28) + 1:02d};{ttc:.2f};-{commission_ttc:.2f};"
-            f"-{commission_ht:.2f};-{commission_tva:.2f};{net:.2f};"
+            f"{ref};ORDER;2026-01-{(i % 28) + 1:02d};{ttc:.2f};{commission_ttc:.2f};"
+            f"{commission_ht:.2f};{commission_tva:.2f};{net:.2f};"
             f"{product_ht:.2f};{tva_product:.2f};0.00;0.00"
         )
         payout_lines.append(f"{ref};ORDER;PAY-MM1;2026-01-31;{net:.2f}")

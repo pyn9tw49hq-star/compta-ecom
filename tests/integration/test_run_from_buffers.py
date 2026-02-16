@@ -46,7 +46,7 @@ def _build_test_data() -> dict[str, str]:
         ),
         "ca.csv": (
             f"{MANOMANO_CA_HEADER}\n"
-            "M001;ORDER;2026-01-15;120.00;-18.00;-15.00;-3.00;102.00;100.00;20.00;0.00;0.00\n"
+            "M001;ORDER;2026-01-15;120.00;18.00;15.00;3.00;102.00;100.00;20.00;0.00;0.00\n"
         ),
         "versements_manomano.csv": (
             f"{MANOMANO_VERSEMENTS_HEADER}\n"
