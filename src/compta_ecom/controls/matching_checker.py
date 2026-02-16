@@ -29,26 +29,31 @@ class MatchingChecker:
         today = _today or datetime.date.today()
         anomalies: list[Anomaly] = []
         pending_manomano_refs: list[str] = []
+        overdue_manomano_refs: list[str] = []
 
         for tx in transactions:
             if tx.special_type is not None:
                 continue
             anomalies.extend(MatchingChecker._check_amount_coherence(tx, config))
 
-            # ManoMano current-month orders: paiement attendu M+1, pas d'anomalie
+            # ManoMano orders without payout: classify by month
             if (
                 tx.channel == "manomano"
                 and tx.payout_date is None
                 and abs(tx.amount_ttc) >= 0.01
             ):
-                ref_match = re.match(r"^(\d{4})", tx.reference)
+                ref_match = re.match(r"^M?(\d{4})", tx.reference)
                 if ref_match:
                     yymm = ref_match.group(1)
                     ref_year = 2000 + int(yymm[:2])
                     ref_month = int(yymm[2:4])
-                    if 1 <= ref_month <= 12 and (ref_year, ref_month) >= (today.year, today.month):
-                        pending_manomano_refs.append(tx.reference)
-                        continue
+                    if 1 <= ref_month <= 12:
+                        if (ref_year, ref_month) >= (today.year, today.month):
+                            pending_manomano_refs.append(tx.reference)
+                            continue
+                        else:
+                            overdue_manomano_refs.append(tx.reference)
+                            continue
 
             anomalies.extend(MatchingChecker._check_payout_coverage(tx))
 
@@ -66,6 +71,23 @@ class MatchingChecker:
                     ),
                     expected_value=None,
                     actual_value=", ".join(pending_manomano_refs),
+                )
+            )
+
+        if overdue_manomano_refs:
+            count = len(overdue_manomano_refs)
+            anomalies.append(
+                Anomaly(
+                    type="overdue_manomano_payout",
+                    severity="warning",
+                    reference="",
+                    channel="manomano",
+                    detail=(
+                        f"{count} commande{'s' if count > 1 else ''} "
+                        f"de mois antérieurs sans reversement — vérification nécessaire"
+                    ),
+                    expected_value=None,
+                    actual_value=", ".join(overdue_manomano_refs),
                 )
             )
 
@@ -156,6 +178,8 @@ class MatchingChecker:
         prior_period_refunds: list[NormalizedTransaction] = []
 
         for tx in transactions:
+            if tx.special_type == "orphan_settlement":
+                continue
             if tx.type == "refund" and tx.reference not in sale_references:
                 # Classify: prior period vs true orphan
                 ref_m = re.search(r"(\d+)", tx.reference)

@@ -43,7 +43,7 @@ export const ANOMALY_CATEGORIES: Record<string, { label: string; types: string[]
   },
   rapprochement: {
     label: "Rapprochement ventes/encaissements",
-    types: ["orphan_sale", "orphan_sale_summary", "orphan_settlement", "amount_mismatch", "orphan_refund", "prior_period_settlement", "prior_period_refund", "pending_manomano_payout"],
+    types: ["orphan_sale", "orphan_sale_summary", "orphan_settlement", "amount_mismatch", "orphan_refund", "prior_period_settlement", "prior_period_refund", "pending_manomano_payout", "overdue_manomano_payout"],
   },
   versements: {
     label: "Versements & détails",
@@ -108,6 +108,7 @@ export const ANOMALY_TYPE_LABELS: Record<string, string> = {
   prior_period_settlement: "Encaissements période antérieure",
   prior_period_refund: "Remboursements période antérieure",
   pending_manomano_payout: "Reversements ManoMano en attente",
+  overdue_manomano_payout: "Reversements ManoMano en retard",
   return_tva_rate_aberrant: "Taux TVA aberrant sur remboursement",
 };
 

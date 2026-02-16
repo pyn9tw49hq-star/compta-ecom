@@ -687,10 +687,15 @@ class ShopifyParser(BaseParser):
             if valid_nums:
                 first_sale_num = min(valid_nums)
 
-        prior_period_refs: list[str] = []
+        prior_period_settlement_refs: list[str] = []
+        prior_period_refund_refs: list[str] = []
 
         for ref, txs in transactions.items():
             if ref not in sales:
+                # Separate orphan charges from orphan refunds
+                orphan_charges = [tx for tx in txs if tx["type"] == "charge"]
+                orphan_refunds = [tx for tx in txs if tx["type"] == "refund"]
+
                 # Classify: prior period vs true orphan
                 ref_num = _extract_ref_number(ref)
                 is_prior = (
@@ -699,20 +704,39 @@ class ShopifyParser(BaseParser):
                     and ref_num < first_sale_num
                 )
 
-                if is_prior:
-                    prior_period_refs.append(ref)
-                else:
-                    anomalies.append(
-                        Anomaly(
-                            type="orphan_settlement",
-                            severity="warning",
-                            reference=ref,
-                            channel="shopify",
-                            detail="Encaissement présent dans les Transactions mais aucune commande trouvée dans les Ventes — probable décalage de période entre les deux exports",
-                            expected_value=None,
-                            actual_value=None,
+                # --- Orphan charges (encaissements) ---
+                if orphan_charges:
+                    if is_prior:
+                        prior_period_settlement_refs.append(ref)
+                    else:
+                        anomalies.append(
+                            Anomaly(
+                                type="orphan_settlement",
+                                severity="warning",
+                                reference=ref,
+                                channel="shopify",
+                                detail="Encaissement présent dans les Transactions mais aucune commande trouvée dans les Ventes — probable décalage de période entre les deux exports",
+                                expected_value=None,
+                                actual_value=None,
+                            )
                         )
-                    )
+
+                # --- Orphan refunds (remboursements) ---
+                if orphan_refunds:
+                    if is_prior:
+                        prior_period_refund_refs.append(ref)
+                    else:
+                        anomalies.append(
+                            Anomaly(
+                                type="orphan_refund",
+                                severity="warning",
+                                reference=ref,
+                                channel="shopify",
+                                detail=f"Remboursement pour la commande {ref} mais aucune vente d'origine trouvée — le remboursement est peut-être antérieur à la période exportée",
+                                expected_value="vente correspondante",
+                                actual_value="aucune",
+                            )
+                        )
 
                 # Generate settlement-only entries for orphan transactions
                 # so they contribute to lettrage balance on 511
@@ -743,16 +767,31 @@ class ShopifyParser(BaseParser):
                         )
                     )
 
-        # --- Prior period settlement summary (Issue #1) ---
-        if prior_period_refs:
-            refs_str = ", ".join(sorted(prior_period_refs, key=lambda r: _extract_ref_number(r) or 0))
+        # --- Prior period settlement summary (charges) ---
+        if prior_period_settlement_refs:
+            refs_str = ", ".join(sorted(prior_period_settlement_refs, key=lambda r: _extract_ref_number(r) or 0))
             anomalies.append(
                 Anomaly(
                     type="prior_period_settlement",
                     severity="info",
                     reference="",
                     channel="shopify",
-                    detail=f"{len(prior_period_refs)} transactions d'encaissement concernent une période antérieure",
+                    detail=f"{len(prior_period_settlement_refs)} encaissement{'s' if len(prior_period_settlement_refs) > 1 else ''} concernent une période antérieure",
+                    expected_value=None,
+                    actual_value=refs_str,
+                )
+            )
+
+        # --- Prior period refund summary (remboursements) ---
+        if prior_period_refund_refs:
+            refs_str = ", ".join(sorted(prior_period_refund_refs, key=lambda r: _extract_ref_number(r) or 0))
+            anomalies.append(
+                Anomaly(
+                    type="prior_period_refund",
+                    severity="info",
+                    reference="",
+                    channel="shopify",
+                    detail=f"{len(prior_period_refund_refs)} remboursement{'s' if len(prior_period_refund_refs) > 1 else ''} concernent une période antérieure",
                     expected_value=None,
                     actual_value=refs_str,
                 )

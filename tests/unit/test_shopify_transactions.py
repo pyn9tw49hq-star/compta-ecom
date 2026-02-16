@@ -655,7 +655,7 @@ class TestPriorPeriodSettlement:
 
         prior = [a for a in result.anomalies if a.type == "prior_period_settlement"]
         assert len(prior) == 1
-        assert "3 transactions" in prior[0].detail
+        assert "3 encaissements" in prior[0].detail
         # All three refs in actual_value
         for ref in ("#100", "#200", "#300"):
             assert ref in (prior[0].actual_value or "")
