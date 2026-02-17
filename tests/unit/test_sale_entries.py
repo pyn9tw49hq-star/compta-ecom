@@ -524,6 +524,64 @@ class TestMiraklLettrageByPayoutCycle:
         assert client_entry.lettrage == "LM-001"
 
 
+class TestManoManoLettrageByPayoutCycle:
+    """Lettrage ManoMano 411MANO par cycle de paiement (#23)."""
+
+    def test_manomano_lettrage_uses_payout_reference(self, sample_config: AppConfig) -> None:
+        """ManoMano avec payout_reference → lettrage client = payout_reference."""
+        tx = _make_transaction(
+            channel="manomano",
+            reference="M260287725252",
+            payout_reference="PAY-2025-01",
+            payout_date=datetime.date(2025, 1, 31),
+        )
+        entries = generate_sale_entries(tx, sample_config)
+        client_entry = [e for e in entries if e.account == "411MANO"][0]
+        assert client_entry.lettrage == "PAY-2025-01"
+        # Les autres comptes n'ont pas de lettrage
+        for e in entries:
+            if e.account != "411MANO":
+                assert e.lettrage == ""
+
+    def test_manomano_without_payout_reference_empty_lettrage(self, sample_config: AppConfig) -> None:
+        """ManoMano sans payout_reference → lettrage client vide (sera lettré au versement suivant)."""
+        tx = _make_transaction(
+            channel="manomano",
+            reference="M260287725252",
+            payout_reference=None,
+        )
+        entries = generate_sale_entries(tx, sample_config)
+        client_entry = [e for e in entries if e.account == "411MANO"][0]
+        assert client_entry.lettrage == ""
+
+
+class TestShopifyLettrageNonRegression:
+    """Non-régression : Shopify n'utilise pas payout_reference pour le lettrage vente (#23)."""
+
+    def test_shopify_with_payout_reference_uses_order_reference(self, sample_config: AppConfig) -> None:
+        """Shopify avec payout_reference → lettrage client = reference (pas payout_reference)."""
+        tx = _make_transaction(
+            channel="shopify",
+            reference="#1118",
+            payout_reference="123456789",
+            payout_date=datetime.date(2025, 1, 15),
+        )
+        entries = generate_sale_entries(tx, sample_config)
+        client_entry = [e for e in entries if e.account == "411SHOPIFY"][0]
+        assert client_entry.lettrage == "#1118"
+
+    def test_shopify_without_payout_reference(self, sample_config: AppConfig) -> None:
+        """Shopify sans payout_reference → lettrage client = reference."""
+        tx = _make_transaction(
+            channel="shopify",
+            reference="#1118",
+            payout_reference=None,
+        )
+        entries = generate_sale_entries(tx, sample_config)
+        client_entry = [e for e in entries if e.account == "411SHOPIFY"][0]
+        assert client_entry.lettrage == "#1118"
+
+
 class TestChannelErrors:
     """Erreurs de configuration canal."""
 

@@ -175,10 +175,10 @@ class TestManoManoRefundEntries:
         for e in sale_entries + commission_entries:
             assert e.piece_number == "MR001"
 
-        # Écritures vente : 411MANO lettré par reference
+        # Écritures vente : 411MANO lettré par payout_reference (#23)
         sale_411 = [e for e in sale_entries if e.account == "411MANO"]
         assert len(sale_411) == 1
-        assert sale_411[0].lettrage == "MR001"
+        assert sale_411[0].lettrage == "RPAY001"
 
         # Écritures commission : charge/TVA sans lettrage, 411MANO lettré par payout_reference
         comm_411 = [e for e in commission_entries if e.account == "411MANO"]

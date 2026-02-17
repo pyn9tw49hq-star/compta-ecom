@@ -194,6 +194,36 @@ class TestSpecialTypes:
         assert entries[2].credit == 30.0
         assert all(e.entry_type == "fee" for e in entries)
 
+    def test_eco_contribution_service_same_as_eco_contribution(
+        self, sample_config: AppConfig
+    ) -> None:
+        """ECO_CONTRIBUTION_SERVICE produit les mêmes comptes qu'ECO_CONTRIBUTION (pas de 512)."""
+        tx = _make_transaction(
+            special_type="ECO_CONTRIBUTION_SERVICE",
+            net_amount=-30.0,
+            amount_ht=25.0,
+            amount_tva=5.0,
+            commission_ttc=0.0,
+            commission_ht=None,
+        )
+        entries = generate_marketplace_payout(tx, sample_config)
+
+        assert len(entries) == 3
+        # Charge HT au débit — même compte que ECO_CONTRIBUTION
+        assert entries[0].account == "60730000"
+        assert entries[0].debit == 25.0
+        assert entries[0].lettrage == ""
+        # TVA déductible au débit
+        assert entries[1].account == "44566001"
+        assert entries[1].debit == 5.0
+        assert entries[1].lettrage == ""
+        # Client TTC au crédit — pas de 512
+        assert entries[2].account == "411MANO"
+        assert entries[2].credit == 30.0
+        assert all(e.entry_type == "fee" for e in entries)
+        # Aucun compte 512
+        assert not any("512" in e.account for e in entries)
+
     def test_subscription_manomano(self, sample_config: AppConfig) -> None:
         """SUBSCRIPTION ManoMano : 61311111 D HT + 44566001 D TVA + 411MANO C TTC."""
         tx = _make_transaction(
@@ -667,6 +697,7 @@ class TestManoManoSpecialTypesThreeEntries:
         [
             ("SUBSCRIPTION", "61311111", 50.0, 10.0, 60.0),
             ("ECO_CONTRIBUTION", "60730000", 25.0, 5.0, 30.0),
+            ("ECO_CONTRIBUTION_SERVICE", "60730000", 25.0, 5.0, 30.0),
             ("REFUND_PENALTY", "62220300", 20.0, 4.0, 24.0),
         ],
     )
@@ -715,3 +746,168 @@ class TestManoManoSpecialTypesThreeEntries:
         # Métadonnées
         assert all(e.entry_type == "fee" for e in entries)
         assert all(e.journal == "AC" for e in entries)
+
+
+class TestManoManoVersementLettrageBalance:
+    """Lettrage 411MANO cohérent sur un versement complet (#23).
+
+    Un versement ManoMano contient ORDER + REFUND + ECO_CONTRIBUTION + SUBSCRIPTION.
+    Toutes les écritures 411MANO doivent avoir lettrage = payout_reference.
+    La somme D/C sur 411MANO pour ce payout_reference doit être équilibrée
+    avec l'écriture agrégée du PayoutSummary.
+    """
+
+    PAYOUT_REF = "PAY-2025-01"
+
+    def _order_tx(self) -> NormalizedTransaction:
+        return _make_transaction(
+            reference="M260200001",
+            channel="manomano",
+            type="sale",
+            amount_ht=1000.0,
+            amount_tva=200.0,
+            amount_ttc=1200.0,
+            commission_ttc=-18.0,
+            commission_ht=-15.0,
+            net_amount=1182.0,
+            payout_date=datetime.date(2025, 1, 31),
+            payout_reference=self.PAYOUT_REF,
+        )
+
+    def _refund_tx(self) -> NormalizedTransaction:
+        return _make_transaction(
+            reference="M260200002",
+            channel="manomano",
+            type="refund",
+            amount_ht=50.0,
+            amount_tva=10.0,
+            amount_ttc=60.0,
+            commission_ttc=1.8,
+            commission_ht=1.5,
+            net_amount=-58.2,
+            payout_date=datetime.date(2025, 1, 31),
+            payout_reference=self.PAYOUT_REF,
+        )
+
+    def _eco_tx(self) -> NormalizedTransaction:
+        return _make_transaction(
+            reference="ECO001",
+            channel="manomano",
+            special_type="ECO_CONTRIBUTION",
+            net_amount=-30.0,
+            amount_ht=25.0,
+            amount_tva=5.0,
+            commission_ttc=0.0,
+            commission_ht=None,
+            payout_date=datetime.date(2025, 1, 31),
+            payout_reference=self.PAYOUT_REF,
+        )
+
+    def _sub_tx(self) -> NormalizedTransaction:
+        return _make_transaction(
+            reference="ABO001",
+            channel="manomano",
+            special_type="SUBSCRIPTION",
+            net_amount=-60.0,
+            amount_ht=50.0,
+            amount_tva=10.0,
+            commission_ttc=0.0,
+            commission_ht=None,
+            date=datetime.date(2025, 1, 15),
+            payout_date=datetime.date(2025, 1, 31),
+            payout_reference=self.PAYOUT_REF,
+        )
+
+    def test_all_411mano_entries_share_payout_reference(
+        self, sample_config: AppConfig
+    ) -> None:
+        """Toutes les écritures 411MANO d'un versement ont lettrage = payout_reference."""
+        from compta_ecom.engine.marketplace_entries import generate_marketplace_commission
+        from compta_ecom.engine.sale_entries import generate_sale_entries
+
+        all_entries = []
+
+        # ORDER: vente + commission
+        order = self._order_tx()
+        all_entries.extend(generate_sale_entries(order, sample_config))
+        all_entries.extend(generate_marketplace_commission(order, sample_config))
+
+        # REFUND: avoir + remb. commission
+        refund = self._refund_tx()
+        all_entries.extend(generate_sale_entries(refund, sample_config))
+        all_entries.extend(generate_marketplace_commission(refund, sample_config))
+
+        # ECO_CONTRIBUTION: special type
+        all_entries.extend(generate_marketplace_payout(self._eco_tx(), sample_config))
+
+        # SUBSCRIPTION: special type
+        all_entries.extend(generate_marketplace_payout(self._sub_tx(), sample_config))
+
+        # PayoutSummary (580 ↔ 411MANO)
+        payout_total = -(1182.0 - 58.2 - 30.0 - 60.0)  # négatif = sortie
+        payout_summary = PayoutSummary(
+            payout_date=datetime.date(2025, 1, 31),
+            channel="manomano",
+            total_amount=payout_total,
+            charges=0.0,
+            refunds=0.0,
+            fees=0.0,
+            transaction_references=["M260200001", "M260200002", "ECO001", "ABO001"],
+            psp_type=None,
+            payout_reference=self.PAYOUT_REF,
+        )
+        all_entries.extend(
+            generate_marketplace_payout_from_summary(payout_summary, sample_config)
+        )
+
+        # Filtrer les écritures 411MANO
+        entries_411 = [e for e in all_entries if e.account == "411MANO"]
+
+        # Toutes les écritures 411MANO ont lettrage = PAYOUT_REF
+        for entry in entries_411:
+            assert entry.lettrage == self.PAYOUT_REF, (
+                f"411MANO entry '{entry.label}' has lettrage='{entry.lettrage}', "
+                f"expected '{self.PAYOUT_REF}'"
+            )
+
+    def test_411mano_lettrage_balanced(self, sample_config: AppConfig) -> None:
+        """Somme D = somme C sur 411MANO pour un même payout_reference."""
+        from compta_ecom.engine.marketplace_entries import generate_marketplace_commission
+        from compta_ecom.engine.sale_entries import generate_sale_entries
+
+        all_entries = []
+
+        order = self._order_tx()
+        all_entries.extend(generate_sale_entries(order, sample_config))
+        all_entries.extend(generate_marketplace_commission(order, sample_config))
+
+        refund = self._refund_tx()
+        all_entries.extend(generate_sale_entries(refund, sample_config))
+        all_entries.extend(generate_marketplace_commission(refund, sample_config))
+
+        all_entries.extend(generate_marketplace_payout(self._eco_tx(), sample_config))
+        all_entries.extend(generate_marketplace_payout(self._sub_tx(), sample_config))
+
+        payout_total = -(1182.0 - 58.2 - 30.0 - 60.0)
+        payout_summary = PayoutSummary(
+            payout_date=datetime.date(2025, 1, 31),
+            channel="manomano",
+            total_amount=payout_total,
+            charges=0.0,
+            refunds=0.0,
+            fees=0.0,
+            transaction_references=["M260200001", "M260200002", "ECO001", "ABO001"],
+            psp_type=None,
+            payout_reference=self.PAYOUT_REF,
+        )
+        all_entries.extend(
+            generate_marketplace_payout_from_summary(payout_summary, sample_config)
+        )
+
+        entries_411 = [e for e in all_entries if e.account == "411MANO"]
+        total_debit = round(sum(e.debit for e in entries_411), 2)
+        total_credit = round(sum(e.credit for e in entries_411), 2)
+
+        assert total_debit == total_credit, (
+            f"411MANO lettrage déséquilibré: D={total_debit}, C={total_credit}"
+        )

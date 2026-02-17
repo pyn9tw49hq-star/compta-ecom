@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 _SPECIAL_LABELS: dict[str, str] = {
     "ADJUSTMENT": "Ajustement",
     "ECO_CONTRIBUTION": "Éco-contribution",
+    "ECO_CONTRIBUTION_SERVICE": "Éco-contribution",
     "SUBSCRIPTION": "Abonnement",
     "REFUND_PENALTY": "Pénalité remb.",
 }
@@ -21,6 +22,7 @@ _SPECIAL_TYPE_TO_CONFIG_KEY: dict[str, str] = {
     "SUBSCRIPTION": "abonnement",
     "REFUND_PENALTY": "penalite",
     "ECO_CONTRIBUTION": "eco_contribution",
+    "ECO_CONTRIBUTION_SERVICE": "eco_contribution",
 }
 
 
@@ -98,7 +100,12 @@ def generate_marketplace_payout(
     default_lettrage = transaction.reference
 
     if has_charge_account:
-        client_ref = transaction.payout_reference or transaction.reference
+        if transaction.payout_reference:
+            client_ref = transaction.payout_reference
+        elif transaction.channel == "manomano":
+            client_ref = ""
+        else:
+            client_ref = transaction.reference
     else:
         client_ref = default_lettrage
 

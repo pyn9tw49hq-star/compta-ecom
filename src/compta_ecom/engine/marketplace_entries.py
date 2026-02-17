@@ -45,7 +45,12 @@ def generate_marketplace_commission(
     if charge_account is not None:
         # Compte de charge : jamais de lettrage (classe 6)
         counterpart_lettrage = ""
-        client_lettrage = transaction.payout_reference or transaction.reference
+        if transaction.payout_reference:
+            client_lettrage = transaction.payout_reference
+        elif transaction.channel == "manomano":
+            client_lettrage = ""
+        else:
+            client_lettrage = transaction.reference
     elif transaction.channel in ("decathlon", "leroy_merlin") and transaction.payout_reference:
         client_lettrage = transaction.payout_reference
         counterpart_lettrage = ""

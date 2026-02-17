@@ -503,9 +503,9 @@ class TestMarketplaceCommissionMetadata:
         # TVA → pas de lettrage
         assert entries[1].account == "44566001"
         assert entries[1].lettrage == ""
-        # Client → lettrage = reference (fallback, payout_reference is None)
+        # Client ManoMano sans payout_reference → lettrage vide (#23)
         assert entries[2].account == "411MANO"
-        assert entries[2].lettrage == "#9999"
+        assert entries[2].lettrage == ""
 
 
 class TestDecathlonLettrageByPayoutCycle:

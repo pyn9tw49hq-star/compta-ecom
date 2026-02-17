@@ -18,10 +18,14 @@ def generate_sale_entries(
     """Génère les écritures de vente ou d'avoir pour une transaction."""
     accounts = _resolve_accounts(transaction, config)
     amounts = _compute_amounts(transaction)
-    # Mirakl (Décathlon, Leroy Merlin) : lettrage client par cycle de paiement pour rapprochement avec Paiement
+    # Marketplaces : lettrage client par cycle de paiement (payout_reference)
+    # pour que toutes les écritures 411 d'un même versement partagent le même lettrage.
+    # ManoMano sans payout_reference → lettrage vide (sera lettré au versement suivant).
     client_lettrage = transaction.reference
-    if transaction.channel in ("decathlon", "leroy_merlin") and transaction.payout_reference:
+    if transaction.channel in ("decathlon", "leroy_merlin", "manomano") and transaction.payout_reference:
         client_lettrage = transaction.payout_reference
+    elif transaction.channel == "manomano":
+        client_lettrage = ""
     entries = _build_entries(transaction, accounts, amounts, config, client_lettrage)
     verify_balance(entries)
     return entries
@@ -91,7 +95,7 @@ def _build_entries(
             debit=ttc if is_sale else 0.0,
             credit=0.0 if is_sale else ttc,
             piece_number=piece_ref,
-            lettrage=client_lettrage or transaction.reference,
+            lettrage=client_lettrage,
             channel=transaction.channel,
             entry_type=entry_type,
         )
