@@ -50,7 +50,7 @@ export const ANOMALY_CATEGORIES: Record<string, { label: string; types: string[]
     types: [
       "missing_payout", "payout_detail_mismatch", "payout_missing_details",
       "orphan_payout_detail", "mixed_psp_payout", "unknown_psp_detail",
-      "payout_detail_refund_discovered", "direct_payment",
+      "payout_cycle_missing", "payout_detail_refund_discovered", "direct_payment",
       "prior_period_manomano_refund",
     ],
   },
@@ -86,6 +86,7 @@ export const ANOMALY_TYPE_LABELS: Record<string, string> = {
   amount_mismatch: "Écart de montant",
   balance_error: "Déséquilibre débit/crédit",
   missing_payout: "Versement en attente",
+  payout_cycle_missing: "Cycle de versement manquant",
   payment_delay: "Retard de paiement",
   orphan_refund: "Remboursement sans commande",
   lettrage_511_unbalanced: "Lettrage banque déséquilibré",

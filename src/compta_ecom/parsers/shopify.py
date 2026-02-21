@@ -1322,6 +1322,28 @@ class ShopifyParser(BaseParser):
                 )
             )
 
+        # --- Contrôle : payout_cycle_missing (Issue #24) ---
+        if len(tx_by_payout) > 0:
+            for payout in payouts:
+                if len(payout.transaction_references) == 0:
+                    date_str = str(payout.payout_date)
+                    anomalies.append(
+                        Anomaly(
+                            type="payout_cycle_missing",
+                            severity="warning",
+                            reference=payout.payout_reference or f"PAYOUT-{date_str}",
+                            channel="shopify",
+                            detail=(
+                                f"Le cycle de versement du {date_str} "
+                                f"({payout.total_amount}€) apparaît dans le récapitulatif "
+                                f"mais aucune transaction correspondante n'a été trouvée "
+                                f"— vérifier que le fichier Transactions couvre cette période"
+                            ),
+                            expected_value="transactions correspondantes dans le fichier Transactions",
+                            actual_value="aucune transaction trouvée pour ce cycle",
+                        )
+                    )
+
         # --- Contrôle : payout_missing_details (Story 4.3) ---
         if payout_details_by_id is not None and len(payout_details_by_id) > 0:
             for payout in payouts:

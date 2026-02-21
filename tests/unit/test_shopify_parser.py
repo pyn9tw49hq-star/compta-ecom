@@ -821,6 +821,117 @@ class TestOrphanPayoutDetail:
         assert orphans[0].reference == "ORPHAN1"
 
 
+class TestPayoutCycleMissing:
+    """Issue #24 — contrôle payout_cycle_missing."""
+
+    def test_one_payout_cycle_missing(self, tmp_path: Path, shopify_config: AppConfig) -> None:
+        """2 payouts, transactions pour 1 seul → 1 anomalie payout_cycle_missing."""
+        # Arrange — 2 payouts, tx only for 2026-01-20
+        payouts_path = _make_payouts_csv(tmp_path, [
+            _payout_row(**{"Payout Date": "2026-01-20", "Total": 100.0}),
+            _payout_row(**{"Payout Date": "2026-01-25", "Total": 250.0}),
+        ])
+        tx_data: dict[str, list[dict[str, object]]] = {
+            "#1001": [{"order": "#1001", "type": "charge", "payment_method": "card",
+                        "amount": 100.0, "fee": 0.0, "net": 100.0,
+                        "payout_date": datetime.date(2026, 1, 20), "payout_reference": "P001"}],
+        }
+        payout_details_by_id = {
+            "P001": [PayoutDetail(payout_date=datetime.date(2026, 1, 20), payout_id="P001",
+                                  order_reference="#1001", transaction_type="charge",
+                                  amount=100.0, fee=0.0, net=100.0, payment_method="card", channel="shopify")],
+        }
+        parser = ShopifyParser()
+
+        # Act
+        payouts, anomalies = parser._parse_payouts(payouts_path, tx_data, shopify_config, payout_details_by_id)
+
+        # Assert
+        cycle_missing = [a for a in anomalies if a.type == "payout_cycle_missing"]
+        assert len(cycle_missing) == 1
+        assert cycle_missing[0].severity == "warning"
+        assert "2026-01-25" in cycle_missing[0].detail
+        assert "250.0" in cycle_missing[0].detail
+
+    def test_all_payouts_matched_no_anomaly(self, tmp_path: Path, shopify_config: AppConfig) -> None:
+        """2 payouts, transactions pour les 2 → 0 anomalies payout_cycle_missing."""
+        # Arrange
+        payouts_path = _make_payouts_csv(tmp_path, [
+            _payout_row(**{"Payout Date": "2026-01-20", "Total": 100.0}),
+            _payout_row(**{"Payout Date": "2026-01-25", "Total": 200.0}),
+        ])
+        tx_data: dict[str, list[dict[str, object]]] = {
+            "#1001": [{"order": "#1001", "type": "charge", "payment_method": "card",
+                        "amount": 100.0, "fee": 0.0, "net": 100.0,
+                        "payout_date": datetime.date(2026, 1, 20), "payout_reference": "P001"}],
+            "#1002": [{"order": "#1002", "type": "charge", "payment_method": "card",
+                        "amount": 200.0, "fee": 0.0, "net": 200.0,
+                        "payout_date": datetime.date(2026, 1, 25), "payout_reference": "P002"}],
+        }
+        payout_details_by_id = {
+            "P001": [PayoutDetail(payout_date=datetime.date(2026, 1, 20), payout_id="P001",
+                                  order_reference="#1001", transaction_type="charge",
+                                  amount=100.0, fee=0.0, net=100.0, payment_method="card", channel="shopify")],
+            "P002": [PayoutDetail(payout_date=datetime.date(2026, 1, 25), payout_id="P002",
+                                  order_reference="#1002", transaction_type="charge",
+                                  amount=200.0, fee=0.0, net=200.0, payment_method="card", channel="shopify")],
+        }
+        parser = ShopifyParser()
+
+        # Act
+        payouts, anomalies = parser._parse_payouts(payouts_path, tx_data, shopify_config, payout_details_by_id)
+
+        # Assert
+        cycle_missing = [a for a in anomalies if a.type == "payout_cycle_missing"]
+        assert len(cycle_missing) == 0
+
+    def test_empty_transactions_no_false_positive(self, tmp_path: Path, shopify_config: AppConfig) -> None:
+        """1 payout, tx_data={} (mode dégradé) → 0 anomalies payout_cycle_missing."""
+        # Arrange — no transactions at all (degraded mode)
+        payouts_path = _make_payouts_csv(tmp_path, [
+            _payout_row(**{"Payout Date": "2026-01-20", "Total": 100.0}),
+        ])
+        tx_data: dict[str, list[dict[str, object]]] = {}
+        parser = ShopifyParser()
+
+        # Act
+        payouts, anomalies = parser._parse_payouts(payouts_path, tx_data, shopify_config, None)
+
+        # Assert
+        cycle_missing = [a for a in anomalies if a.type == "payout_cycle_missing"]
+        assert len(cycle_missing) == 0
+
+    def test_multiple_missing_cycles(self, tmp_path: Path, shopify_config: AppConfig) -> None:
+        """3 payouts, transactions pour 1 seul → 2 anomalies payout_cycle_missing."""
+        # Arrange — 3 payouts, tx only for 2026-01-20
+        payouts_path = _make_payouts_csv(tmp_path, [
+            _payout_row(**{"Payout Date": "2026-01-20", "Total": 100.0}),
+            _payout_row(**{"Payout Date": "2026-01-25", "Total": 200.0}),
+            _payout_row(**{"Payout Date": "2026-01-30", "Total": 300.0}),
+        ])
+        tx_data: dict[str, list[dict[str, object]]] = {
+            "#1001": [{"order": "#1001", "type": "charge", "payment_method": "card",
+                        "amount": 100.0, "fee": 0.0, "net": 100.0,
+                        "payout_date": datetime.date(2026, 1, 20), "payout_reference": "P001"}],
+        }
+        payout_details_by_id = {
+            "P001": [PayoutDetail(payout_date=datetime.date(2026, 1, 20), payout_id="P001",
+                                  order_reference="#1001", transaction_type="charge",
+                                  amount=100.0, fee=0.0, net=100.0, payment_method="card", channel="shopify")],
+        }
+        parser = ShopifyParser()
+
+        # Act
+        payouts, anomalies = parser._parse_payouts(payouts_path, tx_data, shopify_config, payout_details_by_id)
+
+        # Assert
+        cycle_missing = [a for a in anomalies if a.type == "payout_cycle_missing"]
+        assert len(cycle_missing) == 2
+        dates = [a.detail for a in cycle_missing]
+        assert any("2026-01-25" in d for d in dates)
+        assert any("2026-01-30" in d for d in dates)
+
+
 class TestPayoutRetrocompatibility:
     def test_no_payout_details_all_none(self, tmp_path: Path, shopify_config: AppConfig) -> None:
         # Arrange — parse without payout_details in files
