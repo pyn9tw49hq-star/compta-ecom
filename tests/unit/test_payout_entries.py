@@ -47,8 +47,8 @@ class TestGeneratePayoutEntriesNominal:
         assert transit_entry.debit == 186.06
         assert transit_entry.credit == 0.0
 
-        # PSP 51150007 au crédit
-        assert psp_entry.account == "51150007"
+        # PSP 46710001 au crédit
+        assert psp_entry.account == "46710001"
         assert psp_entry.debit == 0.0
         assert psp_entry.credit == 186.06
 
@@ -80,9 +80,9 @@ class TestGeneratePayoutEntriesNominal:
         entries, _ = generate_payout_entries(payout, sample_config)
 
         assert all(e.piece_number == "P999" for e in entries)
-        # Lettrage uniquement sur le compte 511 (PSP), pas sur 580 (transit)
+        # Lettrage uniquement sur le compte intermédiaire 46710001, pas sur 580 (transit)
         for e in entries:
-            if e.account.startswith("511"):
+            if e.account == "46710001":
                 assert e.lettrage == "P999"
             else:
                 assert e.lettrage == ""
@@ -115,7 +115,7 @@ class TestGeneratePayoutEntriesNegative:
         assert transit_entry.credit == 50.0
 
         # PSP au débit (montant négatif)
-        assert psp_entry.account == "51150007"
+        assert psp_entry.account == "46710001"
         assert psp_entry.debit == 50.0
         assert psp_entry.credit == 0.0
 
@@ -226,7 +226,7 @@ class TestGlobalModeWithDetails:
         assert transit.debit == 446.44
         assert transit.credit == 0.0
 
-        assert psp.account == "51150007"
+        assert psp.account == "46710001"
         assert psp.debit == 0.0
         assert psp.credit == 446.44
 

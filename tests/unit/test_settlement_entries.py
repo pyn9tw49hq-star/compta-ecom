@@ -45,53 +45,61 @@ def _assert_balance(entries: list[AccountingEntry]) -> None:
 class TestSettlementSaleNominal:
     """Vente nominale — 3 PSP (Stripe/card, PayPal, Klarna)."""
 
-    def test_sale_stripe_3_lines(self, sample_config: AppConfig) -> None:
-        """Stripe (card): PSP D=95, 627 D=5, 411 C=100, équilibre."""
+    def test_sale_stripe_4_lines(self, sample_config: AppConfig) -> None:
+        """Stripe (card) avec compte intermédiaire : 46710001 D=100, 411 C=100, 627 D=5, 46710001 C=5."""
         tx = _make_transaction(
             net_amount=95.0, commission_ttc=5.0, payment_method="card"
         )
         entries = generate_settlement_entries(tx, sample_config)
 
-        assert len(entries) == 3
+        assert len(entries) == 4
 
-        # PSP 511 débit
-        assert entries[0].account == "51150007"
-        assert entries[0].debit == 95.0
+        # 46710001 intermédiaire débit TTC
+        assert entries[0].account == "46710001"
+        assert entries[0].debit == 100.0
         assert entries[0].credit == 0.0
         assert entries[0].entry_type == "settlement"
 
-        # 627 commission débit
-        assert entries[1].account == "62700002"
-        assert entries[1].debit == 5.0
-        assert entries[1].credit == 0.0
-        assert entries[1].entry_type == "commission"
+        # 411 client crédit TTC
+        assert entries[1].account == "411SHOPIFY"
+        assert entries[1].debit == 0.0
+        assert entries[1].credit == 100.0
+        assert entries[1].entry_type == "settlement"
 
-        # 411 client crédit
-        assert entries[2].account == "411SHOPIFY"
-        assert entries[2].debit == 0.0
-        assert entries[2].credit == 100.0
-        assert entries[2].entry_type == "settlement"
+        # 627 commission débit
+        assert entries[2].account == "62700002"
+        assert entries[2].debit == 5.0
+        assert entries[2].credit == 0.0
+        assert entries[2].entry_type == "commission"
+
+        # 46710001 intermédiaire crédit commission
+        assert entries[3].account == "46710001"
+        assert entries[3].debit == 0.0
+        assert entries[3].credit == 5.0
+        assert entries[3].entry_type == "commission"
 
         _assert_balance(entries)
 
     def test_sale_paypal(self, sample_config: AppConfig) -> None:
-        """PayPal: comptes 51150004/62700001."""
+        """PayPal avec compte intermédiaire : 46710001 / 62700001."""
         tx = _make_transaction(
             net_amount=95.0, commission_ttc=5.0, payment_method="paypal"
         )
         entries = generate_settlement_entries(tx, sample_config)
 
-        assert entries[0].account == "51150004"
-        assert entries[1].account == "62700001"
+        assert len(entries) == 4
+        assert entries[0].account == "46710001"
+        assert entries[2].account == "62700001"
         _assert_balance(entries)
 
     def test_sale_klarna(self, sample_config: AppConfig) -> None:
-        """Klarna: comptes 51150011/62700003."""
+        """Klarna sans compte intermédiaire : flux classique 511/627/411."""
         tx = _make_transaction(
             net_amount=95.0, commission_ttc=5.0, payment_method="klarna"
         )
         entries = generate_settlement_entries(tx, sample_config)
 
+        assert len(entries) == 3
         assert entries[0].account == "51150011"
         assert entries[1].account == "62700003"
         _assert_balance(entries)
@@ -101,7 +109,7 @@ class TestSettlementRefund:
     """Écritures de refund (remboursement)."""
 
     def test_refund_commission_restituee(self, sample_config: AppConfig) -> None:
-        """Refund commission restituée: net=-95, commission=-5 → 411 D=100, PSP C=95, 627 C=5."""
+        """Refund commission restituée: net=-95, commission=-5 → 4 lignes avec compte intermédiaire."""
         tx = _make_transaction(
             type="refund",
             net_amount=-95.0,
@@ -109,27 +117,32 @@ class TestSettlementRefund:
         )
         entries = generate_settlement_entries(tx, sample_config)
 
-        assert len(entries) == 3
+        assert len(entries) == 4
 
-        # PSP 511 crédit
-        assert entries[0].account == "51150007"
+        # 46710001 intermédiaire crédit TTC (total_411=-100)
+        assert entries[0].account == "46710001"
         assert entries[0].debit == 0.0
-        assert entries[0].credit == 95.0
-
-        # 627 commission crédit
-        assert entries[1].account == "62700002"
-        assert entries[1].debit == 0.0
-        assert entries[1].credit == 5.0
+        assert entries[0].credit == 100.0
 
         # 411 client débit
-        assert entries[2].account == "411SHOPIFY"
-        assert entries[2].debit == 100.0
-        assert entries[2].credit == 0.0
+        assert entries[1].account == "411SHOPIFY"
+        assert entries[1].debit == 100.0
+        assert entries[1].credit == 0.0
+
+        # 627 commission crédit (restituée)
+        assert entries[2].account == "62700002"
+        assert entries[2].debit == 0.0
+        assert entries[2].credit == 5.0
+
+        # 46710001 intermédiaire débit commission
+        assert entries[3].account == "46710001"
+        assert entries[3].debit == 5.0
+        assert entries[3].credit == 0.0
 
         _assert_balance(entries)
 
     def test_refund_commission_non_restituee(self, sample_config: AppConfig) -> None:
-        """Refund commission non restituée: net=-105, commission=5 → 411 D=100 + 627 D=5, PSP C=105."""
+        """Refund commission non restituée: net=-105, commission=5 → 4 lignes avec compte intermédiaire."""
         tx = _make_transaction(
             type="refund",
             net_amount=-105.0,
@@ -137,22 +150,27 @@ class TestSettlementRefund:
         )
         entries = generate_settlement_entries(tx, sample_config)
 
-        assert len(entries) == 3
+        assert len(entries) == 4
 
-        # PSP 511 crédit
-        assert entries[0].account == "51150007"
+        # 46710001 intermédiaire crédit TTC (total_411=-100)
+        assert entries[0].account == "46710001"
         assert entries[0].debit == 0.0
-        assert entries[0].credit == 105.0
-
-        # 627 commission débit (non restituée)
-        assert entries[1].account == "62700002"
-        assert entries[1].debit == 5.0
-        assert entries[1].credit == 0.0
+        assert entries[0].credit == 100.0
 
         # 411 client débit
-        assert entries[2].account == "411SHOPIFY"
-        assert entries[2].debit == 100.0
+        assert entries[1].account == "411SHOPIFY"
+        assert entries[1].debit == 100.0
+        assert entries[1].credit == 0.0
+
+        # 627 commission débit (non restituée)
+        assert entries[2].account == "62700002"
+        assert entries[2].debit == 5.0
         assert entries[2].credit == 0.0
+
+        # 46710001 intermédiaire crédit commission
+        assert entries[3].account == "46710001"
+        assert entries[3].debit == 0.0
+        assert entries[3].credit == 5.0
 
         _assert_balance(entries)
 
@@ -167,45 +185,51 @@ class TestSettlementGuardClauses:
         assert entries == []
 
     def test_commission_zero_no_627_line(self, sample_config: AppConfig) -> None:
-        """commission_ttc=0 → pas de ligne 627, 2 lignes seulement (PSP + 411)."""
+        """commission_ttc=0 → pas de ligne 627, 2 lignes seulement (46710001 + 411)."""
         tx = _make_transaction(
             net_amount=100.0, commission_ttc=0.0
         )
         entries = generate_settlement_entries(tx, sample_config)
 
         assert len(entries) == 2
-        assert entries[0].account == "51150007"  # PSP
+        assert entries[0].account == "46710001"  # intermédiaire
         assert entries[1].account == "411SHOPIFY"  # 411
         # Pas de ligne 627
         assert all(e.entry_type != "commission" for e in entries)
         _assert_balance(entries)
 
     def test_net_amount_zero_no_psp_line(self, sample_config: AppConfig) -> None:
-        """net_amount=0, commission>0 → pas de ligne PSP, 2 lignes (627 + 411)."""
+        """net_amount=0, commission>0 → total_411=5, 4 lignes (46710001/411/627/46710001)."""
         tx = _make_transaction(
             net_amount=0.0, commission_ttc=5.0
         )
         entries = generate_settlement_entries(tx, sample_config)
 
-        assert len(entries) == 2
-        assert entries[0].account == "62700002"  # 627
-        assert entries[1].account == "411SHOPIFY"  # 411
+        assert len(entries) == 4
+        assert entries[0].account == "46710001"
+        assert entries[0].debit == 5.0
+        assert entries[1].account == "411SHOPIFY"
+        assert entries[1].credit == 5.0
+        assert entries[2].account == "62700002"
+        assert entries[2].debit == 5.0
+        assert entries[3].account == "46710001"
+        assert entries[3].credit == 5.0
         _assert_balance(entries)
 
     def test_total_411_zero_no_411_line(self, sample_config: AppConfig) -> None:
-        """net=-5, commission=5 → total_411=0 → pas de ligne 411, 2 lignes (PSP C + 627 D)."""
+        """net=-5, commission=5 → total_411=0 → pas de ligne 411/intermed TTC, 2 lignes (627 D + 46710001 C)."""
         tx = _make_transaction(
             net_amount=-5.0, commission_ttc=5.0
         )
         entries = generate_settlement_entries(tx, sample_config)
 
         assert len(entries) == 2
-        # PSP crédit
-        assert entries[0].account == "51150007"
-        assert entries[0].credit == 5.0
         # 627 débit
-        assert entries[1].account == "62700002"
-        assert entries[1].debit == 5.0
+        assert entries[0].account == "62700002"
+        assert entries[0].debit == 5.0
+        # 46710001 crédit
+        assert entries[1].account == "46710001"
+        assert entries[1].credit == 5.0
         # Pas de 411
         assert all(e.account != "411SHOPIFY" for e in entries)
         _assert_balance(entries)
@@ -223,13 +247,14 @@ class TestSettlementEntryTypes:
     """Vérification des entry_type."""
 
     def test_entry_types_sale(self, sample_config: AppConfig) -> None:
-        """PSP et 411 → 'settlement', 627 → 'commission'."""
+        """46710001 et 411 → 'settlement', 627 et 46710001 commission → 'commission'."""
         tx = _make_transaction()
         entries = generate_settlement_entries(tx, sample_config)
 
-        assert entries[0].entry_type == "settlement"  # PSP
-        assert entries[1].entry_type == "commission"  # 627
-        assert entries[2].entry_type == "settlement"  # 411
+        assert entries[0].entry_type == "settlement"   # 46710001 TTC
+        assert entries[1].entry_type == "settlement"   # 411
+        assert entries[2].entry_type == "commission"   # 627
+        assert entries[3].entry_type == "commission"   # 46710001 commission
 
 
 class TestSettlementLabels:
@@ -318,24 +343,26 @@ class TestSettlementMetadata:
             assert e.journal == "RG"
 
     def test_piece_number_and_lettrage(self, sample_config: AppConfig) -> None:
-        """piece_number = reference pour tous ; lettrage 411=reference, 511=payout_reference, 627=vide."""
+        """piece_number = reference ; lettrage 411=reference, 46710001=payout_reference, 627=vide."""
         tx = _make_transaction(reference="#9999", payout_reference="PAY-ABC")
         entries = generate_settlement_entries(tx, sample_config)
         for e in entries:
             assert e.piece_number == "#9999"
             if e.account.startswith("411"):
                 assert e.lettrage == "#9999"
-            elif e.account.startswith("511"):
+            elif e.account == "46710001":
                 assert e.lettrage == "PAY-ABC"
             else:
                 assert e.lettrage == ""
 
-    def test_511_lettrage_none_payout_reference(self, sample_config: AppConfig) -> None:
-        """payout_reference=None → lettrage 511 = chaîne vide."""
+    def test_intermed_lettrage_none_payout_reference(self, sample_config: AppConfig) -> None:
+        """payout_reference=None → lettrage 46710001 = chaîne vide."""
         tx = _make_transaction(payout_reference=None)
         entries = generate_settlement_entries(tx, sample_config)
-        psp_entry = [e for e in entries if e.account.startswith("511")][0]
-        assert psp_entry.lettrage == ""
+        intermed_entries = [e for e in entries if e.account == "46710001"]
+        assert len(intermed_entries) > 0
+        for e in intermed_entries:
+            assert e.lettrage == ""
 
     def test_balance_on_every_case(self, sample_config: AppConfig) -> None:
         """Équilibre systématique sur tous les cas."""

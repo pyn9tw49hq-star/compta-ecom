@@ -110,9 +110,9 @@ class TestGenerateEntriesSettlements:
         settlement_entries = [e for e in entries if e.entry_type == "settlement"]
         commission_entries = [e for e in entries if e.entry_type == "commission"]
 
-        # #S01: 2 settlement + 1 commission, #R01: 2 settlement + 1 commission, #N01: 0
+        # #S01: 2 settlement + 2 commission (avec intermédiaire), #R01: 2 settlement + 2 commission, #N01: 0
         assert len(settlement_entries) == 4
-        assert len(commission_entries) == 2
+        assert len(commission_entries) == 4
 
 
 class TestGenerateEntries:
@@ -290,11 +290,11 @@ class TestGenerateEntriesMixedMarketplacePSP:
         assert len(sale_type_entries) == 6  # SHOP01(3) + MM01(3)
         assert len(refund_type_entries) == 3  # MM02(3)
 
-        # Shopify settlement: 2 settlement (511 + 411)
+        # Shopify settlement: 2 settlement (46710001 + 411)
         assert len(settlement_type_entries) == 2
 
-        # 1 commission PSP (Shopify 627) + 3 commission marketplace (MM01 HT+TVA+client) + 3 commission marketplace (MM02 HT+TVA+client)
-        assert len(commission_type_entries) == 7
+        # 2 commission PSP (Shopify 627 + 46710001) + 3 commission marketplace (MM01 HT+TVA+client) + 3 commission marketplace (MM02 HT+TVA+client)
+        assert len(commission_type_entries) == 8
 
         # Payout: 2 lines (511 D + 512 C)
         assert len(payout_type_entries) == 2
@@ -417,8 +417,8 @@ class TestDispatchFinalStory24:
         assert len(refund_entries) == 3
         # SHOP01 settlement: 2
         assert len(settlement_entries) == 2
-        # SHOP01 commission(1) + MM01 commission(3 HT+TVA+client) + MM02 commission(3 HT+TVA+client)
-        assert len(commission_entries) == 7
+        # SHOP01 commission(2: 627+46710001) + MM01 commission(3 HT+TVA+client) + MM02 commission(3 HT+TVA+client)
+        assert len(commission_entries) == 8
         # ADJ01 payout(2) — MM01/MM02 n'ont plus de payout 512 (#16: commission in charges_mp)
         assert len(payout_entries) == 2
         # SUB01 fee(3) - charge HT + TVA + 411MANO TTC
@@ -510,10 +510,10 @@ class TestDispatchFinalStory24:
         payout_entries = [e for e in entries if e.entry_type == "payout"]
         assert len(payout_entries) == 2
         assert len(anomalies) == 0
-        # Verify accounts: transit (58000000) and PSP (51150007)
+        # Verify accounts: transit (58000000) and intermédiaire (46710001)
         accounts = {e.account for e in payout_entries}
         assert "58000000" in accounts
-        assert "51150007" in accounts
+        assert "46710001" in accounts
 
     def test_payout_summary_shopify_degraded_mixed_psp(
         self, sample_config: AppConfig

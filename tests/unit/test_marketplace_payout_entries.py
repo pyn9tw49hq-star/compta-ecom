@@ -169,7 +169,7 @@ class TestSpecialTypes:
         assert all(e.date == payout_date for e in entries)
 
     def test_eco_contribution(self, sample_config: AppConfig) -> None:
-        """ECO_CONTRIBUTION : 60730000 D HT + 44566001 D TVA + 411MANO C TTC."""
+        """ECO_CONTRIBUTION : 62802000 D HT + 44566001 D TVA + 411MANO C TTC."""
         tx = _make_transaction(
             special_type="ECO_CONTRIBUTION",
             net_amount=-30.0,
@@ -182,7 +182,7 @@ class TestSpecialTypes:
 
         assert len(entries) == 3
         # Charge HT au débit
-        assert entries[0].account == "60730000"
+        assert entries[0].account == "62802000"
         assert entries[0].debit == 25.0
         assert entries[0].lettrage == ""
         # TVA déductible au débit
@@ -210,7 +210,7 @@ class TestSpecialTypes:
 
         assert len(entries) == 3
         # Charge HT au débit — même compte que ECO_CONTRIBUTION
-        assert entries[0].account == "60730000"
+        assert entries[0].account == "62802000"
         assert entries[0].debit == 25.0
         assert entries[0].lettrage == ""
         # TVA déductible au débit
@@ -696,8 +696,8 @@ class TestManoManoSpecialTypesThreeEntries:
         "special_type,charge_account,ht,tva,ttc",
         [
             ("SUBSCRIPTION", "61311111", 50.0, 10.0, 60.0),
-            ("ECO_CONTRIBUTION", "60730000", 25.0, 5.0, 30.0),
-            ("ECO_CONTRIBUTION_SERVICE", "60730000", 25.0, 5.0, 30.0),
+            ("ECO_CONTRIBUTION", "62802000", 25.0, 5.0, 30.0),
+            ("ECO_CONTRIBUTION_SERVICE", "62802000", 25.0, 5.0, 30.0),
             ("REFUND_PENALTY", "62220300", 20.0, 4.0, 24.0),
         ],
     )

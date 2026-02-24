@@ -990,7 +990,7 @@ class TestSpecialTypesParserToEngine:
     """Tests intégration parser→moteur : types spéciaux → écritures HT+TVA+TTC."""
 
     def test_eco_contribution_ht_tva_split(self, sample_config: AppConfig, tmp_path: Path) -> None:
-        """ECO_CONTRIBUTION → 60730000 D (HT) + 44566001 D (TVA) + 411MANO C (TTC)."""
+        """ECO_CONTRIBUTION → 62802000 D (HT) + 44566001 D (TVA) + 411MANO C (TTC)."""
         from compta_ecom.engine.marketplace_payout_entries import generate_marketplace_payout
 
         ca_df = _make_ca_df()
@@ -1013,7 +1013,7 @@ class TestSpecialTypesParserToEngine:
         entries = generate_marketplace_payout(eco_tx, sample_config)
 
         assert len(entries) == 3
-        assert entries[0].account == "60730000"
+        assert entries[0].account == "62802000"
         assert entries[0].debit == 17.13
         assert entries[1].account == "44566001"
         assert entries[1].debit == 3.43

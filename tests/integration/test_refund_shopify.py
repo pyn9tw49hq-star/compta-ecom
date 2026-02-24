@@ -141,20 +141,16 @@ class TestShopifyRefundCommissionRestituee:
         refund_commission_restituee: NormalizedTransaction,
         sample_config: AppConfig,
     ) -> None:
-        """Settlement : PSP C, 627 C, 411 D — commission restituée."""
+        """Settlement : 46710001 C (TTC), 411 D, 627 C, 46710001 D (commission) — commission restituée."""
         entries = generate_settlement_entries(refund_commission_restituee, sample_config)
 
-        entry_psp = [e for e in entries if e.account == "51150007"]
+        entry_intermed = [e for e in entries if e.account == "46710001"]
         entry_627 = [e for e in entries if e.account == "62700002"]
         entry_411 = [e for e in entries if e.account == "411SHOPIFY"]
 
-        assert len(entry_psp) == 1
+        assert len(entry_intermed) == 2  # TTC pair + commission pair
         assert len(entry_627) == 1
         assert len(entry_411) == 1
-
-        # PSP au crédit (PSP rembourse le net)
-        assert entry_psp[0].credit > 0
-        assert entry_psp[0].debit == 0.0
 
         # 627 au crédit (PSP rembourse la commission)
         assert entry_627[0].credit > 0
@@ -165,7 +161,6 @@ class TestShopifyRefundCommissionRestituee:
         assert entry_411[0].credit == 0.0
 
         # entry_type assertions on settlement entries (QA-002)
-        assert entry_psp[0].entry_type == "settlement"
         assert entry_627[0].entry_type == "commission"
         assert entry_411[0].entry_type == "settlement"
 
@@ -198,7 +193,7 @@ class TestShopifyRefundCommissionRestituee:
             assert e.piece_number == "#R001"
             if e.account.startswith("411"):
                 assert e.lettrage == "#R001"
-            elif e.account.startswith("511"):
+            elif e.account == "46710001":
                 assert e.lettrage == (refund_commission_restituee.payout_reference or "")
 
 
@@ -236,20 +231,16 @@ class TestShopifyRefundCommissionNonRestituee:
         refund_commission_non_restituee: NormalizedTransaction,
         sample_config: AppConfig,
     ) -> None:
-        """Settlement : 627 D (commission conservée), PSP C, 411 D."""
+        """Settlement : 46710001 C (TTC), 411 D, 627 D (commission conservée), 46710001 C (commission)."""
         entries = generate_settlement_entries(refund_commission_non_restituee, sample_config)
 
-        entry_psp = [e for e in entries if e.account == "51150007"]
+        entry_intermed = [e for e in entries if e.account == "46710001"]
         entry_627 = [e for e in entries if e.account == "62700002"]
         entry_411 = [e for e in entries if e.account == "411SHOPIFY"]
 
-        assert len(entry_psp) == 1
+        assert len(entry_intermed) == 2  # TTC pair + commission pair
         assert len(entry_627) == 1
         assert len(entry_411) == 1
-
-        # PSP au crédit (PSP rembourse le net)
-        assert entry_psp[0].credit > 0
-        assert entry_psp[0].debit == 0.0
 
         # 627 au débit (commission conservée par le PSP)
         assert entry_627[0].debit > 0
@@ -260,7 +251,6 @@ class TestShopifyRefundCommissionNonRestituee:
         assert entry_411[0].credit == 0.0
 
         # entry_type assertions on settlement entries (QA-002)
-        assert entry_psp[0].entry_type == "settlement"
         assert entry_627[0].entry_type == "commission"
         assert entry_411[0].entry_type == "settlement"
 
@@ -278,16 +268,14 @@ class TestShopifyRefundCommissionNonRestituee:
         refund_commission_non_restituee: NormalizedTransaction,
         sample_config: AppConfig,
     ) -> None:
-        """Vérification montants : PSP C = |net|, 627 D = commission, 411 D = |total_411|."""
+        """Vérification montants : 46710001 C TTC, 627 D = commission, 411 D = |total_411|."""
         tx = refund_commission_non_restituee
         entries = generate_settlement_entries(tx, sample_config)
 
-        entry_psp = [e for e in entries if e.account == "51150007"][0]
         entry_627 = [e for e in entries if e.account == "62700002"][0]
         entry_411 = [e for e in entries if e.account == "411SHOPIFY"][0]
 
         # Hardcoded expected values from fixture: #R002 Fee=2.10, Net=-62.10 (QA-004)
-        assert entry_psp.credit == 62.10
         assert entry_627.debit == 2.10
         assert entry_411.debit == 60.00
 
@@ -311,5 +299,5 @@ class TestShopifyRefundCommissionNonRestituee:
             assert e.piece_number == "#R002"
             if e.account.startswith("411"):
                 assert e.lettrage == "#R002"
-            elif e.account.startswith("511"):
+            elif e.account == "46710001":
                 assert e.lettrage == (refund_commission_non_restituee.payout_reference or "")

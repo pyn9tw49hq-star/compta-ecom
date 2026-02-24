@@ -50,7 +50,8 @@ def _generate_aggregated_payout_entries(
     if total == 0.0:
         return [], []
 
-    psp_account = config.psp[payout.psp_type].compte
+    psp_cfg = config.psp[payout.psp_type]
+    psp_account = psp_cfg.compte_intermediaire or psp_cfg.compte
     transit_account = config.transit
     date_str = payout.payout_date.strftime("%Y-%m-%d")
     label = f"Reversement {payout.psp_type} {date_str}"
@@ -116,7 +117,8 @@ def _generate_aggregated_multi_psp_entries(
             )
             continue
 
-        psp_account = config.psp[psp_type].compte
+        psp_cfg = config.psp[psp_type]
+        psp_account = psp_cfg.compte_intermediaire or psp_cfg.compte
         label = f"Reversement {psp_type} {date_str}"
 
         pair = [

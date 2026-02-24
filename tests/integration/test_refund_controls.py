@@ -252,7 +252,8 @@ class TestMultiChannelRefundOrchestration:
         # Hardcoded expected entry counts — catches silent regressions (QA-003)
         # Shipping isolation adds 1 extra 7085 line per transaction with shipping_ht > 0
         # ManoMano commissions: 3 entries each (HT + TVA + client) after #14
-        assert len(all_entries) == 53
+        # Shopify settlement: 4 entries (with compte_intermediaire) instead of 3 → +4 total
+        assert len(all_entries) == 57
 
         # Refund-type entries include 7085 lines for refunds with shipping
         refund_entries = [e for e in all_entries if e.entry_type == "refund"]

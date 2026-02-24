@@ -102,17 +102,17 @@ class TestPayoutDetailRefundAccountingEntries:
         for e in entries:
             assert e.journal == "RG"
 
-    def test_settlement_psp_account(
+    def test_settlement_intermed_account(
         self,
         detail_refund_tx: NormalizedTransaction,
         sample_config: AppConfig,
     ) -> None:
-        """Le compte PSP 511 est au crédit (PSP rembourse)."""
+        """Le compte intermédiaire 46710001 est au crédit (refund TTC)."""
         entries = generate_settlement_entries(detail_refund_tx, sample_config)
-        psp_entries = [e for e in entries if e.account == "51150007"]
-        assert len(psp_entries) == 1
-        assert psp_entries[0].credit == 60.00
-        assert psp_entries[0].debit == 0.0
+        intermed_entries = [e for e in entries if e.account == "46710001"]
+        assert len(intermed_entries) == 1  # commission=0 → only TTC pair
+        assert intermed_entries[0].credit == 60.00
+        assert intermed_entries[0].debit == 0.0
 
     def test_settlement_client_account(
         self,
@@ -145,15 +145,15 @@ class TestPayoutDetailRefundAccountingEntries:
         entries = generate_settlement_entries(detail_refund_tx, sample_config)
         verify_balance(entries)
 
-    def test_lettrage_psp(
+    def test_lettrage_intermed(
         self,
         detail_refund_tx: NormalizedTransaction,
         sample_config: AppConfig,
     ) -> None:
-        """Lettrage sur compte 511 = payout_reference."""
+        """Lettrage sur compte intermédiaire 46710001 = payout_reference."""
         entries = generate_settlement_entries(detail_refund_tx, sample_config)
-        psp_entries = [e for e in entries if e.account == "51150007"]
-        assert psp_entries[0].lettrage == "RP101"
+        intermed_entries = [e for e in entries if e.account == "46710001"]
+        assert intermed_entries[0].lettrage == "RP101"
 
     def test_lettrage_client(
         self,
@@ -189,12 +189,12 @@ class TestPayoutDetailRefundAccountingEntries:
         assert len(ve_refund_entries) == 0, f"Expected no VE refund entries for payout_detail_refund, got {len(ve_refund_entries)}"
         assert len(rg_entries) > 0, "Expected RG entries for payout_detail_refund"
 
-    def test_lettrage_511_balanced_in_full_pipeline(
+    def test_lettrage_intermed_balanced_in_full_pipeline(
         self,
         parse_result_with_detail_refund: ParseResult,
         sample_config: AppConfig,
     ) -> None:
-        """Le lettrage 511 est soldé : settlement refund + payout entry ont le même lettrage."""
+        """Le lettrage 46710001 est soldé : settlement + payout entries ont le même lettrage."""
         from collections import defaultdict
 
         entries, _ = generate_entries(
@@ -202,19 +202,19 @@ class TestPayoutDetailRefundAccountingEntries:
             parse_result_with_detail_refund.payouts,
             sample_config,
         )
-        # Grouper les écritures 511 par lettrage
+        # Grouper les écritures 46710001 par lettrage
         groups: dict[str, list] = defaultdict(list)
         for e in entries:
-            if e.account.startswith("511") and e.lettrage:
+            if e.account == "46710001" and e.lettrage:
                 groups[e.lettrage].append(e)
 
-        # Vérifier que chaque groupe 511 est soldé
+        # Vérifier que chaque groupe 46710001 est soldé
         for lettrage, group in groups.items():
             total_debit = round(sum(e.debit for e in group), 2)
             total_credit = round(sum(e.credit for e in group), 2)
             diff = round(abs(total_debit - total_credit), 2)
             assert diff <= 0.01, (
-                f"Lettrage 511 '{lettrage}' déséquilibré : "
+                f"Lettrage 46710001 '{lettrage}' déséquilibré : "
                 f"débits={total_debit}€, crédits={total_credit}€, écart={diff}€"
             )
 
@@ -375,10 +375,9 @@ class TestPayoutDetailRefundWithCommission:
         assert len(commission_entries) == 1
         assert commission_entries[0].debit == 2.10  # commission conservée par PSP
 
-        psp_entries = [e for e in entries if e.account == "51150007"]
-        assert len(psp_entries) == 1
-        assert psp_entries[0].credit == 62.10  # PSP rembourse net (négatif)
-
+        # Avec compte intermédiaire : 46710001 C TTC (60) + 411 D TTC + 627 D (2.10) + 46710001 C (2.10)
+        intermed_entries = [e for e in entries if e.account == "46710001"]
+        assert len(intermed_entries) == 2  # TTC + commission
         client_entries = [e for e in entries if e.account == "411SHOPIFY"]
         assert len(client_entries) == 1
         assert client_entries[0].debit == 60.00  # net + commission = -62.10 + 2.10 = -60.00
@@ -432,7 +431,8 @@ class TestPayoutDetailRefundWithCommission:
         assert len(commission_entries) == 1
         assert commission_entries[0].credit == 3.50  # commission restituée
 
-        psp_entries = [e for e in entries if e.account == "51150007"]
-        assert psp_entries[0].credit == 116.50
+        # Avec compte intermédiaire : 46710001 au lieu de 511
+        intermed_entries = [e for e in entries if e.account == "46710001"]
+        assert len(intermed_entries) == 2  # TTC pair + commission pair
 
         verify_balance(entries)

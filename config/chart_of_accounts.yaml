@@ -13,9 +13,11 @@ psp:
   card:
     compte: "51150012"  # Shopify Payouts (unifié)
     commission: "62700002"
+    compte_intermediaire: "46710001"
   paypal:
     compte: "51150012"  # Shopify Payouts (unifié)
     commission: "62700001"
+    compte_intermediaire: "46710001"
   klarna:
     compte: "51150011"
     commission: "62700003"
@@ -52,7 +54,7 @@ comptes_charges_marketplace:
     tva_deductible: "44566001"
     abonnement: "61311111"
     penalite: "62220300"
-    eco_contribution: "60730000"
+    eco_contribution: "62802000"
   decathlon:
     commission: "62220800"
     abonnement: "61311112"

@@ -37,6 +37,7 @@ class PspConfig:
 
     compte: str
     commission: str | None = None
+    compte_intermediaire: str | None = None
 
 
 @dataclass
@@ -158,6 +159,7 @@ def _validate_chart(data: dict[str, object]) -> tuple[
         psp[str(psp_name)] = PspConfig(
             compte=str(psp_data["compte"]),
             commission=str(psp_data["commission"]) if "commission" in psp_data else None,
+            compte_intermediaire=str(psp_data["compte_intermediaire"]) if "compte_intermediaire" in psp_data else None,
         )
 
     transit = str(_require_key(data, "transit", context))
