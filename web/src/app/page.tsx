@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import dynamic from "next/dynamic";
 import { HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,6 +32,11 @@ import { computeSummary } from "@/lib/computeSummary";
 import type { DateRange } from "@/lib/datePresets";
 import type { UploadedFile, ProcessResponse, ChannelStatus, FileSlotConfig } from "@/lib/types";
 
+const DashboardTab = dynamic(
+  () => import("@/components/dashboard").then((m) => m.DashboardTab),
+  { loading: () => <div className="h-96 animate-pulse bg-muted rounded-lg" /> }
+);
+
 export default function Home() {
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [result, setResult] = useState<ProcessResponse | null>(null);
@@ -39,7 +45,8 @@ export default function Home() {
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const isHelpButtonClickRef = useRef(false);
   const [dateRange, setDateRange] = useState<DateRange>(() => getPresetRange(DEFAULT_PRESET));
-  const [htTtcMode, setHtTtcMode] = useState<"ht" | "ttc">("ttc");
+  const [htTtcMode, setHtTtcMode] = useState<"ht" | "ttc">("ht");
+  const [activeTab, setActiveTab] = useState("ecritures");
   const account = useAccountOverrides();
 
   // Fetch defaults on mount
@@ -279,9 +286,10 @@ export default function Home() {
       )}
 
       {result && (
-        <Tabs defaultValue="ecritures" className="mt-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-6">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <TabsList>
+              <TabsTrigger value="dashboard">Tableau de Bord</TabsTrigger>
               <TabsTrigger value="ecritures">Écritures</TabsTrigger>
               <TabsTrigger value="anomalies">
                 Anomalies{filteredAnomalies.length > 0 && ` (${filteredAnomalies.length})`}
@@ -307,6 +315,17 @@ export default function Home() {
             </div>
           </div>
           <PeriodFilter dateRange={dateRange} onChange={setDateRange} />
+          <TabsContent value="dashboard">
+            {filteredSummary && (
+              <DashboardTab
+                summary={filteredSummary}
+                anomalies={filteredAnomalies}
+                htTtcMode={htTtcMode}
+                onHtTtcModeChange={setHtTtcMode}
+                onNavigateTab={(tab) => setActiveTab(tab)}
+              />
+            )}
+          </TabsContent>
           <TabsContent value="ecritures">
             <EntriesTable entries={filteredEntries} />
           </TabsContent>

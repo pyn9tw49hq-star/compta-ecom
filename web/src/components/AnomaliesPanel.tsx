@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, Fragment } from "react";
 import { ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getChannelMeta } from "@/lib/channels";
@@ -345,248 +345,255 @@ export default function AnomaliesPanel({ anomalies }: AnomaliesPanelProps) {
         )}
       </div>
 
-      {/* Anomaly cards — grouped types in <details>, rest flat */}
+      {/* Anomaly cards — severity-first ordering, then type grouping within each severity */}
       <div className="space-y-2">
         {(() => {
           const GROUPED_TYPES = new Set(["missing_payout", "orphan_sale_summary", "orphan_sale", "direct_payment", "tva_mismatch"]);
           const PRIOR_PERIOD_TYPES = new Set(["prior_period_settlement", "prior_period_refund", "prior_period_manomano_refund"]);
-          const grouped = sortedAnomalies.filter((a) => GROUPED_TYPES.has(a.type));
-          const priorPeriod = sortedAnomalies.filter((a) => PRIOR_PERIOD_TYPES.has(a.type));
-          const others = sortedAnomalies.filter((a) => !GROUPED_TYPES.has(a.type) && !PRIOR_PERIOD_TYPES.has(a.type));
+          const SEVERITY_ORDER = ["info", "warning", "error"] as const;
 
-          // Group missing_payout by canal
-          const missingPayoutByCanal = new Map<string, Anomaly[]>();
-          for (const a of grouped.filter((a) => a.type === "missing_payout")) {
-            const group = missingPayoutByCanal.get(a.canal) ?? [];
-            group.push(a);
-            missingPayoutByCanal.set(a.canal, group);
-          }
+          return SEVERITY_ORDER.map((severity) => {
+            const sevAnomalies = sortedAnomalies.filter((a) => a.severity === severity);
+            if (sevAnomalies.length === 0) return null;
 
-          // Group orphan_sale_summary + orphan_sale by canal
-          const orphanSaleByCanal = new Map<string, Anomaly[]>();
-          for (const a of grouped.filter((a) => a.type === "orphan_sale_summary" || a.type === "orphan_sale")) {
-            const group = orphanSaleByCanal.get(a.canal) ?? [];
-            group.push(a);
-            orphanSaleByCanal.set(a.canal, group);
-          }
+            const grouped = sevAnomalies.filter((a) => GROUPED_TYPES.has(a.type));
+            const priorPeriod = sevAnomalies.filter((a) => PRIOR_PERIOD_TYPES.has(a.type));
+            const others = sevAnomalies.filter((a) => !GROUPED_TYPES.has(a.type) && !PRIOR_PERIOD_TYPES.has(a.type));
 
-          // Group direct_payment by payment method
-          const directPaymentByMethod = new Map<string, Anomaly[]>();
-          for (const a of grouped.filter((a) => a.type === "direct_payment")) {
-            const method = extractPaymentMethod(a.detail);
-            const group = directPaymentByMethod.get(method) ?? [];
-            group.push(a);
-            directPaymentByMethod.set(method, group);
-          }
+            // Group missing_payout by canal
+            const missingPayoutByCanal = new Map<string, Anomaly[]>();
+            for (const a of grouped.filter((a) => a.type === "missing_payout")) {
+              const group = missingPayoutByCanal.get(a.canal) ?? [];
+              group.push(a);
+              missingPayoutByCanal.set(a.canal, group);
+            }
 
-          // Group tva_mismatch by rate discrepancy (actual vs expected)
-          const tvaMismatchByRate = new Map<string, Anomaly[]>();
-          for (const a of grouped.filter((a) => a.type === "tva_mismatch")) {
-            const key = `${a.actual_value ?? "?"}% au lieu de ${a.expected_value ?? "?"}%`;
-            const group = tvaMismatchByRate.get(key) ?? [];
-            group.push(a);
-            tvaMismatchByRate.set(key, group);
-          }
+            // Group orphan_sale_summary + orphan_sale by canal
+            const orphanSaleByCanal = new Map<string, Anomaly[]>();
+            for (const a of grouped.filter((a) => a.type === "orphan_sale_summary" || a.type === "orphan_sale")) {
+              const group = orphanSaleByCanal.get(a.canal) ?? [];
+              group.push(a);
+              orphanSaleByCanal.set(a.canal, group);
+            }
 
-          return (
-            <>
-              {/* Prior period cards — rendered first (Issue #1) */}
-              {priorPeriod.map((anomaly, i) => {
-                const meta = getSeverityMeta(anomaly.severity);
-                const channelMeta = getChannelMeta(anomaly.canal);
-                return (
-                  <div
-                    key={`pp-${i}`}
-                    className={`rounded-md border border-l-4 ${meta.borderClass} bg-card p-3`}
-                  >
-                    <div className="flex items-center gap-2 text-sm font-medium">
-                      <Badge variant="outline" className={meta.badgeClass}>
-                        {meta.label}
-                      </Badge>
-                      <span>{getTypeLabel(anomaly.type)}</span>
-                      {anomaly.canal && (
+            // Group direct_payment by payment method
+            const directPaymentByMethod = new Map<string, Anomaly[]>();
+            for (const a of grouped.filter((a) => a.type === "direct_payment")) {
+              const method = extractPaymentMethod(a.detail);
+              const group = directPaymentByMethod.get(method) ?? [];
+              group.push(a);
+              directPaymentByMethod.set(method, group);
+            }
+
+            // Group tva_mismatch by rate discrepancy (actual vs expected)
+            const tvaMismatchByRate = new Map<string, Anomaly[]>();
+            for (const a of grouped.filter((a) => a.type === "tva_mismatch")) {
+              const key = `${a.actual_value ?? "?"}% au lieu de ${a.expected_value ?? "?"}%`;
+              const group = tvaMismatchByRate.get(key) ?? [];
+              group.push(a);
+              tvaMismatchByRate.set(key, group);
+            }
+
+            return (
+              <Fragment key={severity}>
+                {/* Prior period cards */}
+                {priorPeriod.map((anomaly, i) => {
+                  const meta = getSeverityMeta(anomaly.severity);
+                  const channelMeta = getChannelMeta(anomaly.canal);
+                  return (
+                    <div
+                      key={`pp-${severity}-${i}`}
+                      className={`rounded-md border border-l-4 ${meta.borderClass} bg-card p-3`}
+                    >
+                      <div className="flex items-center gap-2 text-sm font-medium">
+                        <Badge variant="outline" className={meta.badgeClass}>
+                          {meta.label}
+                        </Badge>
+                        <span>{getTypeLabel(anomaly.type)}</span>
+                        {anomaly.canal && (
+                          <Badge variant="outline" className={channelMeta.badgeClass}>
+                            {channelMeta.label}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="mt-1 text-sm text-muted-foreground pl-1">
+                        {anomaly.detail}
+                      </div>
+                      {anomaly.actual_value && (
+                        <details className="group mt-2 pl-1">
+                          <summary className="cursor-pointer list-none text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
+                            <ChevronRight className="h-3 w-3 shrink-0 transition-transform group-open:rotate-90" />
+                            Voir les références
+                          </summary>
+                          <div className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap">
+                            {anomaly.actual_value}
+                          </div>
+                        </details>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* Grouped missing_payout sections */}
+                {Array.from(missingPayoutByCanal.entries()).map(([canal, group]) => {
+                  const channelMeta = getChannelMeta(canal);
+                  const meta = getSeverityMeta(group[0].severity);
+                  return (
+                    <details key={`mp-${severity}-${canal}`} className={`group rounded-md border border-l-4 ${meta.borderClass} bg-card`}>
+                      <summary className="cursor-pointer list-none p-3 flex items-center gap-2 text-sm font-medium">
+                        <ChevronRight className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
+                        <Badge variant="outline" className={meta.badgeClass}>
+                          {meta.label}
+                        </Badge>
                         <Badge variant="outline" className={channelMeta.badgeClass}>
                           {channelMeta.label}
                         </Badge>
+                        <span>
+                          {group.length} {group.length > 1 ? "reversements manquants" : "reversement manquant"}
+                        </span>
+                      </summary>
+                      <div className="px-3 pb-3 space-y-1">
+                        {group.map((anomaly, i) => (
+                          <div key={i} className="text-sm text-muted-foreground pl-1 py-1 border-t first:border-t-0">
+                            <span className="font-medium text-foreground">{anomaly.reference}</span>
+                            {" — "}{anomaly.detail}
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  );
+                })}
+
+                {/* Grouped orphan_sale_summary / orphan_sale sections */}
+                {Array.from(orphanSaleByCanal.entries()).map(([canal, group]) => {
+                  const channelMeta = getChannelMeta(canal);
+                  const meta = getSeverityMeta(group[0].severity);
+                  const orderCount = getOrphanSaleCount(group);
+                  return (
+                    <details key={`os-${severity}-${canal}`} className={`group rounded-md border border-l-4 ${meta.borderClass} bg-card`}>
+                      <summary className="cursor-pointer list-none p-3 flex items-center gap-2 text-sm font-medium">
+                        <ChevronRight className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
+                        <Badge variant="outline" className={meta.badgeClass}>
+                          {meta.label}
+                        </Badge>
+                        <Badge variant="outline" className={channelMeta.badgeClass}>
+                          {channelMeta.label}
+                        </Badge>
+                        <span>
+                          {orderCount} {orderCount > 1 ? "commandes sans encaissement" : "commande sans encaissement"}
+                        </span>
+                      </summary>
+                      <div className="px-3 pb-3 space-y-1">
+                        {group.map((anomaly, i) => (
+                          <div key={i} className="text-sm text-muted-foreground pl-1 py-1 border-t first:border-t-0">
+                            <span className="font-medium text-foreground">{anomaly.reference}</span>
+                            {" — "}{anomaly.detail}
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  );
+                })}
+
+                {/* Grouped direct_payment sections — one card per payment method */}
+                {Array.from(directPaymentByMethod.entries()).map(([method, group]) => {
+                  const meta = getSeverityMeta(group[0].severity);
+                  const channelMeta = getChannelMeta(group[0].canal);
+                  return (
+                    <details key={`dp-${severity}-${method}`} className={`group rounded-md border border-l-4 ${meta.borderClass} bg-card`}>
+                      <summary className="cursor-pointer list-none p-3 flex items-center gap-2 text-sm font-medium">
+                        <ChevronRight className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
+                        <Badge variant="outline" className={meta.badgeClass}>
+                          {meta.label}
+                        </Badge>
+                        <Badge variant="outline" className={channelMeta.badgeClass}>
+                          {channelMeta.label}
+                        </Badge>
+                        <span>
+                          {group.length} {group.length > 1 ? "paiements directs" : "paiement direct"} — {method}
+                        </span>
+                      </summary>
+                      <div className="px-3 pb-3 space-y-1">
+                        {group.map((anomaly, i) => (
+                          <div key={i} className="text-sm text-muted-foreground pl-1 py-1 border-t first:border-t-0">
+                            <span className="font-medium text-foreground">{anomaly.reference}</span>
+                            {" — "}{anomaly.detail}
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  );
+                })}
+
+                {/* Grouped tva_mismatch sections — one card per rate discrepancy */}
+                {Array.from(tvaMismatchByRate.entries()).map(([rateKey, group]) => {
+                  const meta = getSeverityMeta(group[0].severity);
+                  const channelMeta = getChannelMeta(group[0].canal);
+                  return (
+                    <details key={`tva-${severity}-${rateKey}`} className={`group rounded-md border border-l-4 ${meta.borderClass} bg-card`}>
+                      <summary className="cursor-pointer list-none p-3 flex items-center gap-2 text-sm font-medium">
+                        <ChevronRight className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
+                        <Badge variant="outline" className={meta.badgeClass}>
+                          {meta.label}
+                        </Badge>
+                        <Badge variant="outline" className={channelMeta.badgeClass}>
+                          {channelMeta.label}
+                        </Badge>
+                        <span>
+                          {group.length} {group.length > 1 ? "factures" : "facture"} avec taux de TVA incohérent — {rateKey}
+                        </span>
+                      </summary>
+                      <div className="px-3 pb-3 space-y-1">
+                        {group.map((anomaly, i) => (
+                          <div key={i} className="text-sm text-muted-foreground pl-1 py-1 border-t first:border-t-0">
+                            <span className="font-medium text-foreground">{anomaly.reference}</span>
+                            {" — "}{anomaly.detail}
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  );
+                })}
+
+                {/* Other anomalies — flat list */}
+                {others.map((anomaly, i) => {
+                  const meta = getSeverityMeta(anomaly.severity);
+                  const channelMeta = getChannelMeta(anomaly.canal);
+                  return (
+                    <div
+                      key={`other-${severity}-${i}`}
+                      className={`rounded-md border border-l-4 ${meta.borderClass} bg-card p-3`}
+                    >
+                      <div className="flex items-center gap-2 text-sm font-medium">
+                        <Badge variant="outline" className={meta.badgeClass}>
+                          {meta.label}
+                        </Badge>
+                        <span>{getTypeLabel(anomaly.type)}</span>
+                        <Badge variant="outline" className={channelMeta.badgeClass}>
+                          {channelMeta.label}
+                        </Badge>
+                        <span className="text-muted-foreground">{anomaly.reference}</span>
+                      </div>
+                      <div className="mt-1 text-sm text-muted-foreground pl-1">
+                        {anomaly.detail}
+                      </div>
+                      {anomaly.actual_value && (
+                        <details className="group mt-2 pl-1">
+                          <summary className="cursor-pointer list-none text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
+                            <ChevronRight className="h-3 w-3 shrink-0 transition-transform group-open:rotate-90" />
+                            Voir les références
+                          </summary>
+                          <div className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap">
+                            {anomaly.actual_value}
+                          </div>
+                        </details>
                       )}
                     </div>
-                    <div className="mt-1 text-sm text-muted-foreground pl-1">
-                      {anomaly.detail}
-                    </div>
-                    {anomaly.actual_value && (
-                      <details className="group mt-2 pl-1">
-                        <summary className="cursor-pointer list-none text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
-                          <ChevronRight className="h-3 w-3 shrink-0 transition-transform group-open:rotate-90" />
-                          Voir les références
-                        </summary>
-                        <div className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap">
-                          {anomaly.actual_value}
-                        </div>
-                      </details>
-                    )}
-                  </div>
-                );
-              })}
-
-              {/* Grouped missing_payout sections */}
-              {Array.from(missingPayoutByCanal.entries()).map(([canal, group]) => {
-                const channelMeta = getChannelMeta(canal);
-                const meta = getSeverityMeta(group[0].severity);
-                return (
-                  <details key={`mp-${canal}`} className={`group rounded-md border border-l-4 ${meta.borderClass} bg-card`}>
-                    <summary className="cursor-pointer list-none p-3 flex items-center gap-2 text-sm font-medium">
-                      <ChevronRight className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
-                      <Badge variant="outline" className={meta.badgeClass}>
-                        {meta.label}
-                      </Badge>
-                      <Badge variant="outline" className={channelMeta.badgeClass}>
-                        {channelMeta.label}
-                      </Badge>
-                      <span>
-                        {group.length} {group.length > 1 ? "reversements manquants" : "reversement manquant"}
-                      </span>
-                    </summary>
-                    <div className="px-3 pb-3 space-y-1">
-                      {group.map((anomaly, i) => (
-                        <div key={i} className="text-sm text-muted-foreground pl-1 py-1 border-t first:border-t-0">
-                          <span className="font-medium text-foreground">{anomaly.reference}</span>
-                          {" — "}{anomaly.detail}
-                        </div>
-                      ))}
-                    </div>
-                  </details>
-                );
-              })}
-
-              {/* Grouped orphan_sale_summary / orphan_sale sections */}
-              {Array.from(orphanSaleByCanal.entries()).map(([canal, group]) => {
-                const channelMeta = getChannelMeta(canal);
-                const meta = getSeverityMeta(group[0].severity);
-                const orderCount = getOrphanSaleCount(group);
-                return (
-                  <details key={`os-${canal}`} className={`group rounded-md border border-l-4 ${meta.borderClass} bg-card`}>
-                    <summary className="cursor-pointer list-none p-3 flex items-center gap-2 text-sm font-medium">
-                      <ChevronRight className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
-                      <Badge variant="outline" className={meta.badgeClass}>
-                        {meta.label}
-                      </Badge>
-                      <Badge variant="outline" className={channelMeta.badgeClass}>
-                        {channelMeta.label}
-                      </Badge>
-                      <span>
-                        {orderCount} {orderCount > 1 ? "commandes sans encaissement" : "commande sans encaissement"}
-                      </span>
-                    </summary>
-                    <div className="px-3 pb-3 space-y-1">
-                      {group.map((anomaly, i) => (
-                        <div key={i} className="text-sm text-muted-foreground pl-1 py-1 border-t first:border-t-0">
-                          <span className="font-medium text-foreground">{anomaly.reference}</span>
-                          {" — "}{anomaly.detail}
-                        </div>
-                      ))}
-                    </div>
-                  </details>
-                );
-              })}
-
-              {/* Grouped direct_payment sections — one card per payment method */}
-              {Array.from(directPaymentByMethod.entries()).map(([method, group]) => {
-                const meta = getSeverityMeta(group[0].severity);
-                const channelMeta = getChannelMeta(group[0].canal);
-                return (
-                  <details key={`dp-${method}`} className={`group rounded-md border border-l-4 ${meta.borderClass} bg-card`}>
-                    <summary className="cursor-pointer list-none p-3 flex items-center gap-2 text-sm font-medium">
-                      <ChevronRight className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
-                      <Badge variant="outline" className={meta.badgeClass}>
-                        {meta.label}
-                      </Badge>
-                      <Badge variant="outline" className={channelMeta.badgeClass}>
-                        {channelMeta.label}
-                      </Badge>
-                      <span>
-                        {group.length} {group.length > 1 ? "paiements directs" : "paiement direct"} — {method}
-                      </span>
-                    </summary>
-                    <div className="px-3 pb-3 space-y-1">
-                      {group.map((anomaly, i) => (
-                        <div key={i} className="text-sm text-muted-foreground pl-1 py-1 border-t first:border-t-0">
-                          <span className="font-medium text-foreground">{anomaly.reference}</span>
-                          {" — "}{anomaly.detail}
-                        </div>
-                      ))}
-                    </div>
-                  </details>
-                );
-              })}
-
-              {/* Grouped tva_mismatch sections — one card per rate discrepancy */}
-              {Array.from(tvaMismatchByRate.entries()).map(([rateKey, group]) => {
-                const meta = getSeverityMeta(group[0].severity);
-                const channelMeta = getChannelMeta(group[0].canal);
-                return (
-                  <details key={`tva-${rateKey}`} className={`group rounded-md border border-l-4 ${meta.borderClass} bg-card`}>
-                    <summary className="cursor-pointer list-none p-3 flex items-center gap-2 text-sm font-medium">
-                      <ChevronRight className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
-                      <Badge variant="outline" className={meta.badgeClass}>
-                        {meta.label}
-                      </Badge>
-                      <Badge variant="outline" className={channelMeta.badgeClass}>
-                        {channelMeta.label}
-                      </Badge>
-                      <span>
-                        {group.length} {group.length > 1 ? "factures" : "facture"} avec taux de TVA incohérent — {rateKey}
-                      </span>
-                    </summary>
-                    <div className="px-3 pb-3 space-y-1">
-                      {group.map((anomaly, i) => (
-                        <div key={i} className="text-sm text-muted-foreground pl-1 py-1 border-t first:border-t-0">
-                          <span className="font-medium text-foreground">{anomaly.reference}</span>
-                          {" — "}{anomaly.detail}
-                        </div>
-                      ))}
-                    </div>
-                  </details>
-                );
-              })}
-
-              {/* Other anomalies — flat list */}
-              {others.map((anomaly, i) => {
-                const meta = getSeverityMeta(anomaly.severity);
-                const channelMeta = getChannelMeta(anomaly.canal);
-                return (
-                  <div
-                    key={`other-${i}`}
-                    className={`rounded-md border border-l-4 ${meta.borderClass} bg-card p-3`}
-                  >
-                    <div className="flex items-center gap-2 text-sm font-medium">
-                      <Badge variant="outline" className={meta.badgeClass}>
-                        {meta.label}
-                      </Badge>
-                      <span>{getTypeLabel(anomaly.type)}</span>
-                      <Badge variant="outline" className={channelMeta.badgeClass}>
-                        {channelMeta.label}
-                      </Badge>
-                      <span className="text-muted-foreground">{anomaly.reference}</span>
-                    </div>
-                    <div className="mt-1 text-sm text-muted-foreground pl-1">
-                      {anomaly.detail}
-                    </div>
-                    {anomaly.actual_value && (
-                      <details className="group mt-2 pl-1">
-                        <summary className="cursor-pointer list-none text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
-                          <ChevronRight className="h-3 w-3 shrink-0 transition-transform group-open:rotate-90" />
-                          Voir les références
-                        </summary>
-                        <div className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap">
-                          {anomaly.actual_value}
-                        </div>
-                      </details>
-                    )}
-                  </div>
-                );
-              })}
-            </>
-          );
+                  );
+                })}
+              </Fragment>
+            );
+          });
         })()}
       </div>
     </div>
