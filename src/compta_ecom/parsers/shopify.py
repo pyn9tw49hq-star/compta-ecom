@@ -421,7 +421,7 @@ class ShopifyParser(BaseParser):
         # Date
         date_str = str(row["Created at"])
         try:
-            date = pd.to_datetime(date_str).date()
+            date = pd.to_datetime(date_str, format="mixed").date()
         except (ValueError, TypeError):
             anomalies.append(
                 Anomaly(
@@ -513,7 +513,7 @@ class ShopifyParser(BaseParser):
             payout_date: datetime.date | None = None
             if _is_notna(payout_date_raw):
                 try:
-                    payout_date = pd.to_datetime(str(payout_date_raw)).date()
+                    payout_date = pd.to_datetime(str(payout_date_raw), format="mixed").date()
                 except (ValueError, TypeError):
                     pass
 
@@ -928,7 +928,7 @@ class ShopifyParser(BaseParser):
             # Date
             date_str = str(row["Jour"])
             try:
-                date = pd.to_datetime(date_str).date()
+                date = pd.to_datetime(date_str, format="mixed").date()
             except (ValueError, TypeError):
                 date = datetime.date.today()
 
@@ -1034,7 +1034,7 @@ class ShopifyParser(BaseParser):
                 payout_date: datetime.date | None = None
                 if _is_notna(payout_date_raw):
                     try:
-                        payout_date = pd.to_datetime(str(payout_date_raw)).date()
+                        payout_date = pd.to_datetime(str(payout_date_raw), format="mixed").date()
                     except (ValueError, TypeError):
                         pass
 
@@ -1056,7 +1056,7 @@ class ShopifyParser(BaseParser):
                 tx_date: datetime.date | None = None
                 if _is_notna(tx_date_raw):
                     try:
-                        tx_date = pd.to_datetime(str(tx_date_raw)).date()
+                        tx_date = pd.to_datetime(str(tx_date_raw), format="mixed").date()
                     except (ValueError, TypeError):
                         pass
 
@@ -1219,7 +1219,7 @@ class ShopifyParser(BaseParser):
             payout_date: datetime.date | None = None
             if _is_notna(payout_date_raw):
                 try:
-                    payout_date = pd.to_datetime(str(payout_date_raw)).date()
+                    payout_date = pd.to_datetime(str(payout_date_raw), format="mixed").date()
                 except (ValueError, TypeError):
                     pass
 
