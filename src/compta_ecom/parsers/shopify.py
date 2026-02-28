@@ -210,9 +210,9 @@ class ShopifyParser(BaseParser):
         """Lecture et agrégation du fichier Ventes (logique Story 1.2)."""
         channel_config = config.channels["shopify"]
 
-        df = pd.read_csv(
+        df = self.read_csv(
             sales_path,
-            sep=channel_config.separator,
+            configured_sep=channel_config.separator,
             encoding=channel_config.encoding,
         )
 
@@ -463,9 +463,9 @@ class ShopifyParser(BaseParser):
         for psp_name in config.psp:
             psp_mapping[psp_name] = psp_name
 
-        df = pd.read_csv(
+        df = self.read_csv(
             transactions_path,
-            sep=channel_config.separator,
+            configured_sep=channel_config.separator,
             encoding=channel_config.encoding,
         )
         self.validate_columns(df, REQUIRED_TRANSACTIONS_COLUMNS)
@@ -819,9 +819,9 @@ class ShopifyParser(BaseParser):
         channel_config = config.channels["shopify"]
         anomalies: list[Anomaly] = []
 
-        df = pd.read_csv(
+        df = self.read_csv(
             returns_path,
-            sep=channel_config.separator,
+            configured_sep=channel_config.separator,
             encoding=channel_config.encoding,
         )
         self.validate_columns(df, REQUIRED_RETURNS_COLUMNS)
@@ -974,9 +974,9 @@ class ShopifyParser(BaseParser):
 
         for fpath in detail_files:
             try:
-                df = pd.read_csv(
+                df = self.read_csv(
                     fpath,
-                    sep=channel_config.separator,
+                    configured_sep=channel_config.separator,
                     encoding=channel_config.encoding,
                 )
             except Exception:
@@ -1195,9 +1195,9 @@ class ShopifyParser(BaseParser):
         channel_config = config.channels["shopify"]
         anomalies: list[Anomaly] = []
 
-        df = pd.read_csv(
+        df = self.read_csv(
             payouts_path,
-            sep=channel_config.separator,
+            configured_sep=channel_config.separator,
             encoding=channel_config.encoding,
         )
         self.validate_columns(df, REQUIRED_PAYOUTS_COLUMNS)

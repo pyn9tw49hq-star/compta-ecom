@@ -121,7 +121,7 @@ class MiraklParser(BaseParser):
     ) -> tuple[pd.DataFrame, list[Anomaly]]:
         """Lit le CSV, valide les colonnes, convertit les numériques, parse les dates."""
         channel_config = config.channels[self.channel]
-        df = pd.read_csv(data_path, sep=channel_config.separator, encoding=channel_config.encoding)
+        df = self.read_csv(data_path, configured_sep=channel_config.separator, encoding=channel_config.encoding)
 
         # Nettoyer les noms de colonnes (supprimer les espaces en début/fin)
         df.columns = df.columns.str.strip()

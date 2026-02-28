@@ -89,9 +89,9 @@ class ManoManoParser(BaseParser):
         """
         channel_config = config.channels["manomano"]
         try:
-            df = pd.read_csv(
+            df = self.read_csv(
                 od_path,
-                sep=channel_config.separator,
+                configured_sep=channel_config.separator,
                 encoding=channel_config.encoding,
                 usecols=ORDER_DETAILS_REQUIRED_COLUMNS,
             )
@@ -184,7 +184,7 @@ class ManoManoParser(BaseParser):
         - tva_rate: float
         """
         channel_config = config.channels["manomano"]
-        df = pd.read_csv(ca_path, sep=channel_config.separator, encoding=channel_config.encoding)
+        df = self.read_csv(ca_path, configured_sep=channel_config.separator, encoding=channel_config.encoding)
         df = self.apply_column_aliases(df, CA_COLUMN_ALIASES)
         self.validate_columns(df, CA_REQUIRED_COLUMNS)
 
@@ -457,7 +457,7 @@ class ManoManoParser(BaseParser):
         ca_rows, ca_anomalies = self._parse_ca(ca_path, config, country_lookup)
 
         # Parse Versements
-        payout_df = pd.read_csv(payouts_path, sep=channel_config.separator, encoding=channel_config.encoding)
+        payout_df = self.read_csv(payouts_path, configured_sep=channel_config.separator, encoding=channel_config.encoding)
         payout_df = self.strip_whitespace(payout_df)
         payout_df = self.apply_column_aliases(payout_df, PAYOUT_COLUMN_ALIASES)
         self.validate_columns(payout_df, PAYOUT_REQUIRED_COLUMNS)
