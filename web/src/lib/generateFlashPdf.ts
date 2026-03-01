@@ -8,7 +8,6 @@ import autoTable from "jspdf-autotable";
 import { normSpace, fmt, fmtPct, fmtDate, channelLabel } from "./pdfStyles";
 import {
   ANOMALY_TYPE_LABELS,
-  SEVERITY_META,
 } from "@/components/AnomaliesPanel";
 import type { Summary, Anomaly } from "./types";
 
@@ -99,10 +98,6 @@ function periodLabel(dateRange: { from: Date; to: Date }): string {
 
 function getTypeLabel(type: string): string {
   return ANOMALY_TYPE_LABELS[type] ?? type;
-}
-
-function getSeverityLabel(severity: string): string {
-  return SEVERITY_META[severity]?.label ?? severity;
 }
 
 function getFinalY(doc: jsPDF): number {
@@ -296,10 +291,7 @@ function renderKpisPage(doc: jsPDF, data: FlashPdfData): void {
   const MAX_CARDS_PER_ROW = 4;
   const CARD_PADDING = 4;
   const contentWidth = 267; // 297 - 2 * 15mm margins
-  const cardsPerRow = Math.min(nCards, MAX_CARDS_PER_ROW);
   const multiRow = nCards > MAX_CARDS_PER_ROW;
-  const totalGaps = (cardsPerRow + 1) * GAP_BETWEEN_CARDS;
-  const cardW = (contentWidth - totalGaps) / cardsPerRow;
   const valueFontSize = multiRow ? 14 : nCards === 4 ? 16 : 24;
   const labelFontSize = multiRow ? 7 : 8;
 

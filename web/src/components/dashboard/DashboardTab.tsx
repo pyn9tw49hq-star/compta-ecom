@@ -115,7 +115,7 @@ export function DashboardTab({ summary, anomalies, htTtcMode, onHtTtcModeChange,
       caDisplay, net, netPct, totalTx, tauxRemb, balance, isBalanced,
       anomalyCount: anomalies.length, anomalyPct, sevSubtitle: sevParts.join(" "),
     };
-  }, [channels, summary, anomalies, htTtcMode]);
+  }, [channels, summary, anomalies, htTtcMode, tolerance]);
 
   // --- Zone 2: Revenue by channel ---
   const revenueData = useMemo(() => {
