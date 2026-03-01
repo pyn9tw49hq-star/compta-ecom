@@ -158,19 +158,11 @@ const TOTAL_ROW_STYLE = {
 // ---------------------------------------------------------------------------
 
 function renderPageHeader(doc: jsPDF, data: FlashPdfData): void {
-  // Logo placeholder
-  doc.setFillColor(...C.borderLight);
-  doc.rect(L.margin, L.margin, 12, 12, "F");
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(6);
-  doc.setTextColor(...C.secondary);
-  doc.text("LOGO", L.margin + 6, L.margin + 7, { align: "center" });
-
   // Title
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8);
   doc.setTextColor(...C.secondary);
-  doc.text(`Flash E-Commerce \u00B7 ${periodLabel(data.dateRange)}`, L.margin + 15, L.margin + 5);
+  doc.text(`Flash E-Commerce \u00B7 ${periodLabel(data.dateRange)}`, L.margin, L.margin + 5);
 
   // Mode HT/TTC right-aligned
   doc.setFont("helvetica", "normal");
@@ -264,13 +256,6 @@ function renderTitlePage(doc: jsPDF, data: FlashPdfData): void {
   doc.setTextColor(...C.textMuted);
   doc.text(`G\u00e9n\u00e9r\u00e9 le ${fmtDate(data.generatedAt)}`, cx, 122, { align: "center" });
 
-  // Logo placeholder
-  doc.setFillColor(...C.borderLight);
-  doc.rect(cx - 10, 130, 20, 20, "F");
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(6);
-  doc.setTextColor(...C.secondary);
-  doc.text("LOGO", cx, 141, { align: "center" });
 }
 
 // ---------------------------------------------------------------------------
@@ -285,7 +270,7 @@ function renderKpisPage(doc: jsPDF, data: FlashPdfData): void {
 
   const { summary, channels, mode } = data;
   const isHt = mode === "ht";
-  const allChannels = ["total", ...channels];
+  const allChannels = channels.length > 1 ? ["total", ...channels] : channels;
   const nCards = allChannels.length;
   const GAP_BETWEEN_CARDS = 5;
   const MAX_CARDS_PER_ROW = 4;
@@ -298,31 +283,41 @@ function renderKpisPage(doc: jsPDF, data: FlashPdfData): void {
   // KPI definitions
   const totalTx = channels.reduce((s, c) => s + (summary.transactions_par_canal[c] ?? 0), 0);
   const totalCa = channels.reduce((s, c) => s + (isHt ? summary.ca_par_canal[c]?.ht ?? 0 : summary.ca_par_canal[c]?.ttc ?? 0), 0);
-  const totalNet = channels.reduce((s, c) => s + (summary.net_vendeur_par_canal[c] ?? 0), 0);
+  const totalNet = isHt
+    ? channels.reduce((s, c) => s + (summary.net_vendeur_ht_par_canal?.[c] ?? 0), 0)
+    : channels.reduce((s, c) => s + (summary.net_vendeur_par_canal[c] ?? 0), 0);
   const totalRemb = totalTx > 0
     ? channels.reduce((s, c) => s + (summary.remboursements_par_canal[c]?.count ?? 0), 0) / totalTx * 100
     : 0;
-  const totalAnomalyRate = totalTx > 0 ? data.anomalies.length / totalTx * 100 : 0;
+  const totalUniqueAnomalyTx = new Set(
+    data.anomalies.map(a => `${a.canal}:${a.reference}`)
+  ).size;
+  const totalAnomalyRate = totalTx > 0 ? Math.min(100, totalUniqueAnomalyTx / totalTx * 100) : 0;
 
   function getKpis(channel: string): { value: string; label: string }[] {
+    const netLabel = isHt ? "Net Vendeur HT" : "Net Vendeur TTC";
     if (channel === "total") {
       return [
         { value: fmt(totalCa), label: `CA Total ${isHt ? "HT" : "TTC"}` },
-        { value: fmt(totalNet), label: "Net Vendeur" },
+        { value: fmt(totalNet), label: netLabel },
         { value: String(totalTx), label: "Nb Transactions" },
         { value: fmtPct(Math.round(totalRemb * 10) / 10), label: "Tx Remboursement" },
         { value: fmtPct(Math.round(totalAnomalyRate * 10) / 10), label: "Tx Anomalies" },
       ];
     }
     const ca = isHt ? summary.ca_par_canal[channel]?.ht ?? 0 : summary.ca_par_canal[channel]?.ttc ?? 0;
-    const net = summary.net_vendeur_par_canal[channel] ?? 0;
+    const net = isHt
+      ? (summary.net_vendeur_ht_par_canal?.[channel] ?? 0)
+      : (summary.net_vendeur_par_canal[channel] ?? 0);
     const tx = summary.transactions_par_canal[channel] ?? 0;
     const remb = summary.taux_remboursement_par_canal[channel] ?? 0;
-    const chAnomalies = data.anomalies.filter((a) => a.canal === channel).length;
-    const anomRate = tx > 0 ? chAnomalies / tx * 100 : 0;
+    const chUniqueAnomalyTx = new Set(
+      data.anomalies.filter((a) => a.canal === channel).map(a => `${a.canal}:${a.reference}`)
+    ).size;
+    const anomRate = tx > 0 ? Math.min(100, chUniqueAnomalyTx / tx * 100) : 0;
     return [
       { value: fmt(ca), label: `CA Total ${isHt ? "HT" : "TTC"}` },
-      { value: fmt(net), label: "Net Vendeur" },
+      { value: fmt(net), label: netLabel },
       { value: String(tx), label: "Nb Transactions" },
       { value: fmtPct(Math.round(remb * 10) / 10), label: "Tx Remboursement" },
       { value: fmtPct(Math.round(anomRate * 10) / 10), label: "Tx Anomalies" },
@@ -415,15 +410,17 @@ function renderSyntheseSlide(doc: jsPDF, data: FlashPdfData): void {
   const isHt = mode === "ht";
 
   const head = isHt
-    ? [["Canal", "CA HT", "Remb. HT", "Commissions HT", "Taux comm.", "Net vendeur"]]
-    : [["Canal", "CA TTC", "Remb. TTC", "Commissions TTC", "Taux comm.", "Net vendeur"]];
+    ? [["Canal", "CA HT", "Remb. HT", "Commissions HT", "Taux comm.", "Net vendeur HT"]]
+    : [["Canal", "CA TTC", "Remb. TTC", "Commissions TTC", "Taux comm.", "Net vendeur TTC"]];
 
   const body = channels.map((c) => {
     const ca = isHt ? summary.ca_par_canal[c].ht : summary.ca_par_canal[c].ttc;
     const remb = isHt ? summary.remboursements_par_canal[c].ht : summary.remboursements_par_canal[c].ttc;
     const comm = isHt ? summary.commissions_par_canal[c].ht : summary.commissions_par_canal[c].ttc;
     const rate = ca > 0 ? fmtPct(Math.round(comm / ca * 1000) / 10) : fmtPct(0);
-    const net = fmt(summary.net_vendeur_par_canal[c]);
+    const net = isHt
+      ? fmt(summary.net_vendeur_ht_par_canal?.[c] ?? 0)
+      : fmt(summary.net_vendeur_par_canal[c]);
     return [channelLabel(c), fmt(ca), fmt(remb), fmt(comm), rate, net];
   });
 
@@ -431,7 +428,9 @@ function renderSyntheseSlide(doc: jsPDF, data: FlashPdfData): void {
   const totRemb = channels.reduce((s, c) => s + (isHt ? summary.remboursements_par_canal[c].ht : summary.remboursements_par_canal[c].ttc), 0);
   const totComm = channels.reduce((s, c) => s + (isHt ? summary.commissions_par_canal[c].ht : summary.commissions_par_canal[c].ttc), 0);
   const totRate = totCa > 0 ? fmtPct(Math.round(totComm / totCa * 1000) / 10) : fmtPct(0);
-  const totNet = fmt(channels.reduce((s, c) => s + summary.net_vendeur_par_canal[c], 0));
+  const totNet = isHt
+    ? fmt(channels.reduce((s, c) => s + (summary.net_vendeur_ht_par_canal?.[c] ?? 0), 0))
+    : fmt(channels.reduce((s, c) => s + summary.net_vendeur_par_canal[c], 0));
   body.push(["TOTAL", fmt(totCa), fmt(totRemb), fmt(totComm), totRate, totNet]);
 
   autoTable(doc, {
@@ -528,8 +527,10 @@ function renderTvaSlide(doc: jsPDF, data: FlashPdfData): void {
     const head = [["Pays", "Taux TVA", "Montant TVA"]];
     const body: string[][] = [];
     for (const [pays, rows] of Object.entries(tvaPays)) {
-      for (let i = 0; i < rows.length; i++) {
-        body.push([i === 0 ? pays : "", fmtPct(rows[i].taux), fmt(rows[i].montant)]);
+      const filteredRows = rows.filter(r => Math.abs(r.montant) >= 0.01);
+      if (filteredRows.length === 0) continue;
+      for (let i = 0; i < filteredRows.length; i++) {
+        body.push([i === 0 ? pays : "", fmtPct(filteredRows[i].taux), fmt(filteredRows[i].montant)]);
       }
     }
     const totalTva = summary.tva_collectee_par_canal[canal];

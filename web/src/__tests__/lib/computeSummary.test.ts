@@ -18,6 +18,8 @@ function makeTx(overrides: Partial<Transaction> = {}): Transaction {
     commission_ttc: 5,
     commission_ht: 0,
     special_type: null,
+    payout_date: "2026-01-20",
+    payout_reference: "P001",
     ...overrides,
   };
 }

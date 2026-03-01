@@ -495,3 +495,78 @@ class TestBuildSummaryKPIs:
         summary = PipelineOrchestrator()._build_summary(entries, parse_results, config)
         geo = summary["repartition_geo_globale"]
         assert "Pays inconnu (999)" in geo
+
+
+class TestBuildSummaryRapprochement:
+    """Tests pour le taux de rapprochement dans _build_summary() (Issue #30)."""
+
+    def test_taux_rapprochement_all_matched(self) -> None:
+        """100% quand toutes les ventes ont un payout_date ou payout_reference."""
+        entries, parse_results, config = _build_kpi_test_data()
+        summary = PipelineOrchestrator()._build_summary(entries, parse_results, config)
+
+        taux = summary["taux_rapprochement_par_canal"]
+        # All sales in test data have payout_date + payout_reference set
+        assert taux["shopify"] == 100.0
+        assert taux["manomano"] == 100.0
+
+    def test_taux_rapprochement_partial(self) -> None:
+        """Taux partiel quand certaines ventes n'ont pas de payout."""
+        config = _make_kpi_config()
+
+        tx_matched = _make_tx(
+            reference="#S001", channel="shopify", type="sale",
+            payout_date=datetime.date(2026, 1, 20), payout_reference="P001",
+        )
+        tx_unmatched = _make_tx(
+            reference="#S002", channel="shopify", type="sale",
+            payout_date=None, payout_reference=None,
+        )
+        tx_partial = _make_tx(
+            reference="#S003", channel="shopify", type="sale",
+            payout_date=None, payout_reference="P003",
+        )
+
+        parse_results = [
+            ParseResult(
+                transactions=[tx_matched, tx_unmatched, tx_partial],
+                payouts=[], anomalies=[], channel="shopify",
+            ),
+        ]
+        entries = [_make_entry()]
+
+        summary = PipelineOrchestrator()._build_summary(entries, parse_results, config)
+
+        # 2 matched out of 3 sales = 66.7%
+        assert summary["taux_rapprochement_par_canal"]["shopify"] == 66.7
+
+    def test_ventes_par_canal(self) -> None:
+        """ventes_par_canal contient le nombre de ventes par canal."""
+        entries, parse_results, config = _build_kpi_test_data()
+        summary = PipelineOrchestrator()._build_summary(entries, parse_results, config)
+
+        ventes = summary["ventes_par_canal"]
+        assert ventes["shopify"] == 2
+        assert ventes["manomano"] == 1
+
+    def test_taux_rapprochement_zero_sales(self) -> None:
+        """Taux = 0.0 quand il n'y a aucune vente (division par zéro évitée)."""
+        config = _make_kpi_config()
+        tx_refund = _make_tx(
+            reference="#R001", channel="shopify", type="refund",
+            amount_ht=-50.0, amount_tva=-10.0, amount_ttc=-60.0,
+            commission_ttc=1.0, commission_ht=0.83,
+        )
+
+        parse_results = [
+            ParseResult(
+                transactions=[tx_refund],
+                payouts=[], anomalies=[], channel="shopify",
+            ),
+        ]
+        entries = [_make_entry()]
+
+        summary = PipelineOrchestrator()._build_summary(entries, parse_results, config)
+
+        assert summary["taux_rapprochement_par_canal"]["shopify"] == 0.0
+        assert summary["ventes_par_canal"]["shopify"] == 0

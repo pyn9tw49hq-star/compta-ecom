@@ -49,6 +49,8 @@ const MOCK_RESPONSE: ProcessResponse = {
       commission_ttc: 0,
       commission_ht: 0,
       special_type: null,
+      payout_date: null,
+      payout_reference: null,
     },
   ],
   country_names: { FR: "France" },

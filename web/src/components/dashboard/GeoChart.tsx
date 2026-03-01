@@ -16,7 +16,7 @@ import { formatCurrency, formatPercent, formatCount } from "@/lib/format";
 
 interface GeoItem {
   country: string;
-  ca_ttc: number;
+  ca_ht: number;
   count: number;
   fill: string;
 }
@@ -28,7 +28,7 @@ interface GeoChartProps {
 }
 
 /**
- * Horizontal bar chart of top 10 countries by CA TTC — neutral grey palette.
+ * Horizontal bar chart of top 10 countries by CA HT — neutral grey palette.
  */
 export default function GeoChart({ data, total, isDark }: GeoChartProps) {
   const reducedMotion = useReducedMotion();
@@ -36,16 +36,16 @@ export default function GeoChart({ data, total, isDark }: GeoChartProps) {
   return (
     <ChartCard
       title="Répartition géographique"
-      subtitle="CA TTC par pays (toutes marketplaces)"
+      subtitle="CA HT par pays (toutes marketplaces)"
       minHeight={300}
       empty={data.length === 0}
       accessibleTable={{
-        caption: "Répartition géographique du CA TTC",
-        headers: ["Pays", "CA TTC", "Part", "Transactions"],
+        caption: "Répartition géographique du CA HT",
+        headers: ["Pays", "CA HT", "Part", "Transactions"],
         rows: data.map((d) => [
           d.country,
-          `${formatCurrency(d.ca_ttc)} €`,
-          formatPercent(total > 0 ? (d.ca_ttc / total) * 100 : 0),
+          `${formatCurrency(d.ca_ht)} €`,
+          formatPercent(total > 0 ? (d.ca_ht / total) * 100 : 0),
           formatCount(d.count),
         ]),
       }}
@@ -55,7 +55,7 @@ export default function GeoChart({ data, total, isDark }: GeoChartProps) {
           data={data}
           layout="vertical"
           role="img"
-          aria-label="Répartition géographique du CA TTC, diagramme en barres horizontales"
+          aria-label="Répartition géographique du CA HT, diagramme en barres horizontales"
         >
           <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
           <XAxis type="number" tick={{ fontSize: 11 }} className="fill-foreground" tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
@@ -65,15 +65,15 @@ export default function GeoChart({ data, total, isDark }: GeoChartProps) {
             content={({ active, payload }) => {
               if (!active || !payload?.[0]) return null;
               const item = payload[0].payload as GeoItem;
-              const pct = total > 0 ? (item.ca_ttc / total) * 100 : 0;
+              const pct = total > 0 ? (item.ca_ht / total) * 100 : 0;
               return (
                 <div className="bg-popover text-popover-foreground border rounded-lg shadow-md p-3 max-w-[280px]">
                   <p className="font-medium">{item.country}</p>
                   <hr className="my-1.5 border-border" />
                   <dl className="text-sm space-y-0.5">
                     <div className="flex justify-between gap-4">
-                      <dt className="text-muted-foreground">CA TTC</dt>
-                      <dd className="tabular-nums text-right font-medium">{formatCurrency(item.ca_ttc)} €</dd>
+                      <dt className="text-muted-foreground">CA HT</dt>
+                      <dd className="tabular-nums text-right font-medium">{formatCurrency(item.ca_ht)} €</dd>
                     </div>
                     <div className="flex justify-between gap-4">
                       <dt className="text-muted-foreground">Part du total</dt>
@@ -88,7 +88,7 @@ export default function GeoChart({ data, total, isDark }: GeoChartProps) {
               );
             }}
           />
-          <Bar dataKey="ca_ttc" isAnimationActive={!reducedMotion}>
+          <Bar dataKey="ca_ht" isAnimationActive={!reducedMotion}>
             {data.map((item) => (
               <Cell key={item.country} fill={item.fill} />
             ))}

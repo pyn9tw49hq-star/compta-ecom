@@ -8,6 +8,10 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+function round1(n: number): number {
+  return Math.round(n * 10) / 10;
+}
+
 /**
  * Compute a Summary from a filtered array of Transactions.
  * `entries` is needed for ecritures_par_type and totaux.
@@ -50,6 +54,7 @@ export function computeSummary(
   const commHt: Record<string, number> = {};
   const commTtc: Record<string, number> = {};
   const tvaCol: Record<string, number> = {};
+  const matchedNb: Record<string, number> = {};
 
   for (const t of transactions) {
     if (t.special_type !== null && t.special_type !== "returns_avoir") continue;
@@ -59,13 +64,16 @@ export function computeSummary(
       caHt[c] = caTtc[c] = 0;
       prodHt[c] = portHt[c] = 0;
       refundHt[c] = refundTtc[c] = 0;
-      refundNb[c] = salesNb[c] = 0;
+      refundNb[c] = salesNb[c] = matchedNb[c] = 0;
       commHt[c] = commTtc[c] = 0;
       tvaCol[c] = 0;
     }
 
     if (t.type === "sale") {
       salesNb[c] += 1;
+      if (t.payout_date !== null || t.payout_reference !== null) {
+        matchedNb[c] += 1;
+      }
       caHt[c] += t.amount_ht + t.shipping_ht;
       prodHt[c] += t.amount_ht;
       portHt[c] += t.shipping_ht;
@@ -101,8 +109,11 @@ export function computeSummary(
   const caParCanal: Summary["ca_par_canal"] = {};
   const remboursementsParCanal: Summary["remboursements_par_canal"] = {};
   const tauxRemboursementParCanal: Summary["taux_remboursement_par_canal"] = {};
+  const tauxRapprochementParCanal: Summary["taux_rapprochement_par_canal"] = {};
+  const ventesParCanal: Summary["ventes_par_canal"] = {};
   const commissionsParCanal: Summary["commissions_par_canal"] = {};
   const netVendeurParCanal: Summary["net_vendeur_par_canal"] = {};
+  const netVendeurHtParCanal: Summary["net_vendeur_ht_par_canal"] = {};
   const tvaCollecteeParCanal: Summary["tva_collectee_par_canal"] = {};
   const ventilationCaParCanal: Summary["ventilation_ca_par_canal"] = {};
 
@@ -112,14 +123,20 @@ export function computeSummary(
     tauxRemboursementParCanal[c] = salesNb[c] > 0
       ? Math.round(refundNb[c] / salesNb[c] * 1000) / 10
       : 0;
+    tauxRapprochementParCanal[c] = salesNb[c] > 0
+      ? round1(matchedNb[c] / salesNb[c] * 100)
+      : 0;
+    ventesParCanal[c] = salesNb[c];
     commissionsParCanal[c] = { ht: commHt[c], ttc: commTtc[c] };
     netVendeurParCanal[c] = round2(caTtc[c] - commTtc[c] - refundTtc[c]);
+    netVendeurHtParCanal[c] = round2(caHt[c] - commHt[c] - refundHt[c]);
     tvaCollecteeParCanal[c] = tvaCol[c];
     ventilationCaParCanal[c] = { produits_ht: prodHt[c], port_ht: portHt[c], total_ht: caHt[c] };
   }
 
   // --- Geo breakdown (sales only, skip special_type) ---
-  const resolveCountry = (code: string): string => countryMap[code] ?? code;
+  const resolveCountry = (code: string): string =>
+    countryMap[code] ?? (code === "000" ? "Non renseigné" : code);
 
   const geoGCount: Record<string, number> = {};
   const geoGCaTtc: Record<string, number> = {};
@@ -210,8 +227,11 @@ export function computeSummary(
     ca_par_canal: caParCanal,
     remboursements_par_canal: remboursementsParCanal,
     taux_remboursement_par_canal: tauxRemboursementParCanal,
+    taux_rapprochement_par_canal: tauxRapprochementParCanal,
+    ventes_par_canal: ventesParCanal,
     commissions_par_canal: commissionsParCanal,
     net_vendeur_par_canal: netVendeurParCanal,
+    net_vendeur_ht_par_canal: netVendeurHtParCanal,
     tva_collectee_par_canal: tvaCollecteeParCanal,
     ventilation_ca_par_canal: ventilationCaParCanal,
     repartition_geo_globale: repartitionGeoGlobale,

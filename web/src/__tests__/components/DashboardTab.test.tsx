@@ -70,6 +70,16 @@ const MOCK_SUMMARY: Summary = {
     manomano: 6.3,
     decathlon: 3.3,
   },
+  taux_rapprochement_par_canal: {
+    shopify: 100.0,
+    manomano: 95.0,
+    decathlon: 100.0,
+  },
+  ventes_par_canal: {
+    shopify: 200,
+    manomano: 100,
+    decathlon: 42,
+  },
   commissions_par_canal: {
     shopify: { ht: 1750.0, ttc: 2100.0 },
     manomano: { ht: 1200.0, ttc: 1440.0 },
@@ -79,6 +89,11 @@ const MOCK_SUMMARY: Summary = {
     shopify: 27000.0,
     manomano: 7560.0,
     decathlon: 3120.0,
+  },
+  net_vendeur_ht_par_canal: {
+    shopify: 22450.0,
+    manomano: 6300.0,
+    decathlon: 2600.0,
   },
   tva_collectee_par_canal: {
     shopify: 5000.0,
@@ -120,8 +135,11 @@ const EMPTY_SUMMARY: Summary = {
   ca_par_canal: {},
   remboursements_par_canal: {},
   taux_remboursement_par_canal: {},
+  taux_rapprochement_par_canal: {},
+  ventes_par_canal: {},
   commissions_par_canal: {},
   net_vendeur_par_canal: {},
+  net_vendeur_ht_par_canal: {},
   tva_collectee_par_canal: {},
   ventilation_ca_par_canal: {},
   repartition_geo_globale: {},
@@ -235,7 +253,7 @@ describe("DashboardTab", () => {
     );
     // KPI zone titles should be visible
     expect(screen.getByText("CA Total TTC")).toBeTruthy();
-    expect(screen.getByText("Net Vendeur")).toBeTruthy();
+    expect(screen.getByText("Net Vendeur TTC")).toBeTruthy();
     // "Transactions" may appear in KPI cards + accessible table headers
     expect(screen.getAllByText("Transactions").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Taux Remboursement")).toBeTruthy();
@@ -256,10 +274,10 @@ describe("DashboardTab", () => {
     expect(screen.getByText("43 200,00 €")).toBeTruthy();
     // Transactions = 200 + 100 + 42 = 342
     expect(screen.getByText("342")).toBeTruthy();
-    // Anomaly KPI shows percentage: 6/342 ≈ 1.8%
-    expect(screen.getByText(/1,8\s*%\s*d'anomalies/)).toBeTruthy();
+    // Anomaly KPI shows percentage: 6 unique tx / 342 ≈ 1.8%
+    expect(screen.getByText(/1,8\s*%\s*de tx avec anomalies/)).toBeTruthy();
     // Anomaly count in subtitle
-    expect(screen.getAllByText(/6 anomalies/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/6 anomalies détectées/).length).toBeGreaterThanOrEqual(1);
   });
 
   it("shows anomaly percentage for 6 anomalies on 342 transactions (Issue #29)", () => {
@@ -270,10 +288,10 @@ describe("DashboardTab", () => {
         htTtcMode="ttc"
       />
     );
-    // 6 / 342 = 1.754... → 1,8% (rounded to 1 decimal)
-    expect(screen.getByText(/1,8\s*%\s*d'anomalies/)).toBeTruthy();
+    // 6 unique tx / 342 = 1.754... → 1,8% (rounded to 1 decimal)
+    expect(screen.getByText(/1,8\s*%\s*de tx avec anomalies/)).toBeTruthy();
     // Count shown as subtitle
-    expect(screen.getAllByText(/6 anomalies/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/6 anomalies détectées/).length).toBeGreaterThanOrEqual(1);
   });
 
   it("shows 0 for anomaly KPI when no anomalies", () => {
@@ -370,7 +388,27 @@ describe("DashboardTab", () => {
       />
     );
     expect(screen.getByText("CA Total HT")).toBeTruthy();
+    expect(screen.getByText("Net Vendeur HT")).toBeTruthy();
     expect(screen.getByText("Répartition CA HT")).toBeTruthy();
+  });
+
+  it("counts unique transactions for anomaly rate (Issue #32)", () => {
+    // Same transaction (REF1) has 2 anomalies — should count as 1 unique tx
+    const duplicateAnomalies: Anomaly[] = [
+      { type: "tva_mismatch", severity: "error", canal: "shopify", reference: "REF1", detail: "TVA issue", expected_value: null, actual_value: null },
+      { type: "amount_mismatch", severity: "warning", canal: "shopify", reference: "REF1", detail: "Amount issue", expected_value: null, actual_value: null },
+    ];
+    // 1 unique tx / 342 total tx = 0.292... → 0,3%
+    render(
+      <DashboardTab
+        summary={MOCK_SUMMARY}
+        anomalies={duplicateAnomalies}
+        htTtcMode="ttc"
+      />
+    );
+    expect(screen.getByText(/0,3\s*%\s*de tx avec anomalies/)).toBeTruthy();
+    // Subtitle still shows total anomaly count (2), not unique count (1)
+    expect(screen.getAllByText(/2 anomalies détectées/).length).toBeGreaterThanOrEqual(1);
   });
 
   it("shows balanced status when debit equals credit", () => {

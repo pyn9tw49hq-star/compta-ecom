@@ -63,6 +63,19 @@ function getRefundRateBadgeClass(rate: number): string {
   return "bg-red-100 text-red-800 border-red-300 dark:bg-red-900 dark:text-red-200 dark:border-red-700";
 }
 
+/**
+ * Badge class for rapprochement rate: green >= 98%, orange 90–98%, red < 90%.
+ */
+function getRapprochementBadgeClass(rate: number): string {
+  if (rate >= 98) {
+    return "bg-green-100 text-green-800 border-green-300 dark:bg-green-900 dark:text-green-200 dark:border-green-700";
+  }
+  if (rate >= 90) {
+    return "bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-900 dark:text-orange-200 dark:border-orange-700";
+  }
+  return "bg-red-100 text-red-800 border-red-300 dark:bg-red-900 dark:text-red-200 dark:border-red-700";
+}
+
 // --- Component ---
 
 interface StatsBoardProps {
@@ -134,7 +147,9 @@ export default function StatsBoard({ summary, entries, anomalies, htTtcMode, onH
     const rembHt = kpiChannels.reduce((s, c) => s + summary.remboursements_par_canal[c].ht, 0);
     const commTtc = kpiChannels.reduce((s, c) => s + summary.commissions_par_canal[c].ttc, 0);
     const commHt = kpiChannels.reduce((s, c) => s + summary.commissions_par_canal[c].ht, 0);
-    const net = kpiChannels.reduce((s, c) => s + summary.net_vendeur_par_canal[c], 0);
+    const net = isHtMode
+      ? kpiChannels.reduce((s, c) => s + (summary.net_vendeur_ht_par_canal?.[c] ?? 0), 0)
+      : kpiChannels.reduce((s, c) => s + summary.net_vendeur_par_canal[c], 0);
     const taux = caTtc > 0 ? Math.round(rembTtc / caTtc * 1000) / 10 : 0;
     const tauxComm = caHt > 0 ? Math.round(commHt / caHt * 1000) / 10 : 0;
     return { caTtc, caHt, rembTtc, rembHt, commTtc, commHt, net, taux, tauxComm };
@@ -200,6 +215,73 @@ export default function StatsBoard({ summary, entries, anomalies, htTtcMode, onH
           </tbody>
         </table>
       </section>
+
+      {/* Section 2b: Taux de rapprochement */}
+      {summary.taux_rapprochement_par_canal && summary.ventes_par_canal && (() => {
+        const rapChannels = Object.keys(summary.ventes_par_canal);
+        const totalVentes = rapChannels.reduce((s, c) => s + summary.ventes_par_canal[c], 0);
+        const totalMatched = rapChannels.reduce(
+          (s, c) => s + Math.round(summary.ventes_par_canal[c] * summary.taux_rapprochement_par_canal[c] / 100),
+          0,
+        );
+        const totalRate = totalVentes > 0 ? Math.round(totalMatched / totalVentes * 1000) / 10 : 0;
+        const allPerfect = rapChannels.every((c) => summary.taux_rapprochement_par_canal[c] === 100);
+
+        return (
+          <section>
+            <h3 className="text-base font-semibold mb-2">Taux de rapprochement</h3>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b">
+                  <th scope="col" className="text-left py-2 font-medium">Canal</th>
+                  <th scope="col" className="text-right py-2 font-medium">Ventes</th>
+                  <th scope="col" className="text-right py-2 font-medium">Rapprochées</th>
+                  <th scope="col" className="text-right py-2 font-medium">Taux</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rapChannels.map((canal) => {
+                  const meta = getChannelMeta(canal);
+                  const ventes = summary.ventes_par_canal[canal];
+                  const taux = summary.taux_rapprochement_par_canal[canal];
+                  const matched = Math.round(ventes * taux / 100);
+                  return (
+                    <tr key={canal} className="border-b">
+                      <th scope="row" className="text-left py-2 font-normal">
+                        <Badge variant="outline" className={meta.badgeClass}>
+                          {meta.label}
+                        </Badge>
+                      </th>
+                      <td className="text-right py-2">{formatCount(ventes)}</td>
+                      <td className="text-right py-2">{formatCount(matched)}</td>
+                      <td className="text-right py-2">
+                        <Badge variant="outline" className={getRapprochementBadgeClass(taux)}>
+                          {formatPercent(taux)}
+                        </Badge>
+                      </td>
+                    </tr>
+                  );
+                })}
+                <tr className="border-t-2">
+                  <th scope="row" className="text-left py-2 font-semibold">Total</th>
+                  <td className="text-right py-2 font-semibold">{formatCount(totalVentes)}</td>
+                  <td className="text-right py-2 font-semibold">{formatCount(totalMatched)}</td>
+                  <td className="text-right py-2">
+                    <Badge variant="outline" className={getRapprochementBadgeClass(totalRate)}>
+                      {formatPercent(totalRate)}
+                    </Badge>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p className="text-sm mt-2 text-muted-foreground">
+              {allPerfect
+                ? "\u2713 Toutes les transactions ont été rapprochées avec succès."
+                : "\u26A0 Certains canaux présentent des transactions non rapprochées."}
+            </p>
+          </section>
+        );
+      })()}
 
       {/* Section 3: Écritures générées */}
       <section>
@@ -340,7 +422,7 @@ export default function StatsBoard({ summary, entries, anomalies, htTtcMode, onH
                             <>
                               <div>CA TTC : {formatCurrency(summary.ca_par_canal[canal].ttc)} €</div>
                               <div>TVA collectée : {formatCurrency(summary.tva_collectee_par_canal[canal])} €</div>
-                              <div>Net vendeur : {formatCurrency(summary.net_vendeur_par_canal[canal])} €</div>
+                              <div>Net vendeur HT : {formatCurrency(summary.net_vendeur_ht_par_canal?.[canal] ?? 0)} €</div>
                             </>
                           ) : (
                             <>

@@ -208,6 +208,7 @@ class PipelineOrchestrator:
         comm_ht: dict[str, float] = {}
         comm_ttc: dict[str, float] = {}
         tva_col: dict[str, float] = {}
+        matched_nb: dict[str, int] = {}  # ventes avec payout identifié
 
         for t in unique_txs:
             if t.special_type is not None and t.special_type != "returns_avoir":
@@ -218,12 +219,14 @@ class PipelineOrchestrator:
                 ca_ht[c] = ca_ttc[c] = 0.0
                 prod_ht[c] = port_ht[c] = 0.0
                 refund_ht[c] = refund_ttc[c] = 0.0
-                refund_nb[c] = sales_nb[c] = 0
+                refund_nb[c] = sales_nb[c] = matched_nb[c] = 0
                 comm_ht[c] = comm_ttc[c] = 0.0
                 tva_col[c] = 0.0
 
             if t.type == "sale":
                 sales_nb[c] += 1
+                if t.payout_date is not None or t.payout_reference is not None:
+                    matched_nb[c] += 1
                 ca_ht[c] += t.amount_ht + t.shipping_ht
                 prod_ht[c] += t.amount_ht
                 port_ht[c] += t.shipping_ht
@@ -262,9 +265,18 @@ class PipelineOrchestrator:
             c: round(refund_nb[c] / sales_nb[c] * 100, 1) if sales_nb[c] > 0 else 0.0
             for c in channels
         }
+        taux_rapprochement_par_canal = {
+            c: round(matched_nb.get(c, 0) / sales_nb[c] * 100, 1) if sales_nb[c] > 0 else 0.0
+            for c in channels
+        }
+        ventes_par_canal = {c: sales_nb[c] for c in channels}
         commissions_par_canal = {c: {"ht": comm_ht[c], "ttc": comm_ttc[c]} for c in channels}
         net_vendeur_par_canal = {
             c: round(ca_ttc[c] - comm_ttc[c] - refund_ttc[c], 2)
+            for c in channels
+        }
+        net_vendeur_ht_par_canal = {
+            c: round(ca_ht[c] - comm_ht[c] - refund_ht[c], 2)
             for c in channels
         }
         tva_collectee_par_canal = {c: tva_col[c] for c in channels}
@@ -279,7 +291,7 @@ class PipelineOrchestrator:
             entry = config.vat_table.get(code)
             if entry:
                 return str(entry["name"])
-            return f"Pays inconnu ({code})"
+            return "Non renseigné" if code == "000" else f"Pays inconnu ({code})"
 
         geo_g_count: dict[str, int] = {}
         geo_g_ca_ttc: dict[str, float] = {}
@@ -357,8 +369,11 @@ class PipelineOrchestrator:
             "ca_par_canal": ca_par_canal,
             "remboursements_par_canal": remboursements_par_canal,
             "taux_remboursement_par_canal": taux_remboursement_par_canal,
+            "taux_rapprochement_par_canal": taux_rapprochement_par_canal,
+            "ventes_par_canal": ventes_par_canal,
             "commissions_par_canal": commissions_par_canal,
             "net_vendeur_par_canal": net_vendeur_par_canal,
+            "net_vendeur_ht_par_canal": net_vendeur_ht_par_canal,
             "tva_collectee_par_canal": tva_collectee_par_canal,
             "ventilation_ca_par_canal": ventilation_ca_par_canal,
             "repartition_geo_globale": repartition_geo_globale,

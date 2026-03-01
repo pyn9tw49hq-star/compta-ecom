@@ -99,7 +99,7 @@ def test_process_shopify_coherence_with_pipeline(client, shopify_files):
 
 
 def test_process_shopify_transaction_fields(client, shopify_files):
-    """Chaque transaction contient les 14 champs attendus."""
+    """Chaque transaction contient les 16 champs attendus."""
     response = client.post("/api/process", files=shopify_files)
     data = response.json()
     expected_keys = {
@@ -117,6 +117,8 @@ def test_process_shopify_transaction_fields(client, shopify_files):
         "commission_ttc",
         "commission_ht",
         "special_type",
+        "payout_date",
+        "payout_reference",
     }
     for tx in data["transactions"]:
         assert set(tx.keys()) == expected_keys

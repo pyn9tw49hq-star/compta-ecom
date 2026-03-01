@@ -51,6 +51,8 @@ def serialize_transaction(tx: NormalizedTransaction) -> dict[str, object]:
         "commission_ttc": tx.commission_ttc,
         "commission_ht": tx.commission_ht,
         "special_type": tx.special_type,
+        "payout_date": tx.payout_date.isoformat() if tx.payout_date else None,
+        "payout_reference": tx.payout_reference,
     }
 
 

@@ -76,7 +76,9 @@ export function DashboardTab({ summary, anomalies, htTtcMode, onHtTtcModeChange,
     const caTtc = channels.reduce((s, c) => s + (summary.ca_par_canal[c]?.ttc ?? 0), 0);
     const caHt = channels.reduce((s, c) => s + (summary.ca_par_canal[c]?.ht ?? 0), 0);
     const caDisplay = htTtcMode === "ht" ? caHt : caTtc;
-    const net = channels.reduce((s, c) => s + (summary.net_vendeur_par_canal[c] ?? 0), 0);
+    const net = htTtcMode === "ht"
+      ? channels.reduce((s, c) => s + (summary.net_vendeur_ht_par_canal?.[c] ?? 0), 0)
+      : channels.reduce((s, c) => s + (summary.net_vendeur_par_canal[c] ?? 0), 0);
     const totalTx = Object.values(summary.transactions_par_canal).reduce((s, n) => s + n, 0);
     const rembTtc = channels.reduce((s, c) => s + (summary.remboursements_par_canal[c]?.ttc ?? 0), 0);
     const tauxRemb = caTtc > 0 ? (rembTtc / caTtc) * 100 : 0;
@@ -91,9 +93,12 @@ export function DashboardTab({ summary, anomalies, htTtcMode, onHtTtcModeChange,
     if (sevCounts.warning > 0) sevParts.push(`${sevCounts.warning}\u26A0`);
     if (sevCounts.info > 0) sevParts.push(`${sevCounts.info}\u2139`);
 
-    const netPct = caTtc > 0 ? (net / caTtc) * 100 : 0;
+    const netPct = caDisplay > 0 ? (net / caDisplay) * 100 : 0;
 
-    const anomalyPct = totalTx > 0 ? (anomalies.length / totalTx) * 100 : 0;
+    const uniqueAnomalyTxCount = new Set(
+      anomalies.map(a => `${a.canal}:${a.reference}`)
+    ).size;
+    const anomalyPct = totalTx > 0 ? Math.min(100, (uniqueAnomalyTxCount / totalTx) * 100) : 0;
 
     return {
       caDisplay, net, netPct, totalTx, tauxRemb, balance, isBalanced,
@@ -181,15 +186,15 @@ export function DashboardTab({ summary, anomalies, htTtcMode, onHtTtcModeChange,
   // --- Lot 2: Geo treemap ---
   const geoData = useMemo(() => {
     const entries = Object.entries(summary.repartition_geo_globale ?? {})
-      .map(([country, data]) => ({ country, ca_ttc: data.ca_ttc, count: data.count }))
-      .sort((a, b) => b.ca_ttc - a.ca_ttc);
+      .map(([country, data]) => ({ country, ca_ht: data.ca_ht, count: data.count }))
+      .sort((a, b) => b.ca_ht - a.ca_ht);
 
     const top10 = entries.slice(0, 10);
     const rest = entries.slice(10);
     if (rest.length > 0) {
       top10.push({
         country: "Autres",
-        ca_ttc: rest.reduce((s, d) => s + d.ca_ttc, 0),
+        ca_ht: rest.reduce((s, d) => s + d.ca_ht, 0),
         count: rest.reduce((s, d) => s + d.count, 0),
       });
     }
@@ -199,7 +204,7 @@ export function DashboardTab({ summary, anomalies, htTtcMode, onHtTtcModeChange,
     });
   }, [summary.repartition_geo_globale, isDark]);
 
-  const geoTotal = useMemo(() => geoData.reduce((s, d) => s + d.ca_ttc, 0), [geoData]);
+  const geoTotal = useMemo(() => geoData.reduce((s, d) => s + d.ca_ht, 0), [geoData]);
 
   // --- Lot 2: Ventilation ---
   const ventilationData = useMemo(() => {
@@ -319,7 +324,7 @@ export function DashboardTab({ summary, anomalies, htTtcMode, onHtTtcModeChange,
           variant="metric"
         />
         <KpiCard
-          title="Net Vendeur"
+          title={`Net Vendeur ${modeLabel}`}
           value={`${formatCurrency(kpiData.net)} €`}
           subtitle={`${formatPercent(kpiData.netPct)} du CA`}
           icon={Wallet}
@@ -347,8 +352,8 @@ export function DashboardTab({ summary, anomalies, htTtcMode, onHtTtcModeChange,
         />
         <KpiCard
           title="Anomalies"
-          value={kpiData.anomalyCount === 0 ? "0" : `${formatPercent(kpiData.anomalyPct)} d'anomalies`}
-          subtitle={kpiData.anomalyCount > 0 ? `${formatCount(kpiData.anomalyCount)} anomalie${kpiData.anomalyCount > 1 ? "s" : ""} ${kpiData.sevSubtitle}` : undefined}
+          value={kpiData.anomalyCount === 0 ? "0" : `${formatPercent(kpiData.anomalyPct)} de tx avec anomalies`}
+          subtitle={kpiData.anomalyCount > 0 ? `${formatCount(kpiData.anomalyCount)} anomalie${kpiData.anomalyCount > 1 ? "s" : ""} détectée${kpiData.anomalyCount > 1 ? "s" : ""} ${kpiData.sevSubtitle}` : undefined}
           variant="status"
           borderColor={kpiData.anomalyCount === 0 ? "green" : kpiData.anomalyCount > 5 ? "red" : "orange"}
           icon={AlertTriangle}
@@ -383,12 +388,6 @@ export function DashboardTab({ summary, anomalies, htTtcMode, onHtTtcModeChange,
         </div>
       )}
 
-      {/* Lot 2 — Charts supplémentaires */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
-        <EntryTypeDonut data={entryTypeData} total={entryTypeTotal} />
-        <VatChart data={vatData} />
-      </div>
-
       {/* Zone 5 — Géographie & Ventilation */}
       {(hasGeoData || hasVentilationData) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
@@ -396,6 +395,12 @@ export function DashboardTab({ summary, anomalies, htTtcMode, onHtTtcModeChange,
           {hasVentilationData && <VentilationChart data={ventilationData} isDark={isDark} />}
         </div>
       )}
+
+      {/* Lot 2 — Charts supplémentaires */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
+        <EntryTypeDonut data={entryTypeData} total={entryTypeTotal} />
+        <VatChart data={vatData} />
+      </div>
 
       {/* Lot 2 — Anomaly category donut */}
       {anomalyCategoryData.length > 0 && (

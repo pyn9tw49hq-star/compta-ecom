@@ -36,6 +36,16 @@ const MOCK_SUMMARY: Summary = {
     manomano: 6.7,
     decathlon: 15.0,
   },
+  taux_rapprochement_par_canal: {
+    shopify: 100.0,
+    manomano: 94.3,
+    decathlon: 85.0,
+  },
+  ventes_par_canal: {
+    shopify: 245,
+    manomano: 87,
+    decathlon: 40,
+  },
   commissions_par_canal: {
     shopify: { ht: 2625.0, ttc: 3150.0 },
     manomano: { ht: 1500.0, ttc: 1800.0 },
@@ -45,6 +55,11 @@ const MOCK_SUMMARY: Summary = {
     shopify: 40650.0,
     manomano: 9400.0,
     decathlon: 3350.0,
+  },
+  net_vendeur_ht_par_canal: {
+    shopify: 33875.0,
+    manomano: 7500.0,
+    decathlon: 2791.67,
   },
   tva_collectee_par_canal: {
     shopify: 7500.0,
@@ -544,16 +559,85 @@ describe("StatsBoard", () => {
   });
 
   describe("Existing sections unchanged (AC25)", () => {
-    it("keeps the 4 original sections in first position", () => {
+    it("keeps the original sections in order", () => {
       const { container } = render(
         <StatsBoard summary={MOCK_SUMMARY} entries={MOCK_ENTRIES} anomalies={MOCK_ANOMALIES} {...htTtcProps} />,
       );
       const sections = container.querySelectorAll("section");
-      // First 4 sections: Équilibre, Transactions, Écritures, Anomalies
+      // Sections: Équilibre, Transactions, Rapprochement, Écritures, Anomalies
       expect(within(sections[0]).getByRole("heading")).toHaveTextContent("Équilibre comptable");
       expect(within(sections[1]).getByRole("heading")).toHaveTextContent("Transactions par canal");
-      expect(within(sections[2]).getByRole("heading")).toHaveTextContent("Écritures générées");
-      expect(within(sections[3]).getByRole("heading")).toHaveTextContent("Anomalies");
+      expect(within(sections[2]).getByRole("heading")).toHaveTextContent("Taux de rapprochement");
+      expect(within(sections[3]).getByRole("heading")).toHaveTextContent("Écritures générées");
+      expect(within(sections[4]).getByRole("heading")).toHaveTextContent("Anomalies");
+    });
+  });
+
+  // ======================================================
+  // Taux de rapprochement (Issue #30)
+  // ======================================================
+
+  describe("Taux de rapprochement (Issue #30)", () => {
+    it("displays h3 heading 'Taux de rapprochement'", () => {
+      render(
+        <StatsBoard summary={MOCK_SUMMARY} entries={MOCK_ENTRIES} anomalies={MOCK_ANOMALIES} {...htTtcProps} />,
+      );
+      expect(
+        screen.getByRole("heading", { name: "Taux de rapprochement", level: 3 }),
+      ).toBeInTheDocument();
+    });
+
+    it("displays column headings: Canal, Ventes, Rapprochées, Taux", () => {
+      render(
+        <StatsBoard summary={MOCK_SUMMARY} entries={MOCK_ENTRIES} anomalies={MOCK_ANOMALIES} {...htTtcProps} />,
+      );
+      expect(screen.getByText("Ventes")).toBeInTheDocument();
+      expect(screen.getByText("Rapprochées")).toBeInTheDocument();
+    });
+
+    it("displays green badge for 100% rapprochement (Shopify)", () => {
+      render(
+        <StatsBoard summary={MOCK_SUMMARY} entries={MOCK_ENTRIES} anomalies={MOCK_ANOMALIES} {...htTtcProps} />,
+      );
+      // Shopify = 100.0% → green badge
+      const badge = screen.getByText(/100,0\s*%/);
+      expect(badge.closest("[class*='bg-green-']")).not.toBeNull();
+    });
+
+    it("displays orange badge for 90–98% rapprochement (ManoMano)", () => {
+      render(
+        <StatsBoard summary={MOCK_SUMMARY} entries={MOCK_ENTRIES} anomalies={MOCK_ANOMALIES} {...htTtcProps} />,
+      );
+      // ManoMano = 94.3% → orange badge
+      const badge = screen.getByText(/94,3\s*%/);
+      expect(badge.closest("[class*='bg-orange-']")).not.toBeNull();
+    });
+
+    it("displays red badge for < 90% rapprochement (Décathlon)", () => {
+      render(
+        <StatsBoard summary={MOCK_SUMMARY} entries={MOCK_ENTRIES} anomalies={MOCK_ANOMALIES} {...htTtcProps} />,
+      );
+      // Décathlon = 85.0% → red badge
+      const badge = screen.getByText(/85,0\s*%/);
+      expect(badge.closest("[class*='bg-red-']")).not.toBeNull();
+    });
+
+    it("displays warning message when not all channels are at 100%", () => {
+      render(
+        <StatsBoard summary={MOCK_SUMMARY} entries={MOCK_ENTRIES} anomalies={MOCK_ANOMALIES} {...htTtcProps} />,
+      );
+      expect(screen.getByText(/Certains canaux présentent des transactions non rapprochées/)).toBeInTheDocument();
+    });
+
+    it("displays success message when all channels are at 100%", () => {
+      const allMatched: Summary = {
+        ...MOCK_SUMMARY,
+        taux_rapprochement_par_canal: { shopify: 100, manomano: 100, decathlon: 100 },
+      };
+      render(
+        <StatsBoard summary={allMatched} entries={MOCK_ENTRIES} anomalies={MOCK_ANOMALIES} {...htTtcProps} />,
+      );
+      expect(screen.getByText(/Toutes les transactions ont été rapprochées avec succès/)).toBeInTheDocument();
     });
   });
 });
