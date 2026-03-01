@@ -113,6 +113,10 @@ export const ANOMALY_TYPE_LABELS: Record<string, string> = {
   overdue_manomano_payout: "Reversements ManoMano en retard",
   prior_period_manomano_refund: "Remboursements ManoMano période antérieure",
   return_tva_rate_aberrant: "Taux TVA aberrant sur remboursement",
+  country_conflict: "Conflit de pays sur une commande",
+  missing_country_iso: "Code pays manquant",
+  unknown_country_alpha2: "Code pays non reconnu",
+  order_reference_not_in_lookup: "Référence commande introuvable",
 };
 
 function getTypeLabel(type: string): string {

@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getChannelMeta } from "@/lib/channels";
+import { ANOMALY_TYPE_LABELS } from "@/components/AnomaliesPanel";
 import { formatCurrency, formatCount, formatPercent } from "@/lib/format";
 import {
   getChannelColor,
@@ -58,23 +59,6 @@ const ENTRY_TYPE_LABELS: Record<string, string> = {
   fee: "Frais",
 };
 
-const ANOMALY_TYPE_LABELS: Record<string, string> = {
-  tva_mismatch: "Taux TVA incohérent",
-  tva_amount_mismatch: "Montant TVA incorrect",
-  orphan_sale: "Vente orpheline",
-  orphan_settlement: "Règlement orphelin",
-  amount_mismatch: "Écart montant",
-  lettrage_511_unbalanced: "Lettrage 511 déséquilibré",
-  mixed_psp_payout: "PSP hétérogène",
-  balance_error: "Erreur d'équilibre",
-  prior_period_refund: "Remb. période antérieure",
-  payout_detail_refund: "Remb. dans payout detail",
-  return_no_matching_sale: "Remb. sans vente correspondante",
-  direct_payment: "Paiement direct",
-  prior_period_settlement: "Règlement période antérieure",
-  pending_manomano_payout: "Versement ManoMano en attente",
-  prior_period_manomano_refund: "Remb. ManoMano période antérieure",
-};
 
 /**
  * Dashboard tab orchestrator — transforms summary Record→Array, renders all chart zones.
