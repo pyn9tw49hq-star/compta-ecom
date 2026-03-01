@@ -40,6 +40,7 @@ interface DashboardTabProps {
   htTtcMode: "ht" | "ttc";
   onHtTtcModeChange?: (mode: "ht" | "ttc") => void;
   onNavigateTab?: (tab: string) => void;
+  tolerance?: number;
 }
 
 const SEVERITY_LABELS: Record<string, string> = {
@@ -78,7 +79,7 @@ const ANOMALY_TYPE_LABELS: Record<string, string> = {
 /**
  * Dashboard tab orchestrator — transforms summary Record→Array, renders all chart zones.
  */
-export function DashboardTab({ summary, anomalies, htTtcMode, onHtTtcModeChange, onNavigateTab }: DashboardTabProps) {
+export function DashboardTab({ summary, anomalies, htTtcMode, onHtTtcModeChange, onNavigateTab, tolerance = 0.01 }: DashboardTabProps) {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
   const modeLabel = htTtcMode === "ht" ? "HT" : "TTC";
@@ -96,7 +97,7 @@ export function DashboardTab({ summary, anomalies, htTtcMode, onHtTtcModeChange,
     const rembTtc = channels.reduce((s, c) => s + (summary.remboursements_par_canal[c]?.ttc ?? 0), 0);
     const tauxRemb = caTtc > 0 ? (rembTtc / caTtc) * 100 : 0;
     const balance = summary.totaux.debit - summary.totaux.credit;
-    const isBalanced = Math.abs(balance) < 0.01;
+    const isBalanced = Math.abs(balance) < tolerance;
 
     // Severity counts for subtitle
     const sevCounts: Record<string, number> = { error: 0, warning: 0, info: 0 };
@@ -108,9 +109,11 @@ export function DashboardTab({ summary, anomalies, htTtcMode, onHtTtcModeChange,
 
     const netPct = caTtc > 0 ? (net / caTtc) * 100 : 0;
 
+    const anomalyPct = totalTx > 0 ? (anomalies.length / totalTx) * 100 : 0;
+
     return {
       caDisplay, net, netPct, totalTx, tauxRemb, balance, isBalanced,
-      anomalyCount: anomalies.length, sevSubtitle: sevParts.join(" "),
+      anomalyCount: anomalies.length, anomalyPct, sevSubtitle: sevParts.join(" "),
     };
   }, [channels, summary, anomalies, htTtcMode]);
 
@@ -360,8 +363,8 @@ export function DashboardTab({ summary, anomalies, htTtcMode, onHtTtcModeChange,
         />
         <KpiCard
           title="Anomalies"
-          value={formatCount(kpiData.anomalyCount)}
-          subtitle={kpiData.sevSubtitle || undefined}
+          value={kpiData.anomalyCount === 0 ? "0" : `${formatPercent(kpiData.anomalyPct)} d'anomalies`}
+          subtitle={kpiData.anomalyCount > 0 ? `${formatCount(kpiData.anomalyCount)} anomalie${kpiData.anomalyCount > 1 ? "s" : ""} ${kpiData.sevSubtitle}` : undefined}
           variant="status"
           borderColor={kpiData.anomalyCount === 0 ? "green" : kpiData.anomalyCount > 5 ? "red" : "orange"}
           icon={AlertTriangle}

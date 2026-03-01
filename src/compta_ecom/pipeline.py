@@ -161,7 +161,7 @@ class PipelineOrchestrator:
         matching_anomalies = MatchingChecker.check(all_transactions, config)
         logger.info("MatchingChecker: %d anomalies détectées", len(matching_anomalies))
 
-        lettrage_anomalies = LettrageChecker.check(entries)
+        lettrage_anomalies = LettrageChecker.check(entries, tolerance=config.matching_tolerance)
         logger.info("LettrageChecker: %d anomalies détectées", len(lettrage_anomalies))
 
         all_anomalies.extend(vat_anomalies)

@@ -1,9 +1,42 @@
 import React from "react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { axe } from "vitest-axe";
 import Home from "@/app/page";
 import * as api from "@/lib/api";
+
+// --- Polyfills for DashboardTab (dynamic import with recharts) ---
+beforeAll(() => {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver;
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  });
+});
+
+// --- Mock Recharts ResponsiveContainer (avoids ResizeObserver in jsdom) ---
+vi.mock("recharts", async () => {
+  const actual = await vi.importActual<typeof import("recharts")>("recharts");
+  return {
+    ...actual,
+    ResponsiveContainer: ({ children }: { children: React.ReactNode }) => (
+      <div style={{ width: 800, height: 400 }}>{children}</div>
+    ),
+  };
+});
 
 vi.mock("@/lib/api", () => ({
   processFiles: vi.fn(),
@@ -388,6 +421,221 @@ describe("Page Integration", () => {
 
     const results = await axe(container);
     expect(results).toHaveNoViolations();
+  });
+
+  // --- Flash e-commerce overlay (28) ---
+
+  it("shows Flash e-commerce button after processing", async () => {
+    const mockResponse = {
+      entries: [
+        {
+          date: "2026-02-15",
+          journal: "VE",
+          compte: "411000",
+          libelle: "Vente",
+          debit: 50,
+          credit: 0,
+          piece: "1",
+          lettrage: "L1",
+          canal: "decathlon",
+          type_ecriture: "vente",
+        },
+      ],
+      anomalies: [],
+      summary: {
+        transactions_par_canal: { decathlon: 1 },
+        ecritures_par_type: { vente: 1 },
+        totaux: { debit: 50, credit: 50 },
+      },
+      transactions: [
+        {
+          reference: "REF1",
+          channel: "decathlon",
+          date: "2026-02-15",
+          type: "sale" as const,
+          amount_ht: 41.67,
+          amount_tva: 8.33,
+          amount_ttc: 50,
+          shipping_ht: 0,
+          shipping_tva: 0,
+          tva_rate: 20,
+          country_code: "FR",
+          commission_ttc: 0,
+          commission_ht: 0,
+          special_type: null,
+        },
+      ],
+      country_names: { FR: "France" },
+    };
+    mockProcessFiles.mockResolvedValueOnce(mockResponse);
+
+    render(<Home />);
+
+    // Button not visible before results
+    expect(
+      screen.queryByRole("button", { name: /ouvrir le flash/i })
+    ).not.toBeInTheDocument();
+
+    act(() => {
+      addFilesViaInput([createMockFile("Decathlon mars.csv")]);
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: /Générer les écritures/i })
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /ouvrir le flash/i })
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("does not show Tableau de Bord tab after processing", async () => {
+    const mockResponse = {
+      entries: [
+        {
+          date: "2026-02-15",
+          journal: "VE",
+          compte: "411000",
+          libelle: "Vente",
+          debit: 50,
+          credit: 0,
+          piece: "1",
+          lettrage: "L1",
+          canal: "decathlon",
+          type_ecriture: "vente",
+        },
+      ],
+      anomalies: [],
+      summary: {
+        transactions_par_canal: { decathlon: 1 },
+        ecritures_par_type: { vente: 1 },
+        totaux: { debit: 50, credit: 50 },
+      },
+      transactions: [
+        {
+          reference: "REF1",
+          channel: "decathlon",
+          date: "2026-02-15",
+          type: "sale" as const,
+          amount_ht: 41.67,
+          amount_tva: 8.33,
+          amount_ttc: 50,
+          shipping_ht: 0,
+          shipping_tva: 0,
+          tva_rate: 20,
+          country_code: "FR",
+          commission_ttc: 0,
+          commission_ht: 0,
+          special_type: null,
+        },
+      ],
+      country_names: { FR: "France" },
+    };
+    mockProcessFiles.mockResolvedValueOnce(mockResponse);
+
+    render(<Home />);
+
+    act(() => {
+      addFilesViaInput([createMockFile("Decathlon mars.csv")]);
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: /Générer les écritures/i })
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Écritures")).toBeInTheDocument();
+    });
+
+    // "Tableau de Bord" tab should no longer exist
+    expect(screen.queryByText("Tableau de Bord")).not.toBeInTheDocument();
+  });
+
+  // --- Flash overlay → onNavigateTab (CONCERN-2) ---
+
+  it("closes Flash overlay and switches to anomalies tab when onNavigateTab is called", async () => {
+    const mockResponse = {
+      entries: [
+        {
+          date: "2026-02-15",
+          journal: "VE",
+          compte: "411000",
+          libelle: "Vente",
+          debit: 50,
+          credit: 0,
+          piece: "1",
+          lettrage: "L1",
+          canal: "decathlon",
+          type_ecriture: "vente",
+        },
+      ],
+      anomalies: [
+        {
+          type: "tva_mismatch",
+          severity: "warning" as const,
+          canal: "decathlon",
+          reference: "REF1",
+          detail: "TVA mismatch",
+        },
+      ],
+      summary: {
+        transactions_par_canal: { decathlon: 1 },
+        ecritures_par_type: { vente: 1 },
+        totaux: { debit: 50, credit: 50 },
+      },
+      transactions: [
+        {
+          reference: "REF1",
+          channel: "decathlon",
+          date: "2026-02-15",
+          type: "sale" as const,
+          amount_ht: 41.67,
+          amount_tva: 8.33,
+          amount_ttc: 50,
+          shipping_ht: 0,
+          shipping_tva: 0,
+          tva_rate: 20,
+          country_code: "FR",
+          commission_ttc: 0,
+          commission_ht: 0,
+          special_type: null,
+        },
+      ],
+      country_names: { FR: "France" },
+    };
+    mockProcessFiles.mockResolvedValueOnce(mockResponse);
+
+    render(<Home />);
+
+    // Process files
+    act(() => {
+      addFilesViaInput([createMockFile("Decathlon mars.csv")]);
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: /Générer les écritures/i })
+    );
+
+    // Wait for results + Flash button
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /ouvrir le flash/i })).toBeInTheDocument();
+    });
+
+    // Open the Flash overlay
+    fireEvent.click(screen.getByRole("button", { name: /ouvrir le flash/i }));
+
+    // Wait for the overlay + DashboardTab to render with Anomalies KPI card
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Anomalies\s*:/)).toBeTruthy();
+    });
+
+    // Click the Anomalies KPI card inside the overlay
+    fireEvent.click(screen.getByLabelText(/Anomalies\s*:/));
+
+    // Verify: overlay closed (description gone) + anomalies tab content is active
+    await waitFor(() => {
+      expect(screen.queryByText("Tableau de bord synthétique")).not.toBeInTheDocument();
+    });
+    expect(screen.getByText("Anomalies détectées")).toBeInTheDocument();
   });
 
   // --- Dark mode tests (7.1) ---

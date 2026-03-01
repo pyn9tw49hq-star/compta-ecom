@@ -49,8 +49,8 @@ class VatChecker:
                 continue
 
             anomalies.extend(VatChecker._check_rate(tx, config))
-            anomalies.extend(VatChecker._check_tva_amounts(tx))
-            anomalies.extend(VatChecker._check_ttc_coherence(tx))
+            anomalies.extend(VatChecker._check_tva_amounts(tx, config.matching_tolerance))
+            anomalies.extend(VatChecker._check_ttc_coherence(tx, config.matching_tolerance))
 
         return anomalies
 
@@ -95,6 +95,7 @@ class VatChecker:
     @staticmethod
     def _check_tva_amounts(
         transaction: NormalizedTransaction,
+        tolerance: float = AMOUNT_TOLERANCE,
     ) -> list[Anomaly]:
         """Contrôle 2 — TVA constatée vs TVA théorique depuis TTC × taux/(100+taux)."""
         if transaction.tva_rate == 0:
@@ -105,7 +106,7 @@ class VatChecker:
             transaction.amount_ttc * transaction.tva_rate / (100 + transaction.tva_rate), 2
         )
 
-        if round(abs(total_actual_tva - total_expected_tva), 2) > AMOUNT_TOLERANCE:
+        if round(abs(total_actual_tva - total_expected_tva), 2) > tolerance:
             return [
                 Anomaly(
                     type="tva_amount_mismatch",
@@ -128,6 +129,7 @@ class VatChecker:
     @staticmethod
     def _check_ttc_coherence(
         transaction: NormalizedTransaction,
+        tolerance: float = AMOUNT_TOLERANCE,
     ) -> list[Anomaly]:
         """Contrôle 3 — TTC = somme composants."""
         expected_ttc = round(
@@ -135,7 +137,7 @@ class VatChecker:
         )
         diff = abs(transaction.amount_ttc - expected_ttc)
 
-        if diff > AMOUNT_TOLERANCE:
+        if diff > tolerance:
             return [
                 Anomaly(
                     type="ttc_coherence_mismatch",

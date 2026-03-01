@@ -220,6 +220,7 @@ async def defaults(request: Request) -> JSONResponse:
             "achats": config.journal_achats,
             "reglement": config.journal_reglement,
         },
+        "matching_tolerance": config.matching_tolerance,
     })
 
 

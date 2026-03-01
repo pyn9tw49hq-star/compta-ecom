@@ -71,16 +71,18 @@ function getNestedValue(obj: Record<string, unknown>, path: string): string | un
     }
     current = (current as Record<string, unknown>)[key];
   }
-  return typeof current === "string" ? current : undefined;
+  if (typeof current === "string") return current;
+  if (typeof current === "number") return String(current);
+  return undefined;
 }
 
 /**
- * Count the number of leaf string values in a nested object.
+ * Count the number of leaf string or number values in a nested object.
  */
 function countLeaves(obj: Record<string, unknown>): number {
   let count = 0;
   for (const value of Object.values(obj)) {
-    if (typeof value === "string") {
+    if (typeof value === "string" || typeof value === "number") {
       count++;
     } else if (typeof value === "object" && value !== null) {
       count += countLeaves(value as Record<string, unknown>);

@@ -256,8 +256,37 @@ describe("DashboardTab", () => {
     expect(screen.getByText("43 200,00 €")).toBeTruthy();
     // Transactions = 200 + 100 + 42 = 342
     expect(screen.getByText("342")).toBeTruthy();
-    // Anomaly count
-    expect(screen.getByText("6")).toBeTruthy();
+    // Anomaly KPI shows percentage: 6/342 ≈ 1.8%
+    expect(screen.getByText(/1,8\s*%\s*d'anomalies/)).toBeTruthy();
+    // Anomaly count in subtitle
+    expect(screen.getAllByText(/6 anomalies/).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("shows anomaly percentage for 6 anomalies on 342 transactions (Issue #29)", () => {
+    render(
+      <DashboardTab
+        summary={MOCK_SUMMARY}
+        anomalies={MOCK_ANOMALIES}
+        htTtcMode="ttc"
+      />
+    );
+    // 6 / 342 = 1.754... → 1,8% (rounded to 1 decimal)
+    expect(screen.getByText(/1,8\s*%\s*d'anomalies/)).toBeTruthy();
+    // Count shown as subtitle
+    expect(screen.getAllByText(/6 anomalies/).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("shows 0 for anomaly KPI when no anomalies", () => {
+    render(
+      <DashboardTab
+        summary={MOCK_SUMMARY}
+        anomalies={[]}
+        htTtcMode="ttc"
+      />
+    );
+    // Should show "0" not a percentage
+    const anomalyCard = screen.getByLabelText(/Anomalies/);
+    expect(anomalyCard).toHaveTextContent("0");
   });
 
   it("renders chart zone titles", () => {
@@ -327,7 +356,7 @@ describe("DashboardTab", () => {
       />
     );
     // Find the KPI card with role="button" that has "Anomalies" in its aria-label
-    const anomalyCard = screen.getByLabelText(/Anomalies/);
+    const anomalyCard = screen.getByLabelText(/Anomalies\s*:/);
     fireEvent.click(anomalyCard);
     expect(onNav).toHaveBeenCalledWith("anomalies");
   });

@@ -8,7 +8,7 @@ import * as RadioGroup from "@radix-ui/react-radio-group";
 import { Button } from "@/components/ui/button";
 import { generateFlashPdf } from "@/lib/generateFlashPdf";
 import type { FlashPdfSections } from "@/lib/generateFlashPdf";
-import type { Summary } from "@/lib/types";
+import type { Summary, Anomaly } from "@/lib/types";
 import type { DateRange } from "@/lib/datePresets";
 
 interface FlashPdfButtonProps {
@@ -16,13 +16,16 @@ interface FlashPdfButtonProps {
   dateRange: DateRange;
   htTtcMode: "ht" | "ttc";
   countryNames: Record<string, string>;
+  anomalies: Anomaly[];
 }
 
 const SECTION_DEFS: { key: keyof FlashPdfSections; label: string; desc: string }[] = [
+  { key: "kpis", label: "Indicateurs clés (KPIs)", desc: "CA, net vendeur, transactions, taux" },
   { key: "synthese", label: "Synthèse financière par canal", desc: "CA, remboursements, commissions" },
   { key: "ventilation", label: "Ventilation CA Produits / FdP", desc: "Répartition produits vs frais de port" },
   { key: "tva", label: "Fiscalité — TVA collectée", desc: "Détail par canal et par pays/taux" },
   { key: "geo", label: "Répartition géographique", desc: "CA HT par pays, détail par canal" },
+  { key: "anomalies", label: "Anomalies", desc: "Résumé par sévérité et tableau détaillé" },
 ];
 
 function fmtDate(d: Date): string {
@@ -37,13 +40,16 @@ export default function FlashPdfButton({
   dateRange,
   htTtcMode,
   countryNames,
+  anomalies,
 }: FlashPdfButtonProps) {
   const [open, setOpen] = useState(false);
   const [sections, setSections] = useState<FlashPdfSections>({
+    kpis: true,
     synthese: true,
     ventilation: true,
     tva: true,
     geo: true,
+    anomalies: true,
   });
   const [mode, setMode] = useState<"ht" | "ttc">(htTtcMode);
   const [generating, setGenerating] = useState(false);
@@ -66,7 +72,7 @@ export default function FlashPdfButton({
 
   const toggleAll = useCallback(() => {
     const next = !allChecked;
-    setSections({ synthese: next, ventilation: next, tva: next, geo: next });
+    setSections({ kpis: next, synthese: next, ventilation: next, tva: next, geo: next, anomalies: next });
   }, [allChecked]);
 
   const handleGenerate = useCallback(async () => {
@@ -84,13 +90,14 @@ export default function FlashPdfButton({
         channels,
         sections,
         generatedAt: new Date(),
+        anomalies,
       });
 
       setOpen(false);
     } finally {
       setGenerating(false);
     }
-  }, [summary, dateRange, mode, countryNames, sections]);
+  }, [summary, dateRange, mode, countryNames, sections, anomalies]);
 
   return (
     <Popover.Root open={open} onOpenChange={handleOpenChange}>

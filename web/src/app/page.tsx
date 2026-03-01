@@ -2,7 +2,8 @@
 
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import dynamic from "next/dynamic";
-import { HelpCircle } from "lucide-react";
+import { HelpCircle, BarChart3, ArrowLeft, X } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import {
   Tabs,
@@ -47,6 +48,7 @@ export default function Home() {
   const [dateRange, setDateRange] = useState<DateRange>(() => getPresetRange(DEFAULT_PRESET));
   const [htTtcMode, setHtTtcMode] = useState<"ht" | "ttc">("ht");
   const [activeTab, setActiveTab] = useState("ecritures");
+  const [showFlash, setShowFlash] = useState(false);
   const account = useAccountOverrides();
 
   // Fetch defaults on mount
@@ -58,6 +60,16 @@ export default function Home() {
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Close Flash overlay on Escape key
+  useEffect(() => {
+    if (!showFlash) return;
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowFlash(false);
+    };
+    window.addEventListener("keydown", handleEsc);
+    return () => window.removeEventListener("keydown", handleEsc);
+  }, [showFlash]);
 
   const { unmatchedFiles, unmatchedGlobalIndices } = useMemo(() => {
     const unmatched: UploadedFile[] = [];
@@ -183,6 +195,12 @@ export default function Home() {
     [account],
   );
 
+  const tolerance = useMemo(() => {
+    const raw = account.getValue("matching_tolerance");
+    const num = parseFloat(raw);
+    return isNaN(num) ? 0.01 : num;
+  }, [account]);
+
   const handleProcess = useCallback(async () => {
     if (files.length === 0) return;
     setLoading(true);
@@ -289,14 +307,13 @@ export default function Home() {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-6">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <TabsList>
-              <TabsTrigger value="dashboard">Tableau de Bord</TabsTrigger>
               <TabsTrigger value="ecritures">Écritures</TabsTrigger>
               <TabsTrigger value="anomalies">
                 Anomalies{filteredAnomalies.length > 0 && ` (${filteredAnomalies.length})`}
               </TabsTrigger>
               <TabsTrigger value="resume">Résumé</TabsTrigger>
             </TabsList>
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex gap-2 flex-wrap items-center">
               <DownloadButtons
                 files={files.map((f) => f.file)}
                 entries={filteredEntries}
@@ -304,28 +321,19 @@ export default function Home() {
                 overrides={account.modifiedCount > 0 ? account.overrides : undefined}
                 dateRange={dateRange}
               />
-              {filteredSummary && (
-                <FlashPdfButton
-                  summary={filteredSummary}
-                  dateRange={dateRange}
-                  htTtcMode={htTtcMode}
-                  countryNames={result.country_names ?? {}}
-                />
-              )}
+              <Separator orientation="vertical" className="h-6 mx-2" />
+              <Button
+                variant="default"
+                onClick={() => setShowFlash(true)}
+                className="gap-2"
+                aria-label="Ouvrir le Flash e-commerce"
+              >
+                <BarChart3 className="h-4 w-4" />
+                Flash e-commerce
+              </Button>
             </div>
           </div>
           <PeriodFilter dateRange={dateRange} onChange={setDateRange} />
-          <TabsContent value="dashboard">
-            {filteredSummary && (
-              <DashboardTab
-                summary={filteredSummary}
-                anomalies={filteredAnomalies}
-                htTtcMode={htTtcMode}
-                onHtTtcModeChange={setHtTtcMode}
-                onNavigateTab={(tab) => setActiveTab(tab)}
-              />
-            )}
-          </TabsContent>
           <TabsContent value="ecritures">
             <EntriesTable entries={filteredEntries} />
           </TabsContent>
@@ -338,10 +346,58 @@ export default function Home() {
           </TabsContent>
           <TabsContent value="resume">
             {filteredSummary && (
-              <StatsBoard summary={filteredSummary} entries={filteredEntries} anomalies={filteredAnomalies} htTtcMode={htTtcMode} onHtTtcModeChange={setHtTtcMode} />
+              <StatsBoard summary={filteredSummary} entries={filteredEntries} anomalies={filteredAnomalies} htTtcMode={htTtcMode} onHtTtcModeChange={setHtTtcMode} tolerance={tolerance} />
             )}
           </TabsContent>
         </Tabs>
+      )}
+
+      {showFlash && (
+        <div className="fixed inset-0 z-50 bg-background overflow-y-auto animate-in fade-in duration-200">
+          {/* Header sticky */}
+          <div className="sticky top-0 z-10 bg-background border-b px-6 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Button variant="ghost" size="icon" onClick={() => setShowFlash(false)}>
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+              <div>
+                <h2 className="text-lg font-semibold">Flash e-commerce</h2>
+                <p className="text-sm text-muted-foreground">Tableau de bord synthétique</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {filteredSummary && (
+                <FlashPdfButton
+                  summary={filteredSummary}
+                  dateRange={dateRange}
+                  htTtcMode={htTtcMode}
+                  countryNames={result?.country_names ?? {}}
+                  anomalies={filteredAnomalies}
+                />
+              )}
+              <Button variant="ghost" size="icon" onClick={() => setShowFlash(false)}>
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Contenu dashboard */}
+          <div className="max-w-7xl mx-auto px-6 py-6">
+            {filteredSummary && (
+              <DashboardTab
+                summary={filteredSummary}
+                anomalies={filteredAnomalies}
+                htTtcMode={htTtcMode}
+                onHtTtcModeChange={setHtTtcMode}
+                onNavigateTab={(tab) => {
+                  setShowFlash(false);
+                  setActiveTab(tab);
+                }}
+                tolerance={tolerance}
+              />
+            )}
+          </div>
+        </div>
       )}
     </main>
   );

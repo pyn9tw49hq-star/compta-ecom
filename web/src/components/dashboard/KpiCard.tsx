@@ -64,7 +64,7 @@ export default function KpiCard({
         <p className="text-xs text-muted-foreground">{title}</p>
         {Icon && <Icon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />}
       </div>
-      <p className="text-2xl font-bold tabular-nums mt-1">{value}</p>
+      <p className={`${value.length > 8 ? "text-xl" : "text-2xl"} font-bold tabular-nums mt-1`}>{value}</p>
       {subtitle && (
         <p className="text-sm text-muted-foreground mt-0.5">{subtitle}</p>
       )}

@@ -67,6 +67,7 @@ class AccountOverridesSchema(BaseModel):
     psp_commissions: dict[str, str] | None = None
     tva_deductible: str | None = None
     journaux: JournauxVentesOverride | None = None
+    matching_tolerance: float | None = None
 
     @field_validator("clients", "fournisseurs")
     @classmethod
@@ -83,6 +84,13 @@ class AccountOverridesSchema(BaseModel):
     def validate_tva(cls, v: str | None) -> str | None:
         if v is not None and not RE_COMPTE_CHARGE.match(v):
             raise ValueError(f"Compte TVA déductible invalide : '{v}'")
+        return v
+
+    @field_validator("matching_tolerance")
+    @classmethod
+    def validate_matching_tolerance(cls, v: float | None) -> float | None:
+        if v is not None and not (0.001 <= v <= 1.0):
+            raise ValueError(f"matching_tolerance doit être entre 0.001 et 1.0 (reçu : {v})")
         return v
 
 
@@ -136,6 +144,9 @@ def apply_overrides(config: AppConfig, overrides: dict[str, Any]) -> AppConfig:
             replacements["journal_achats"] = schema.journaux.achats
         if schema.journaux.reglement is not None:
             replacements["journal_reglement"] = schema.journaux.reglement
+
+    if schema.matching_tolerance is not None:
+        replacements["matching_tolerance"] = schema.matching_tolerance
 
     if not replacements:
         return config

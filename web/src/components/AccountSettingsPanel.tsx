@@ -195,7 +195,81 @@ function getNestedDefault(defaults: AccountDefaults, path: string): string {
     }
     current = current[key];
   }
+  if (typeof current === "number") return String(current);
   return typeof current === "string" ? current : "";
+}
+
+// --- ToleranceField ---
+interface ToleranceFieldProps {
+  account: UseAccountOverridesReturn;
+}
+
+function ToleranceField({ account }: ToleranceFieldProps) {
+  const path = "matching_tolerance";
+  const rawValue = account.getValue(path);
+  const modified = account.isModified(path);
+  const defaultValue = account.defaults
+    ? getNestedDefault(account.defaults, path)
+    : "0.01";
+  const numValue = rawValue !== "" ? parseFloat(rawValue) : NaN;
+  const isValid = rawValue === "" || (!isNaN(numValue) && numValue >= 0.001 && numValue <= 1.0);
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      <div className="flex items-center gap-2">
+        <label className="text-xs text-muted-foreground w-32 shrink-0">
+          Seuil de tolérance
+        </label>
+        <div className="relative flex-1">
+          <input
+            type="number"
+            step="0.01"
+            min="0.001"
+            max="1.0"
+            value={rawValue}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v === defaultValue) {
+                account.resetField(path);
+              } else {
+                account.setField(path, v);
+              }
+            }}
+            className={`
+              w-full rounded-md border px-2 py-1 text-sm font-mono
+              bg-background
+              ${modified ? "border-primary" : "border-input"}
+              ${!isValid ? "border-red-500 dark:border-red-400" : ""}
+              focus:outline-none focus:ring-1 focus:ring-ring
+            `}
+            aria-label="Seuil de tolérance"
+            aria-invalid={!isValid}
+          />
+          {modified && (
+            <button
+              type="button"
+              onClick={() => account.resetField(path)}
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-primary hover:text-primary/80 text-sm"
+              aria-label="Réinitialiser Seuil de tolérance"
+              title={`Réinitialiser à ${defaultValue}`}
+            >
+              ●
+            </button>
+          )}
+        </div>
+      </div>
+      {modified && (
+        <span className="text-[10px] text-muted-foreground ml-[8.5rem]">
+          défaut : {defaultValue}
+        </span>
+      )}
+      {!isValid && rawValue !== "" && (
+        <span className="text-[10px] text-red-500 dark:text-red-400 ml-[8.5rem]">
+          Valeur entre 0,001 et 1,0
+        </span>
+      )}
+    </div>
+  );
 }
 
 // --- Main panel ---
@@ -210,17 +284,7 @@ export default function AccountSettingsPanel({
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const hasValidationErrors = useMemo(() => {
-    if (!account.defaults) return false;
-    for (const group of GROUPS) {
-      for (const section of group.sections) {
-        for (const field of section.fields) {
-          const regex = getRegexForPath(field.path, group.regex);
-          const value = account.getValue(field.path);
-          if (value !== "" && !regex.test(value)) return true;
-        }
-      }
-    }
-    return false;
+    return hasAccountValidationErrors(account);
   }, [account]);
 
   if (!account.defaults) return null;
@@ -284,6 +348,14 @@ export default function AccountSettingsPanel({
               ))}
             </div>
           ))}
+
+          {/* Paramètres de contrôle */}
+          <div className="space-y-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground border-b pb-1">
+              Paramètres de contrôle
+            </h3>
+            <ToleranceField account={account} />
+          </div>
 
           {account.modifiedCount > 0 && (
             <div className="pt-2 border-t">
@@ -355,6 +427,12 @@ export function hasAccountValidationErrors(
         if (value !== "" && !regex.test(value)) return true;
       }
     }
+  }
+  // Check tolerance field
+  const tolValue = account.getValue("matching_tolerance");
+  if (tolValue !== "") {
+    const num = parseFloat(tolValue);
+    if (isNaN(num) || num < 0.001 || num > 1.0) return true;
   }
   return false;
 }

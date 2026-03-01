@@ -78,6 +78,7 @@ export interface AccountDefaults {
     achats: string;
     reglement: string;
   };
+  matching_tolerance: number;
 }
 
 export type AccountOverrides = {
@@ -94,6 +95,7 @@ export type AccountOverrides = {
     achats?: string;
     reglement?: string;
   };
+  matching_tolerance?: number;
 };
 
 export interface UploadedFile {

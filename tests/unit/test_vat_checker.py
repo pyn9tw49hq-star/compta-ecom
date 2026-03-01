@@ -362,3 +362,50 @@ def test_parametrize_pays_taux(
     else:
         assert len(anomalies) == 1
         assert anomalies[0].type == expected_anomaly_type
+
+
+# ============================================================
+# Tests configurable tolerance (Issue #27)
+# ============================================================
+
+
+class TestConfigurableTolerance:
+    """Tests pour le seuil de tolérance configurable."""
+
+    def test_tolerance_005_ecart_003_no_anomaly(self) -> None:
+        """Avec tolerance=0.05, un écart de 0.03€ ne déclenche PAS d'anomalie."""
+        config = _make_config()
+        config.matching_tolerance = 0.05
+        # TTC=120, taux=20% → TVA attendue = 20.00€, on met TVA réelle = 20.03€ → écart 0.03
+        tx = _make_tx(amount_ttc=120.0, amount_tva=20.03, tva_rate=20.0, shipping_tva=0.0)
+        anomalies = VatChecker.check([tx], config)
+        tva_amount_anomalies = [a for a in anomalies if a.type == "tva_amount_mismatch"]
+        assert tva_amount_anomalies == []
+
+    def test_tolerance_005_ecart_006_triggers_anomaly(self) -> None:
+        """Avec tolerance=0.05, un écart de 0.06€ déclenche une anomalie."""
+        config = _make_config()
+        config.matching_tolerance = 0.05
+        tx = _make_tx(amount_ttc=120.0, amount_tva=20.06, tva_rate=20.0, shipping_tva=0.0)
+        anomalies = VatChecker.check([tx], config)
+        tva_amount_anomalies = [a for a in anomalies if a.type == "tva_amount_mismatch"]
+        assert len(tva_amount_anomalies) == 1
+
+    def test_tolerance_005_ttc_coherence_ecart_003_no_anomaly(self) -> None:
+        """Avec tolerance=0.05, un écart TTC de 0.03€ ne déclenche PAS d'anomalie."""
+        config = _make_config()
+        config.matching_tolerance = 0.05
+        # expected TTC = 100 + 20 = 120, actual TTC = 120.03 → écart 0.03
+        tx = _make_tx(amount_ht=100.0, amount_tva=20.0, shipping_ht=0.0, shipping_tva=0.0, amount_ttc=120.03)
+        anomalies = VatChecker.check([tx], config)
+        ttc_anomalies = [a for a in anomalies if a.type == "ttc_coherence_mismatch"]
+        assert ttc_anomalies == []
+
+    def test_default_tolerance_001(self) -> None:
+        """Avec tolérance par défaut (0.01), un écart de 0.02€ déclenche une anomalie."""
+        config = _make_config()
+        # expected TTC = 100 + 20 = 120, actual TTC = 120.02 → écart 0.02
+        tx = _make_tx(amount_ht=100.0, amount_tva=20.0, shipping_ht=0.0, shipping_tva=0.0, amount_ttc=120.02)
+        anomalies = VatChecker.check([tx], config)
+        ttc_anomalies = [a for a in anomalies if a.type == "ttc_coherence_mismatch"]
+        assert len(ttc_anomalies) == 1

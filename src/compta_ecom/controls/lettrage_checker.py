@@ -16,7 +16,7 @@ class LettrageChecker:
     """Vérifie que chaque groupe de lettrage 511 est soldé (∑ débits == ∑ crédits)."""
 
     @staticmethod
-    def check(entries: list[AccountingEntry]) -> list[Anomaly]:
+    def check(entries: list[AccountingEntry], *, tolerance: float = BALANCE_TOLERANCE) -> list[Anomaly]:
         """Filtre les écritures 511 avec lettrage non vide, groupe par lettrage, vérifie l'équilibre."""
         groups: dict[str, list[AccountingEntry]] = defaultdict(list)
 
@@ -31,7 +31,7 @@ class LettrageChecker:
             total_credit = round(sum(e.credit for e in group), 2)
             diff = round(abs(total_debit - total_credit), 2)
 
-            if diff > BALANCE_TOLERANCE:
+            if diff > tolerance:
                 anomalies.append(
                     Anomaly(
                         type="lettrage_511_unbalanced",

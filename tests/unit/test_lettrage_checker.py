@@ -130,3 +130,36 @@ class TestLettrageCheckerFiltering:
         ]
         anomalies = LettrageChecker.check(entries)
         assert anomalies == []
+
+
+class TestLettrageCheckerCustomTolerance:
+    """Tests pour le paramètre tolerance configurable (Issue #27)."""
+
+    def test_custom_tolerance_005_ecart_003_no_anomaly(self) -> None:
+        """Avec tolerance=0.05, un écart de 0.03€ ne déclenche PAS d'anomalie."""
+        entries = [
+            _make_entry(debit=100.0, lettrage="PAY001"),
+            _make_entry(credit=99.97, lettrage="PAY001", entry_type="payout"),
+        ]
+        anomalies = LettrageChecker.check(entries, tolerance=0.05)
+        assert anomalies == []
+
+    def test_custom_tolerance_005_ecart_006_triggers_anomaly(self) -> None:
+        """Avec tolerance=0.05, un écart de 0.06€ déclenche une anomalie."""
+        entries = [
+            _make_entry(debit=100.0, lettrage="PAY001"),
+            _make_entry(credit=99.94, lettrage="PAY001", entry_type="payout"),
+        ]
+        anomalies = LettrageChecker.check(entries, tolerance=0.05)
+        assert len(anomalies) == 1
+        assert anomalies[0].type == "lettrage_511_unbalanced"
+
+    def test_default_tolerance_preserved(self) -> None:
+        """Sans paramètre tolerance, le seuil par défaut (0.01) s'applique."""
+        entries = [
+            _make_entry(debit=100.0, lettrage="PAY001"),
+            _make_entry(credit=99.98, lettrage="PAY001", entry_type="payout"),
+        ]
+        # écart 0.02 > default 0.01 → anomalie
+        anomalies = LettrageChecker.check(entries)
+        assert len(anomalies) == 1

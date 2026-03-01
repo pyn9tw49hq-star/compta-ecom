@@ -511,6 +511,38 @@ describe("StatsBoard", () => {
     });
   });
 
+  describe("Tolerance prop (Issue #27)", () => {
+    it("uses custom tolerance for balance indicator", () => {
+      // écart = 0.03, default tolerance = 0.01 → Déséquilibré
+      const unbalanced: Summary = {
+        ...MOCK_SUMMARY,
+        totaux: { debit: 45000.0, credit: 44999.97 },
+      };
+
+      const { rerender } = render(
+        <StatsBoard
+          summary={unbalanced}
+          entries={MOCK_ENTRIES}
+          anomalies={MOCK_ANOMALIES}
+          {...htTtcProps}
+        />,
+      );
+      expect(screen.getByText("Déséquilibré")).toBeInTheDocument();
+
+      // With tolerance=0.05 → Équilibré (écart 0.03 < 0.05)
+      rerender(
+        <StatsBoard
+          summary={unbalanced}
+          entries={MOCK_ENTRIES}
+          anomalies={MOCK_ANOMALIES}
+          tolerance={0.05}
+          {...htTtcProps}
+        />,
+      );
+      expect(screen.getByText("Équilibré")).toBeInTheDocument();
+    });
+  });
+
   describe("Existing sections unchanged (AC25)", () => {
     it("keeps the 4 original sections in first position", () => {
       const { container } = render(

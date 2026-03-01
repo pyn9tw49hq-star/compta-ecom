@@ -71,15 +71,16 @@ interface StatsBoardProps {
   anomalies: Anomaly[];
   htTtcMode: "ht" | "ttc";
   onHtTtcModeChange: (mode: "ht" | "ttc") => void;
+  tolerance?: number;
 }
 
 /**
  * Dashboard showing key processing metrics: balance, transactions per channel,
  * entries by type, and anomaly counts by severity.
  */
-export default function StatsBoard({ summary, entries, anomalies, htTtcMode, onHtTtcModeChange }: StatsBoardProps) {
+export default function StatsBoard({ summary, entries, anomalies, htTtcMode, onHtTtcModeChange, tolerance = 0.01 }: StatsBoardProps) {
   const isHtMode = htTtcMode === "ht";
-  const isBalanced = Math.abs(summary.totaux.debit - summary.totaux.credit) < 0.01;
+  const isBalanced = Math.abs(summary.totaux.debit - summary.totaux.credit) < tolerance;
   const ecart = Math.abs(summary.totaux.debit - summary.totaux.credit);
 
   const totalTransactions = useMemo(
