@@ -421,7 +421,7 @@ class TestDispatchFinalStory24:
         assert len(commission_entries) == 8
         # ADJ01 payout(2) — MM01/MM02 n'ont plus de payout 512 (#16: commission in charges_mp)
         assert len(payout_entries) == 2
-        # SUB01 fee(3) - charge HT + TVA + 411MANO TTC
+        # SUB01 fee(3) - charge HT + TVA + 4672 TTC
         assert len(fee_entries) == 3
 
         # Verify marketplace payout entries by channel
@@ -456,7 +456,7 @@ class TestDispatchFinalStory24:
         payout_entries = [e for e in entries if e.entry_type == "payout"]
 
         assert len(sale_entries) == 3  # 411 + 707 + 4457
-        assert len(commission_entries) == 3  # 62220300 + 44566001 + 411MANO (#14)
+        assert len(commission_entries) == 3  # 62220300 + 44566001 + 4672 (#14)
         assert len(payout_entries) == 0  # No payout_date → no payout
 
     def test_payout_summary_manomano_generates_entries(
@@ -480,10 +480,10 @@ class TestDispatchFinalStory24:
         entries, anomalies = generate_entries([], payouts, sample_config)
 
         assert len(entries) == 2
-        # 580 (transit) débité, 411MANO (client) crédité
+        # 580 (transit) débité, 4672 (client) crédité
         assert entries[0].account == "58000000"
         assert entries[0].debit == 500.0
-        assert entries[1].account == "411MANO"
+        assert entries[1].account == "46720000"
         assert entries[1].credit == 500.0
         assert len(anomalies) == 0
 
@@ -620,9 +620,9 @@ class TestDecathlonSkipIndividualPayout:
         commission_entries = [e for e in entries if e.entry_type == "commission"]
         payout_entries = [e for e in entries if e.entry_type == "payout"]
 
-        # sale : CDECATHLON + 70703250 + 4457250 = 3 lignes
+        # sale : 4673 + 70703250 + 4457250 = 3 lignes
         assert len(sale_entries) == 3
-        # commission : 62220800 D / CDECATHLON C (commission_ttc < 0) = 2 lignes
+        # commission : 62220800 D / 4673 C (commission_ttc < 0) = 2 lignes
         assert len(commission_entries) == 2
         # payout : 0 — comportement spécifique Décathlon
         assert len(payout_entries) == 0
@@ -678,10 +678,10 @@ class TestDecathlonSkipIndividualPayout:
         assert len(payout_entries) == 2
         assert len(anomalies) == 0
 
-        # Les 2 écritures payout touchent transit (580) et client (CDECATHLON)
+        # Les 2 écritures payout touchent transit (580) et client (4673)
         payout_accounts = {e.account for e in payout_entries}
         assert "58000000" in payout_accounts
-        assert "CDECATHLON" in payout_accounts
+        assert "46730000" in payout_accounts
         # Aucune écriture payout sur banque ni fournisseur
         assert "51200000" not in payout_accounts
         assert "FDECATHLON" not in payout_accounts
@@ -711,7 +711,7 @@ class TestDecathlonSkipIndividualPayout:
         sale_entries = [e for e in entries if e.entry_type == "sale"]
         payout_entries = [e for e in entries if e.entry_type == "payout"]
 
-        # fee : CDECATHLON ↔ 61311112 = 2 lignes
+        # fee : 4673 ↔ 61311112 = 2 lignes
         assert len(fee_entries) == 2
         # sale : 0 (le continue L46 bypass le bloc sale)
         assert len(sale_entries) == 0
@@ -721,7 +721,7 @@ class TestDecathlonSkipIndividualPayout:
 
         # Les comptes touchés sont client et compte de charge abonnement, entry_type="fee"
         fee_accounts = {e.account for e in fee_entries}
-        assert "CDECATHLON" in fee_accounts
+        assert "46730000" in fee_accounts
         assert "61311112" in fee_accounts
 
     def test_leroy_merlin_no_individual_payout(self, sample_config: AppConfig) -> None:
@@ -747,9 +747,9 @@ class TestDecathlonSkipIndividualPayout:
         commission_entries = [e for e in entries if e.entry_type == "commission"]
         payout_entries = [e for e in entries if e.entry_type == "payout"]
 
-        # sale : 411LM + 70704250 + 4457250 = 3 lignes
+        # sale : 4674 + 70704250 + 4457250 = 3 lignes
         assert len(sale_entries) == 3
-        # commission : 62220900 D (HT) + 44566001 D (TVA) + 411LM C (TTC) = 3 lignes
+        # commission : 62220900 D (HT) + 44566001 D (TVA) + 4674 C (TTC) = 3 lignes
         assert len(commission_entries) == 3
         # payout : 0 — même comportement que Décathlon (skip payout individuel)
         assert len(payout_entries) == 0

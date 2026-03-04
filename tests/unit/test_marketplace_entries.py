@@ -41,7 +41,7 @@ def _make_transaction(**overrides: object) -> NormalizedTransaction:
 @pytest.mark.parametrize(
     ("channel", "fournisseur_account", "client_account"),
     [
-        ("decathlon", "62220800", "CDECATHLON"),
+        ("decathlon", "62220800", "46730000"),
     ],
 )
 class TestMarketplaceCommissionSaleParametrized:
@@ -108,7 +108,7 @@ class TestLeroyMerlinCommissionWithTVA:
         assert entries[1].debit == 3.00
         assert entries[1].credit == 0.0
         # Client TTC au crédit
-        assert entries[2].account == "411LM"
+        assert entries[2].account == "46740000"
         assert entries[2].debit == 0.0
         assert entries[2].credit == 18.00
 
@@ -125,7 +125,7 @@ class TestLeroyMerlinCommissionWithTVA:
 
         assert len(entries) == 3
         # Client TTC au débit
-        assert entries[0].account == "411LM"
+        assert entries[0].account == "46740000"
         assert entries[0].debit == 18.00
         # Charge HT au crédit
         assert entries[1].account == "62220900"
@@ -179,7 +179,7 @@ class TestLeroyMerlinCommissionWithTVA:
         assert entries[1].debit == 0.20
         assert entries[1].credit == 0.0
         # Client TTC au crédit
-        assert entries[2].account == "411LM"
+        assert entries[2].account == "46740000"
         assert entries[2].debit == 0.0
         assert entries[2].credit == 1.22
 
@@ -201,7 +201,7 @@ class TestLeroyMerlinCommissionWithTVA:
         assert entries[1].account == "44566001"
         assert entries[1].lettrage == ""
         # Client au crédit → lettrage = payout_reference
-        assert entries[2].account == "411LM"
+        assert entries[2].account == "46740000"
         assert entries[2].lettrage == "2025-07-01"
 
 
@@ -228,7 +228,7 @@ class TestManoManoCommissionWithTVA:
         assert entries[1].debit == 3.00
         assert entries[1].credit == 0.0
         # Client TTC au crédit
-        assert entries[2].account == "411MANO"
+        assert entries[2].account == "46720000"
         assert entries[2].debit == 0.0
         assert entries[2].credit == 18.00
 
@@ -245,7 +245,7 @@ class TestManoManoCommissionWithTVA:
 
         assert len(entries) == 3
         # Client TTC au débit
-        assert entries[0].account == "411MANO"
+        assert entries[0].account == "46720000"
         assert entries[0].debit == 18.00
         # Charge HT au crédit
         assert entries[1].account == "62220300"
@@ -294,7 +294,7 @@ class TestManoManoCommissionWithTVA:
         assert entries[0].debit == 1.02
         assert entries[1].account == "44566001"
         assert entries[1].debit == 0.20
-        assert entries[2].account == "411MANO"
+        assert entries[2].account == "46720000"
         assert entries[2].credit == 1.22
 
     def test_lettrage_split(self, sample_config: AppConfig) -> None:
@@ -315,7 +315,7 @@ class TestManoManoCommissionWithTVA:
         assert entries[1].account == "44566001"
         assert entries[1].lettrage == ""
         # Client au crédit → lettrage = payout_reference
-        assert entries[2].account == "411MANO"
+        assert entries[2].account == "46720000"
         assert entries[2].lettrage == "PAY-2025-01"
 
     def test_journal_achats(self, sample_config: AppConfig) -> None:
@@ -340,7 +340,7 @@ class TestMarketplaceCommissionRefund:
         entries = generate_marketplace_commission(tx, sample_config)
 
         assert len(entries) == 2
-        assert entries[0].account == "CDECATHLON"
+        assert entries[0].account == "46730000"
         assert entries[0].debit == 15.00
         assert entries[0].credit == 0.0
         assert entries[1].account == "62220800"
@@ -361,7 +361,7 @@ class TestMarketplaceCommissionRefund:
         assert entries[0].account == "62220800"
         assert entries[0].debit == 12.00
         assert entries[0].credit == 0.0
-        assert entries[1].account == "CDECATHLON"
+        assert entries[1].account == "46730000"
         assert entries[1].debit == 0.0
         assert entries[1].credit == 12.00
 
@@ -504,15 +504,15 @@ class TestMarketplaceCommissionMetadata:
         assert entries[1].account == "44566001"
         assert entries[1].lettrage == ""
         # Client ManoMano sans payout_reference → lettrage vide (#23)
-        assert entries[2].account == "411MANO"
+        assert entries[2].account == "46720000"
         assert entries[2].lettrage == ""
 
 
 class TestDecathlonLettrageByPayoutCycle:
-    """Lettrage CDECATHLON par cycle de paiement (AC-LETTRAGE-DEC)."""
+    """Lettrage 4673 par cycle de paiement (AC-LETTRAGE-DEC)."""
 
     def test_decathlon_commission_lettrage_split(self, sample_config: AppConfig) -> None:
-        """Décathlon : seul CDECATHLON est lettré (payout_reference), compte charge vide."""
+        """Décathlon : seul 4673 est lettré (payout_reference), compte charge vide."""
         tx = _make_transaction(
             channel="decathlon",
             reference="fr12345-A",
@@ -526,12 +526,12 @@ class TestDecathlonLettrageByPayoutCycle:
         # Compte de charge (62220800) au débit → pas de lettrage
         assert entries[0].account == "62220800"
         assert entries[0].lettrage == ""
-        # Client (CDECATHLON) au crédit → lettrage = payout_reference
-        assert entries[1].account == "CDECATHLON"
+        # Client (4673) au crédit → lettrage = payout_reference
+        assert entries[1].account == "46730000"
         assert entries[1].lettrage == "2025-07-01"
 
     def test_decathlon_refund_commission_lettrage_split(self, sample_config: AppConfig) -> None:
-        """Décathlon refund : seul CDECATHLON est lettré (payout_reference), compte charge vide."""
+        """Décathlon refund : seul 4673 est lettré (payout_reference), compte charge vide."""
         tx = _make_transaction(
             channel="decathlon",
             reference="fr12345-A",
@@ -543,8 +543,8 @@ class TestDecathlonLettrageByPayoutCycle:
         entries = generate_marketplace_commission(tx, sample_config)
 
         assert len(entries) == 2
-        # Client (CDECATHLON) au débit → lettrage = payout_reference
-        assert entries[0].account == "CDECATHLON"
+        # Client (4673) au débit → lettrage = payout_reference
+        assert entries[0].account == "46730000"
         assert entries[0].lettrage == "2025-07-01"
         # Compte de charge (62220800) au crédit → pas de lettrage
         assert entries[1].account == "62220800"
@@ -563,7 +563,7 @@ class TestDecathlonLettrageByPayoutCycle:
         assert entries[0].account == "62220800"
         assert entries[0].lettrage == ""
         # Client au crédit → lettrage = reference (fallback)
-        assert entries[1].account == "CDECATHLON"
+        assert entries[1].account == "46730000"
         assert entries[1].lettrage == "fr12345-A"
 
     def test_leroy_merlin_lettrage_split(self, sample_config: AppConfig) -> None:
@@ -585,5 +585,5 @@ class TestDecathlonLettrageByPayoutCycle:
         assert entries[1].account == "44566001"
         assert entries[1].lettrage == ""
         # Client avec payout_reference
-        assert entries[2].account == "411LM"
+        assert entries[2].account == "46740000"
         assert entries[2].lettrage == "2025-07-01"

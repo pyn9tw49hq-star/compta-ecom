@@ -34,6 +34,7 @@ import AnomalySeverityChart from "./AnomalySeverityChart";
 import EntryTypeDonut from "./EntryTypeDonut";
 import GeoChart from "./GeoChart";
 import VentilationChart from "./VentilationChart";
+import MatchingRateCard from "./MatchingRateCard";
 import AnomalyCategoryDonut from "./AnomalyCategoryDonut";
 import type { Summary, Anomaly } from "@/lib/types";
 
@@ -191,6 +192,7 @@ export function DashboardTab({ summary, anomalies, htTtcMode, onHtTtcModeChange,
       }
     }
     const sorted = Object.entries(tvaByCountry)
+      .filter(([, amount]) => amount > 0)
       .map(([country, amount]) => ({ country, amount }))
       .sort((a, b) => b.amount - a.amount);
 
@@ -413,6 +415,14 @@ export function DashboardTab({ summary, anomalies, htTtcMode, onHtTtcModeChange,
           onNavigate={onNavigateTab ? () => onNavigateTab("anomalies") : undefined}
         />
       </div>
+
+      {/* Taux de rapprochement par canal */}
+      {summary.taux_rapprochement_par_canal && summary.ventes_par_canal && (
+        <MatchingRateCard
+          tauxParCanal={summary.taux_rapprochement_par_canal}
+          ventesParCanal={summary.ventes_par_canal}
+        />
+      )}
 
       {/* Zone 2 — Répartition CA + Commissions (donuts) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">

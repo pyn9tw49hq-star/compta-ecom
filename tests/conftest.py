@@ -15,7 +15,7 @@ def fixtures_dir() -> Path:
 def sample_config() -> AppConfig:
     """AppConfig valide minimale pour les tests."""
     config = AppConfig(
-        clients={"shopify": "411SHOPIFY", "manomano": "411MANO"},
+        clients={"shopify": "411SHOPIFY", "manomano": "46720000"},
         fournisseurs={"manomano": "FMANO"},
         psp={
             "card": PspConfig(compte="51150007", commission="62700002", compte_intermediaire="46710001"),
@@ -50,8 +50,8 @@ def sample_config() -> AppConfig:
             ),
         },
     )
-    config.clients["decathlon"] = "CDECATHLON"
-    config.clients["leroy_merlin"] = "411LM"
+    config.clients["decathlon"] = "46730000"
+    config.clients["leroy_merlin"] = "46740000"
     config.fournisseurs["decathlon"] = "FDECATHLON"
     config.fournisseurs["leroy_merlin"] = "FADEO"
     config.canal_codes["decathlon"] = "03"

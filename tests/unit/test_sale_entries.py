@@ -415,7 +415,7 @@ class TestMarketplaceTransaction:
     """Écritures de vente pour transaction marketplace (AC17)."""
 
     def test_manomano_sale_entries(self, sample_config: AppConfig) -> None:
-        """Transaction ManoMano → comptes 411MANO, 70702250, 4457250."""
+        """Transaction ManoMano → comptes 4672, 70702250, 4457250."""
         tx = _make_transaction(
             channel="manomano",
             payment_method=None,
@@ -430,8 +430,8 @@ class TestMarketplaceTransaction:
 
         assert len(entries) == 3
 
-        # 411MANO débit TTC
-        assert entries[0].account == "411MANO"
+        # 4672 débit TTC
+        assert entries[0].account == "46720000"
         assert entries[0].debit == 120.0
         assert entries[0].credit == 0.0
 
@@ -478,11 +478,11 @@ class TestMiraklLettrageByPayoutCycle:
             payout_date=datetime.date(2025, 7, 1),
         )
         entries = generate_sale_entries(tx, sample_config)
-        client_entry = [e for e in entries if e.account == "CDECATHLON"][0]
+        client_entry = [e for e in entries if e.account == "46730000"][0]
         assert client_entry.lettrage == "2025-07-01"
         # Les autres comptes n'ont pas de lettrage
         for e in entries:
-            if e.account != "CDECATHLON":
+            if e.account != "46730000":
                 assert e.lettrage == ""
 
     def test_decathlon_without_payout_reference_falls_back(self, sample_config: AppConfig) -> None:
@@ -493,7 +493,7 @@ class TestMiraklLettrageByPayoutCycle:
             payout_reference=None,
         )
         entries = generate_sale_entries(tx, sample_config)
-        client_entry = [e for e in entries if e.account == "CDECATHLON"][0]
+        client_entry = [e for e in entries if e.account == "46730000"][0]
         assert client_entry.lettrage == "fr12345-A"
 
     def test_leroy_merlin_lettrage_uses_payout_reference(self, sample_config: AppConfig) -> None:
@@ -505,11 +505,11 @@ class TestMiraklLettrageByPayoutCycle:
             payout_date=datetime.date(2025, 7, 1),
         )
         entries = generate_sale_entries(tx, sample_config)
-        client_entry = [e for e in entries if e.account == "411LM"][0]
+        client_entry = [e for e in entries if e.account == "46740000"][0]
         assert client_entry.lettrage == "2025-07-01"
         # Les autres comptes n'ont pas de lettrage
         for e in entries:
-            if e.account != "411LM":
+            if e.account != "46740000":
                 assert e.lettrage == ""
 
     def test_leroy_merlin_without_payout_reference_falls_back(self, sample_config: AppConfig) -> None:
@@ -520,12 +520,12 @@ class TestMiraklLettrageByPayoutCycle:
             payout_reference=None,
         )
         entries = generate_sale_entries(tx, sample_config)
-        client_entry = [e for e in entries if e.account == "411LM"][0]
+        client_entry = [e for e in entries if e.account == "46740000"][0]
         assert client_entry.lettrage == "LM-001"
 
 
 class TestManoManoLettrageByPayoutCycle:
-    """Lettrage ManoMano 411MANO par cycle de paiement (#23)."""
+    """Lettrage ManoMano 4672 par cycle de paiement (#23)."""
 
     def test_manomano_lettrage_uses_payout_reference(self, sample_config: AppConfig) -> None:
         """ManoMano avec payout_reference → lettrage client = payout_reference."""
@@ -536,11 +536,11 @@ class TestManoManoLettrageByPayoutCycle:
             payout_date=datetime.date(2025, 1, 31),
         )
         entries = generate_sale_entries(tx, sample_config)
-        client_entry = [e for e in entries if e.account == "411MANO"][0]
+        client_entry = [e for e in entries if e.account == "46720000"][0]
         assert client_entry.lettrage == "PAY-2025-01"
         # Les autres comptes n'ont pas de lettrage
         for e in entries:
-            if e.account != "411MANO":
+            if e.account != "46720000":
                 assert e.lettrage == ""
 
     def test_manomano_without_payout_reference_empty_lettrage(self, sample_config: AppConfig) -> None:
@@ -551,7 +551,7 @@ class TestManoManoLettrageByPayoutCycle:
             payout_reference=None,
         )
         entries = generate_sale_entries(tx, sample_config)
-        client_entry = [e for e in entries if e.account == "411MANO"][0]
+        client_entry = [e for e in entries if e.account == "46720000"][0]
         assert client_entry.lettrage == ""
 
 

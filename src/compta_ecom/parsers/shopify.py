@@ -141,8 +141,9 @@ class ShopifyParser(BaseParser):
             tx_data = {}
 
         # 3. Matching + construction NormalizedTransaction
+        prior_period_refund_refs: set[str] = set()
         if sales_data:
-            transactions, match_anomalies = self._match_and_build(sales_data, tx_data, config)
+            transactions, match_anomalies, prior_period_refund_refs = self._match_and_build(sales_data, tx_data, config)
             anomalies.extend(match_anomalies)
         else:
             transactions = []
@@ -150,7 +151,8 @@ class ShopifyParser(BaseParser):
         # 3.4 Fichier retours (optionnel) — écritures d'avoir
         if "returns" in files:
             returns_txs, returns_anomalies = self._parse_returns(
-                files["returns"], sales_data, config  # type: ignore[arg-type]
+                files["returns"], sales_data, config,  # type: ignore[arg-type]
+                prior_period_refund_refs=prior_period_refund_refs,
             )
             anomalies.extend(returns_anomalies)
 
@@ -542,8 +544,12 @@ class ShopifyParser(BaseParser):
         sales: dict[str, dict[str, Any]],
         transactions: dict[str, list[dict[str, Any]]],
         config: AppConfig,
-    ) -> tuple[list[NormalizedTransaction], list[Anomaly]]:
-        """Matching vente↔transaction et construction des NormalizedTransaction finales."""
+    ) -> tuple[list[NormalizedTransaction], list[Anomaly], set[str]]:
+        """Matching vente↔transaction et construction des NormalizedTransaction finales.
+
+        Returns:
+            (transactions, anomalies, prior_period_refund_refs)
+        """
         anomalies: list[Anomaly] = []
         result: list[NormalizedTransaction] = []
         orphan_sale_refs: list[str] = []
@@ -807,13 +813,15 @@ class ShopifyParser(BaseParser):
                 )
             )
 
-        return result, anomalies
+        return result, anomalies, set(prior_period_refund_refs)
 
     def _parse_returns(
         self,
         returns_path: Path | BytesIO,
         sales_data: dict[str, dict[str, Any]],
         config: AppConfig,
+        *,
+        prior_period_refund_refs: set[str] | None = None,
     ) -> tuple[list[NormalizedTransaction], list[Anomaly]]:
         """Parse le fichier 'Total des retours par commande' et crée les NormalizedTransaction d'avoir."""
         channel_config = config.channels["shopify"]
@@ -879,17 +887,21 @@ class ShopifyParser(BaseParser):
             else:
                 country_code = "250"
                 fallback_tva_rate = 20.0
-                anomalies.append(
-                    Anomaly(
-                        type="return_no_matching_sale",
-                        severity="warning",
-                        reference=ref,
-                        channel="shopify",
-                        detail=f"Remboursement {ref} sans commande d'origine trouvée — pays par défaut (France) utilisé pour la comptabilisation",
-                        expected_value=None,
-                        actual_value=None,
+                # Don't generate a warning if this ref is already classified as
+                # a prior-period refund by _match_and_build (avoids duplicates)
+                _pp_refs = prior_period_refund_refs or set()
+                if ref not in _pp_refs:
+                    anomalies.append(
+                        Anomaly(
+                            type="return_no_matching_sale",
+                            severity="warning",
+                            reference=ref,
+                            channel="shopify",
+                            detail=f"Remboursement {ref} sans commande d'origine trouvée — pays par défaut (France) utilisé pour la comptabilisation",
+                            expected_value=None,
+                            actual_value=None,
+                        )
                     )
-                )
 
             # Calcul tva_rate : préférer le taux fiable de la vente d'origine (extrait du Tax Name)
             # Ne calculer depuis les montants qu'en fallback (retour orphelin sans vente)

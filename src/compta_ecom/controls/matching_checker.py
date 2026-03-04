@@ -221,6 +221,10 @@ class MatchingChecker:
                 # in check() — skip here to avoid duplicate anomalies
                 if tx.channel == "manomano":
                     continue
+                # Shopify refunds are handled by the parser's own matching logic
+                # (prior-period detection in _match_and_build) — skip to avoid duplicates
+                if tx.channel == "shopify":
+                    continue
 
                 # Classify: prior period vs true orphan
                 ref_m = re.search(r"(\d+)", tx.reference)

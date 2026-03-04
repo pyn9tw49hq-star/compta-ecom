@@ -84,7 +84,7 @@ class TestManoManoRefundEntries:
         """Écritures vente refund inversées : 707 D, 4457 D, 411 C."""
         entries = generate_sale_entries(manomano_refund, sample_config)
 
-        entry_411 = [e for e in entries if e.account == "411MANO"]
+        entry_411 = [e for e in entries if e.account == "46720000"]
         entry_707 = [e for e in entries if e.account.startswith("707")]
         entry_4457 = [e for e in entries if e.account.startswith("4457")]
 
@@ -128,21 +128,21 @@ class TestManoManoRefundEntries:
         manomano_refund: NormalizedTransaction,
         sample_config: AppConfig,
     ) -> None:
-        """Écritures commission refund ManoMano : 411MANO D TTC, 62220300 C HT, 44566001 C TVA (#14)."""
+        """Écritures commission refund ManoMano : 4672 D TTC, 62220300 C HT, 44566001 C TVA (#14)."""
         entries = generate_marketplace_commission(manomano_refund, sample_config)
 
         assert len(entries) == 3
 
         entry_charge = [e for e in entries if e.account == "62220300"]
         entry_tva = [e for e in entries if e.account == "44566001"]
-        entry_411 = [e for e in entries if e.account == "411MANO"]
+        entry_411 = [e for e in entries if e.account == "46720000"]
 
         assert len(entry_charge) == 1
         assert len(entry_tva) == 1
         assert len(entry_411) == 1
 
         # commission_ttc = 18 (positive → marketplace rembourse la commission)
-        # 411MANO au débit TTC
+        # 4672 au débit TTC
         assert entry_411[0].debit == 18.00
         assert entry_411[0].credit == 0.0
 
@@ -175,13 +175,13 @@ class TestManoManoRefundEntries:
         for e in sale_entries + commission_entries:
             assert e.piece_number == "MR001"
 
-        # Écritures vente : 411MANO lettré par payout_reference (#23)
-        sale_411 = [e for e in sale_entries if e.account == "411MANO"]
+        # Écritures vente : 4672 lettré par payout_reference (#23)
+        sale_411 = [e for e in sale_entries if e.account == "46720000"]
         assert len(sale_411) == 1
         assert sale_411[0].lettrage == "RPAY001"
 
-        # Écritures commission : charge/TVA sans lettrage, 411MANO lettré par payout_reference
-        comm_411 = [e for e in commission_entries if e.account == "411MANO"]
+        # Écritures commission : charge/TVA sans lettrage, 4672 lettré par payout_reference
+        comm_411 = [e for e in commission_entries if e.account == "46720000"]
         comm_charge = [e for e in commission_entries if e.account == "62220300"]
         comm_tva = [e for e in commission_entries if e.account == "44566001"]
         assert comm_charge[0].lettrage == ""

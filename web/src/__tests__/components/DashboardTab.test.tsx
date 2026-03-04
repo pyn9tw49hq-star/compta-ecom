@@ -272,8 +272,8 @@ describe("DashboardTab", () => {
     );
     // CA TTC = 30000 + 9600 + 3600 = 43200
     expect(screen.getByText("43 200,00 €")).toBeTruthy();
-    // Transactions = 200 + 100 + 42 = 342
-    expect(screen.getByText("342")).toBeTruthy();
+    // Transactions = 200 + 100 + 42 = 342 (appears in KPI card + matching rate card)
+    expect(screen.getAllByText("342").length).toBeGreaterThanOrEqual(1);
     // Anomaly KPI shows percentage: 6 unique tx / 342 ≈ 1.8%
     expect(screen.getByText(/1,8\s*%\s*de tx avec anomalies/)).toBeTruthy();
     // Anomaly count in subtitle

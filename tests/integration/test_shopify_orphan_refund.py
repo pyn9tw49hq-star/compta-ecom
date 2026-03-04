@@ -174,3 +174,123 @@ class TestNoDuplicatePriorPeriodRefund:
         # Also no orphan_refund from checker for the same ref
         checker_orphan = [a for a in checker_anomalies if a.type == "orphan_refund"]
         assert len(checker_orphan) == 0
+
+
+RETURNS_HEADER = (
+    "Jour,ID de vente,Nom de la commande,Titre du produit au moment de la vente,"
+    "Retours bruts,Réductions retournées,Retours nets,Expédition retournée,"
+    "Taxes retournées,Frais de retour,Total des retours"
+)
+
+
+def _parse_shopify_with_returns(
+    sales_csv: str, tx_csv: str, payouts_csv: str, returns_csv: str, config: AppConfig
+) -> tuple[list[NormalizedTransaction], list[Anomaly]]:
+    """Parse Shopify with returns file, return (transactions, anomalies)."""
+    parser = ShopifyParser()
+    files = {
+        "sales": _to_bytesio(sales_csv),
+        "transactions": _to_bytesio(tx_csv),
+        "payouts": _to_bytesio(payouts_csv),
+        "returns": _to_bytesio(returns_csv),
+    }
+    result = parser.parse(files, config)
+    return result.transactions, result.anomalies
+
+
+class TestNoDuplicateReturnWarning:
+    """Issue #40 : pas de doublon return_no_matching_sale quand _match_and_build
+    a deja classifie le refund comme prior_period_refund."""
+
+    def test_prior_period_refund_no_return_warning(self, sample_config: AppConfig) -> None:
+        """Prior-period refund in Transactions AND Returns file: only 1 INFO, no WARNING."""
+        sales_csv = (
+            f"{SALES_HEADER}\n"
+            "#1000,2026-01-15,100.00,0.00,20.00,120.00,FR TVA 20%,20.00,Shopify Payments,FR\n"
+        )
+        tx_csv = (
+            f"{TX_HEADER}\n"
+            "#1000,charge,card,120.00,3.50,116.50,2026-01-23,P001\n"
+            "#500,refund,card,-50.00,-1.50,-48.50,2026-01-24,P002\n"
+        )
+        payouts_csv = (
+            f"{PAYOUTS_HEADER}\n"
+            "2026-01-23,120.00,0.00,-3.50,116.50\n"
+            "2026-01-24,0.00,-50.00,1.50,-48.50\n"
+        )
+        returns_csv = (
+            f"{RETURNS_HEADER}\n"
+            "2026-01-20,S500,#500,Produit X,-50.00,0.00,-40.00,0.00,-10.00,0.00,-50.00\n"
+        )
+
+        transactions, anomalies = _parse_shopify_with_returns(
+            sales_csv, tx_csv, payouts_csv, returns_csv, sample_config
+        )
+
+        # _match_and_build classifies #500 as prior_period_refund (info)
+        prior_refunds = [a for a in anomalies if a.type == "prior_period_refund"]
+        assert len(prior_refunds) == 1
+        assert prior_refunds[0].severity == "info"
+        assert "#500" in (prior_refunds[0].actual_value or "")
+
+        # _parse_returns should NOT generate return_no_matching_sale for #500
+        # because it is in prior_period_refund_refs (Issue #40 fix)
+        return_warnings = [a for a in anomalies if a.type == "return_no_matching_sale"]
+        assert len(return_warnings) == 0
+
+    def test_orphan_refund_not_prior_still_gets_return_warning(self, sample_config: AppConfig) -> None:
+        """Current-period orphan refund in Returns file: return_no_matching_sale WARNING emitted."""
+        sales_csv = (
+            f"{SALES_HEADER}\n"
+            "#1000,2026-01-15,100.00,0.00,20.00,120.00,FR TVA 20%,20.00,Shopify Payments,FR\n"
+        )
+        tx_csv = (
+            f"{TX_HEADER}\n"
+            "#1000,charge,card,120.00,3.50,116.50,2026-01-23,P001\n"
+            "#1500,refund,card,-75.00,-2.25,-72.75,2026-01-24,P002\n"
+        )
+        payouts_csv = (
+            f"{PAYOUTS_HEADER}\n"
+            "2026-01-23,120.00,0.00,-3.50,116.50\n"
+            "2026-01-24,0.00,-75.00,2.25,-72.75\n"
+        )
+        returns_csv = (
+            f"{RETURNS_HEADER}\n"
+            "2026-01-20,S1500,#1500,Produit Y,-75.00,0.00,-60.00,0.00,-15.00,0.00,-75.00\n"
+        )
+
+        transactions, anomalies = _parse_shopify_with_returns(
+            sales_csv, tx_csv, payouts_csv, returns_csv, sample_config
+        )
+
+        # #1500 is NOT prior-period (1500 > 1000) so _parse_returns should warn
+        return_warnings = [a for a in anomalies if a.type == "return_no_matching_sale"]
+        assert len(return_warnings) == 1
+        assert return_warnings[0].reference == "#1500"
+        assert return_warnings[0].severity == "warning"
+
+    def test_matching_checker_no_shopify_orphan_refund(self, sample_config: AppConfig) -> None:
+        """MatchingChecker should never emit orphan_refund for Shopify (handled by parser)."""
+        sales_csv = (
+            f"{SALES_HEADER}\n"
+            "#1000,2026-01-15,100.00,0.00,20.00,120.00,FR TVA 20%,20.00,Shopify Payments,FR\n"
+        )
+        tx_csv = (
+            f"{TX_HEADER}\n"
+            "#1000,charge,card,120.00,3.50,116.50,2026-01-23,P001\n"
+            "#1500,refund,card,-75.00,-2.25,-72.75,2026-01-24,P002\n"
+        )
+        payouts_csv = (
+            f"{PAYOUTS_HEADER}\n"
+            "2026-01-23,120.00,0.00,-3.50,116.50\n"
+            "2026-01-24,0.00,-75.00,2.25,-72.75\n"
+        )
+
+        transactions, _ = _parse_shopify(sales_csv, tx_csv, payouts_csv, sample_config)
+
+        # Even though #1500 is a current-period orphan, matching_checker skips Shopify
+        checker_anomalies = MatchingChecker.check(transactions, sample_config)
+        checker_orphan = [a for a in checker_anomalies if a.type == "orphan_refund"]
+        assert len(checker_orphan) == 0
+        checker_prior = [a for a in checker_anomalies if a.type == "prior_period_refund"]
+        assert len(checker_prior) == 0

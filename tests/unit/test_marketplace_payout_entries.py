@@ -169,7 +169,7 @@ class TestSpecialTypes:
         assert all(e.date == payout_date for e in entries)
 
     def test_eco_contribution(self, sample_config: AppConfig) -> None:
-        """ECO_CONTRIBUTION : 62802000 D HT + 44566001 D TVA + 411MANO C TTC."""
+        """ECO_CONTRIBUTION : 62802000 D HT + 44566001 D TVA + 4672 C TTC."""
         tx = _make_transaction(
             special_type="ECO_CONTRIBUTION",
             net_amount=-30.0,
@@ -190,7 +190,7 @@ class TestSpecialTypes:
         assert entries[1].debit == 5.0
         assert entries[1].lettrage == ""
         # Client TTC au crédit
-        assert entries[2].account == "411MANO"
+        assert entries[2].account == "46720000"
         assert entries[2].credit == 30.0
         assert all(e.entry_type == "fee" for e in entries)
 
@@ -218,14 +218,14 @@ class TestSpecialTypes:
         assert entries[1].debit == 5.0
         assert entries[1].lettrage == ""
         # Client TTC au crédit — pas de 512
-        assert entries[2].account == "411MANO"
+        assert entries[2].account == "46720000"
         assert entries[2].credit == 30.0
         assert all(e.entry_type == "fee" for e in entries)
         # Aucun compte 512
         assert not any("512" in e.account for e in entries)
 
     def test_subscription_manomano(self, sample_config: AppConfig) -> None:
-        """SUBSCRIPTION ManoMano : 61311111 D HT + 44566001 D TVA + 411MANO C TTC."""
+        """SUBSCRIPTION ManoMano : 61311111 D HT + 44566001 D TVA + 4672 C TTC."""
         tx = _make_transaction(
             channel="manomano",
             special_type="SUBSCRIPTION",
@@ -247,13 +247,13 @@ class TestSpecialTypes:
         assert entries[1].debit == 10.0
         assert entries[1].lettrage == ""
         # Client TTC au crédit
-        assert entries[2].account == "411MANO"
+        assert entries[2].account == "46720000"
         assert entries[2].credit == 60.0
         # Vérifier que entry_type est "fee" pour les abonnements
         assert all(e.entry_type == "fee" for e in entries)
 
     def test_subscription_decathlon(self, sample_config: AppConfig) -> None:
-        """SUBSCRIPTION Décathlon : 61311112 D, CDECATHLON C (compte client)."""
+        """SUBSCRIPTION Décathlon : 61311112 D, 4673 C (compte client)."""
         tx = _make_transaction(
             channel="decathlon",
             special_type="SUBSCRIPTION",
@@ -266,14 +266,14 @@ class TestSpecialTypes:
         assert len(entries) == 2
         assert entries[0].account == "61311112"
         assert entries[0].debit == 70.0
-        assert entries[1].account == "CDECATHLON"
+        assert entries[1].account == "46730000"
         assert entries[1].credit == 70.0
         # Vérifier que entry_type est "fee" pour les abonnements
         assert entries[0].entry_type == "fee"
         assert entries[1].entry_type == "fee"
 
     def test_subscription_leroy_merlin(self, sample_config: AppConfig) -> None:
-        """SUBSCRIPTION Leroy Merlin : 61311113 D (HT) + 44566001 D (TVA) + 411LM C (TTC)."""
+        """SUBSCRIPTION Leroy Merlin : 61311113 D (HT) + 44566001 D (TVA) + 4674 C (TTC)."""
         tx = _make_transaction(
             channel="leroy_merlin",
             special_type="SUBSCRIPTION",
@@ -295,7 +295,7 @@ class TestSpecialTypes:
         assert entries[1].debit == 7.80
         assert entries[1].lettrage == ""
         # Client TTC au crédit
-        assert entries[2].account == "411LM"
+        assert entries[2].account == "46740000"
         assert entries[2].credit == 46.80
         # Vérifier que entry_type est "fee" pour les abonnements
         assert all(e.entry_type == "fee" for e in entries)
@@ -303,7 +303,7 @@ class TestSpecialTypes:
     def test_subscription_leroy_merlin_credit_note(self, sample_config: AppConfig) -> None:
         """SUBSCRIPTION Leroy Merlin avoir (net_amount > 0) : sens inversé.
 
-        Remboursement d'abonnement : 411LM D (TTC) + 61311113 C (HT) + 44566001 C (TVA).
+        Remboursement d'abonnement : 4674 D (TTC) + 61311113 C (HT) + 44566001 C (TVA).
         Par symétrie avec le traitement des commissions (marketplace_entries.py),
         la branche 3 écritures doit respecter le signe de net_amount.
         """
@@ -320,7 +320,7 @@ class TestSpecialTypes:
 
         assert len(entries) == 3
         # Client TTC au débit (remboursement)
-        assert entries[0].account == "411LM"
+        assert entries[0].account == "46740000"
         assert entries[0].debit == 46.80
         assert entries[0].credit == 0.0
         # Charge HT au crédit (contrepassation)
@@ -335,7 +335,7 @@ class TestSpecialTypes:
         assert all(e.entry_type == "fee" for e in entries)
 
     def test_refund_penalty(self, sample_config: AppConfig) -> None:
-        """REFUND_PENALTY : 62220300 D HT + 44566001 D TVA + 411MANO C TTC."""
+        """REFUND_PENALTY : 62220300 D HT + 44566001 D TVA + 4672 C TTC."""
         tx = _make_transaction(
             special_type="REFUND_PENALTY",
             net_amount=-24.0,
@@ -356,7 +356,7 @@ class TestSpecialTypes:
         assert entries[1].debit == 4.0
         assert entries[1].lettrage == ""
         # Client TTC au crédit
-        assert entries[2].account == "411MANO"
+        assert entries[2].account == "46720000"
         assert entries[2].credit == 24.0
         assert all(e.entry_type == "fee" for e in entries)
 
@@ -515,7 +515,7 @@ class TestMarketplacePayoutFromSummary:
     """Tests pour generate_marketplace_payout_from_summary (lignes Paiement)."""
 
     def test_decathlon_payout_nominal(self, sample_config: AppConfig) -> None:
-        """Payout Decathlon : 58000000 D, CDECATHLON C."""
+        """Payout Decathlon : 58000000 D, 4673 C."""
         payout = PayoutSummary(
             payout_date=datetime.date(2024, 1, 25),
             channel="decathlon",
@@ -534,8 +534,8 @@ class TestMarketplacePayoutFromSummary:
         assert entries[0].account == "58000000"
         assert entries[0].debit == 56.70
         assert entries[0].credit == 0.0
-        # Client (CDECATHLON) crédité
-        assert entries[1].account == "CDECATHLON"
+        # Client (4673) crédité
+        assert entries[1].account == "46730000"
         assert entries[1].debit == 0.0
         assert entries[1].credit == 56.70
         # entry_type = "payout"
@@ -543,7 +543,7 @@ class TestMarketplacePayoutFromSummary:
         assert entries[1].entry_type == "payout"
 
     def test_manomano_payout_nominal(self, sample_config: AppConfig) -> None:
-        """Payout ManoMano : 58000000 D, 411MANO C."""
+        """Payout ManoMano : 58000000 D, 4672 C."""
         payout = PayoutSummary(
             payout_date=datetime.date(2024, 1, 20),
             channel="manomano",
@@ -560,11 +560,11 @@ class TestMarketplacePayoutFromSummary:
         assert len(entries) == 2
         assert entries[0].account == "58000000"
         assert entries[0].debit == 850.0
-        assert entries[1].account == "411MANO"
+        assert entries[1].account == "46720000"
         assert entries[1].credit == 850.0
 
     def test_leroy_merlin_payout_nominal(self, sample_config: AppConfig) -> None:
-        """Payout Leroy Merlin : 58000000 D, 411LM C."""
+        """Payout Leroy Merlin : 58000000 D, 4674 C."""
         payout = PayoutSummary(
             payout_date=datetime.date(2024, 1, 15),
             channel="leroy_merlin",
@@ -581,7 +581,7 @@ class TestMarketplacePayoutFromSummary:
         assert len(entries) == 2
         assert entries[0].account == "58000000"
         assert entries[0].debit == 200.0
-        assert entries[1].account == "411LM"
+        assert entries[1].account == "46740000"
         assert entries[1].credit == 200.0
 
     def test_zero_amount_returns_empty(self, sample_config: AppConfig) -> None:
@@ -619,10 +619,10 @@ class TestMarketplacePayoutFromSummary:
 
 
 class TestDecathlonSubscriptionLettrageByPayoutCycle:
-    """Lettrage CDECATHLON subscription par cycle de paiement (AC-LETTRAGE-DEC)."""
+    """Lettrage 4673 subscription par cycle de paiement (AC-LETTRAGE-DEC)."""
 
     def test_subscription_decathlon_lettrage_split(self, sample_config: AppConfig) -> None:
-        """SUBSCRIPTION Décathlon : seul CDECATHLON est lettré (payout_reference), compte charge vide."""
+        """SUBSCRIPTION Décathlon : seul 4673 est lettré (payout_reference), compte charge vide."""
         tx = _make_transaction(
             channel="decathlon",
             reference="ABO-DEC-001",
@@ -639,8 +639,8 @@ class TestDecathlonSubscriptionLettrageByPayoutCycle:
         # 61311112 au débit → pas de lettrage (compte de charge)
         assert entries[0].account == "61311112"
         assert entries[0].lettrage == ""
-        # CDECATHLON au crédit → lettrage = payout_reference
-        assert entries[1].account == "CDECATHLON"
+        # 4673 au crédit → lettrage = payout_reference
+        assert entries[1].account == "46730000"
         assert entries[1].lettrage == "2025-07-01"
 
     def test_subscription_decathlon_without_payout_reference(self, sample_config: AppConfig) -> None:
@@ -662,11 +662,11 @@ class TestDecathlonSubscriptionLettrageByPayoutCycle:
         assert entries[0].account == "61311112"
         assert entries[0].lettrage == ""
         # Client au crédit → lettrage = reference (fallback)
-        assert entries[1].account == "CDECATHLON"
+        assert entries[1].account == "46730000"
         assert entries[1].lettrage == "ABO-DEC-001"
 
     def test_subscription_manomano_lettrage(self, sample_config: AppConfig) -> None:
-        """SUBSCRIPTION ManoMano : charge/TVA sans lettrage, 411MANO lettré par payout_reference."""
+        """SUBSCRIPTION ManoMano : charge/TVA sans lettrage, 4672 lettré par payout_reference."""
         tx = _make_transaction(
             channel="manomano",
             reference="ABO-MM-001",
@@ -685,12 +685,12 @@ class TestDecathlonSubscriptionLettrageByPayoutCycle:
         assert entries[0].lettrage == ""
         # TVA : pas de lettrage
         assert entries[1].lettrage == ""
-        # Client 411MANO : lettrage = payout_reference
+        # Client 4672 : lettrage = payout_reference
         assert entries[2].lettrage == "2025-07-01"
 
 
 class TestManoManoSpecialTypesThreeEntries:
-    """Tests des 3 types spéciaux ManoMano avec écritures HT + TVA + 411MANO."""
+    """Tests des 3 types spéciaux ManoMano avec écritures HT + TVA + 4672."""
 
     @pytest.mark.parametrize(
         "special_type,charge_account,ht,tva,ttc",
@@ -732,7 +732,7 @@ class TestManoManoSpecialTypesThreeEntries:
         assert entries[1].debit == tva
         assert entries[1].credit == 0.0
         # Client TTC
-        assert entries[2].account == "411MANO"
+        assert entries[2].account == "46720000"
         assert entries[2].debit == 0.0
         assert entries[2].credit == ttc
         # Équilibre D/C
@@ -749,11 +749,11 @@ class TestManoManoSpecialTypesThreeEntries:
 
 
 class TestManoManoVersementLettrageBalance:
-    """Lettrage 411MANO cohérent sur un versement complet (#23).
+    """Lettrage 4672 cohérent sur un versement complet (#23).
 
     Un versement ManoMano contient ORDER + REFUND + ECO_CONTRIBUTION + SUBSCRIPTION.
-    Toutes les écritures 411MANO doivent avoir lettrage = payout_reference.
-    La somme D/C sur 411MANO pour ce payout_reference doit être équilibrée
+    Toutes les écritures 4672 doivent avoir lettrage = payout_reference.
+    La somme D/C sur 4672 pour ce payout_reference doit être équilibrée
     avec l'écriture agrégée du PayoutSummary.
     """
 
@@ -821,7 +821,7 @@ class TestManoManoVersementLettrageBalance:
     def test_all_411mano_entries_share_payout_reference(
         self, sample_config: AppConfig
     ) -> None:
-        """Toutes les écritures 411MANO d'un versement ont lettrage = payout_reference."""
+        """Toutes les écritures 4672 d'un versement ont lettrage = payout_reference."""
         from compta_ecom.engine.marketplace_entries import generate_marketplace_commission
         from compta_ecom.engine.sale_entries import generate_sale_entries
 
@@ -843,7 +843,7 @@ class TestManoManoVersementLettrageBalance:
         # SUBSCRIPTION: special type
         all_entries.extend(generate_marketplace_payout(self._sub_tx(), sample_config))
 
-        # PayoutSummary (580 ↔ 411MANO)
+        # PayoutSummary (580 ↔ 4672)
         payout_total = -(1182.0 - 58.2 - 30.0 - 60.0)  # négatif = sortie
         payout_summary = PayoutSummary(
             payout_date=datetime.date(2025, 1, 31),
@@ -860,18 +860,18 @@ class TestManoManoVersementLettrageBalance:
             generate_marketplace_payout_from_summary(payout_summary, sample_config)
         )
 
-        # Filtrer les écritures 411MANO
-        entries_411 = [e for e in all_entries if e.account == "411MANO"]
+        # Filtrer les écritures 4672
+        entries_411 = [e for e in all_entries if e.account == "46720000"]
 
-        # Toutes les écritures 411MANO ont lettrage = PAYOUT_REF
+        # Toutes les écritures 4672 ont lettrage = PAYOUT_REF
         for entry in entries_411:
             assert entry.lettrage == self.PAYOUT_REF, (
-                f"411MANO entry '{entry.label}' has lettrage='{entry.lettrage}', "
+                f"4672 entry '{entry.label}' has lettrage='{entry.lettrage}', "
                 f"expected '{self.PAYOUT_REF}'"
             )
 
     def test_411mano_lettrage_balanced(self, sample_config: AppConfig) -> None:
-        """Somme D = somme C sur 411MANO pour un même payout_reference."""
+        """Somme D = somme C sur 4672 pour un même payout_reference."""
         from compta_ecom.engine.marketplace_entries import generate_marketplace_commission
         from compta_ecom.engine.sale_entries import generate_sale_entries
 
@@ -904,10 +904,10 @@ class TestManoManoVersementLettrageBalance:
             generate_marketplace_payout_from_summary(payout_summary, sample_config)
         )
 
-        entries_411 = [e for e in all_entries if e.account == "411MANO"]
+        entries_411 = [e for e in all_entries if e.account == "46720000"]
         total_debit = round(sum(e.debit for e in entries_411), 2)
         total_credit = round(sum(e.credit for e in entries_411), 2)
 
         assert total_debit == total_credit, (
-            f"411MANO lettrage déséquilibré: D={total_debit}, C={total_credit}"
+            f"4672 lettrage déséquilibré: D={total_debit}, C={total_credit}"
         )

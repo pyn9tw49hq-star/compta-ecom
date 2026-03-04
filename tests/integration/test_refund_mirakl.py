@@ -75,7 +75,7 @@ class TestMiraklRefundEntries:
         """Écritures vente refund inversées."""
         entries = generate_sale_entries(mirakl_refund, sample_config)
 
-        entry_411 = [e for e in entries if e.account == "CDECATHLON"]
+        entry_411 = [e for e in entries if e.account == "46730000"]
         entry_707 = [e for e in entries if e.account.startswith("707")]
 
         assert len(entry_411) == 1
@@ -120,7 +120,7 @@ class TestMiraklRefundEntries:
         assert len(entries) == 2
 
         entry_charge = [e for e in entries if e.account == "62220800"]
-        entry_411 = [e for e in entries if e.account == "CDECATHLON"]
+        entry_411 = [e for e in entries if e.account == "46730000"]
 
         assert len(entry_charge) == 1
         assert len(entry_411) == 1
@@ -149,5 +149,8 @@ class TestMiraklRefundEntries:
 
         for e in sale_entries + commission_entries:
             assert e.piece_number == "DECR002"
-            if e.account.startswith("411") or e.account.startswith("511"):
+            # Marketplace client accounts use payout_reference as lettrage
+            if e.account == "46730000":
+                assert e.lettrage == mirakl_refund.payout_reference
+            elif e.account.startswith("411") or e.account.startswith("511"):
                 assert e.lettrage == "DECR002"

@@ -94,7 +94,7 @@ class TestRealFormatRefundEntries:
         entries = generate_sale_entries(real_format_refund, sample_config)
 
         # Trouver l'écriture client (411)
-        entry_411 = [e for e in entries if e.account == "CDECATHLON"]
+        entry_411 = [e for e in entries if e.account == "46730000"]
         assert len(entry_411) == 1
 
         # 411 au crédit pour un avoir
@@ -145,7 +145,7 @@ class TestRealFormatRefundEntries:
         assert len(entries) == 2
 
         entry_charge = [e for e in entries if e.account == "62220800"]
-        entry_411 = [e for e in entries if e.account == "CDECATHLON"]
+        entry_411 = [e for e in entries if e.account == "46730000"]
 
         assert len(entry_charge) == 1
         assert len(entry_411) == 1
@@ -175,7 +175,7 @@ class TestRealFormatSaleEntries:
         """Vente normale : 411 au débit."""
         entries = generate_sale_entries(real_format_sale, sample_config)
 
-        entry_411 = [e for e in entries if e.account == "CDECATHLON"]
+        entry_411 = [e for e in entries if e.account == "46730000"]
         assert len(entry_411) == 1
 
         # 411 au débit pour une vente

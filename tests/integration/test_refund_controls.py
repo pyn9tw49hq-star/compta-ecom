@@ -133,12 +133,12 @@ class TestMatchingCheckerOnRefunds:
         orphan_refunds = [a for a in anomalies if a.type == "orphan_refund"]
         assert len(orphan_refunds) == 0
 
-    def test_orphan_refund_detected(
+    def test_orphan_refund_shopify_skipped_in_matching_checker(
         self,
         shopify_transactions: list[NormalizedTransaction],
         sample_config: AppConfig,
     ) -> None:
-        """Refund sans vente correspondante → orphan_refund détecté."""
+        """Shopify refund sans vente → skipped by matching_checker (handled by parser)."""
         # Ajouter un refund avec une référence inconnue
         orphan = NormalizedTransaction(
             reference="#ORPHAN999",
@@ -163,8 +163,8 @@ class TestMatchingCheckerOnRefunds:
         transactions_with_orphan = list(shopify_transactions) + [orphan]
         anomalies = MatchingChecker.check(transactions_with_orphan, sample_config)
         orphan_refunds = [a for a in anomalies if a.type == "orphan_refund"]
-        assert len(orphan_refunds) == 1
-        assert orphan_refunds[0].reference == "#ORPHAN999"
+        # Shopify refunds are now handled by the parser, not matching_checker
+        assert len(orphan_refunds) == 0
 
     def test_amount_coherence_shopify_refund(
         self,
@@ -294,10 +294,10 @@ class TestMultiChannelRefundOrchestration:
             if tx.type != "refund":
                 continue
             entries = generate_sale_entries(tx, sample_config)
-            client_accounts = {e.account for e in entries if e.account.startswith("411") or e.account == "CDECATHLON"}
+            client_accounts = {e.account for e in entries if e.account.startswith("411") or e.account.startswith("467")}
             channel_accounts.setdefault(tx.channel, set()).update(client_accounts)
 
-        # Chaque canal utilise un compte client 411 distinct
+        # Chaque canal utilise un compte client distinct
         assert channel_accounts.get("shopify") == {"411SHOPIFY"}
-        assert channel_accounts.get("manomano") == {"411MANO"}
-        assert channel_accounts.get("decathlon") == {"CDECATHLON"}
+        assert channel_accounts.get("manomano") == {"46720000"}
+        assert channel_accounts.get("decathlon") == {"46730000"}

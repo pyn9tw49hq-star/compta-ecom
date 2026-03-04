@@ -24,7 +24,6 @@ interface FlashPdfButtonProps {
 
 const SECTION_DEFS: { key: keyof FlashPdfSections; label: string; desc: string }[] = [
   { key: "kpis", label: "Indicateurs clés (KPIs)", desc: "CA, net vendeur, transactions, taux" },
-  { key: "synthese", label: "Synthèse financière par canal", desc: "CA, remboursements, commissions" },
   { key: "profitability", label: "Rentabilité par canal", desc: "Commissions, abonnements, net vendeur HT" },
   { key: "ventilation", label: "Ventilation CA Produits / FdP", desc: "Répartition produits vs frais de port" },
   { key: "tva", label: "Fiscalité — TVA collectée", desc: "Détail par canal et par pays/taux" },
@@ -49,7 +48,6 @@ export default function FlashPdfButton({
   const [open, setOpen] = useState(false);
   const [sections, setSections] = useState<FlashPdfSections>({
     kpis: true,
-    synthese: true,
     profitability: true,
     ventilation: true,
     tva: true,
@@ -77,7 +75,7 @@ export default function FlashPdfButton({
 
   const toggleAll = useCallback(() => {
     const next = !allChecked;
-    setSections({ kpis: next, synthese: next, profitability: next, ventilation: next, tva: next, geo: next, anomalies: next });
+    setSections({ kpis: next, profitability: next, ventilation: next, tva: next, geo: next, anomalies: next });
   }, [allChecked]);
 
   const handleGenerate = useCallback(async () => {

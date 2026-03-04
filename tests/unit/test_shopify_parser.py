@@ -1080,7 +1080,7 @@ class TestZeroAmountSale:
                         "amount": 50.0, "fee": 1.5, "net": 48.5,
                         "payout_date": datetime.date(2026, 1, 20), "payout_reference": "P001"}],
         }
-        result_txs, anomalies = parser._match_and_build(sales, transactions, shopify_config)
+        result_txs, anomalies, _ = parser._match_and_build(sales, transactions, shopify_config)
         orphan_summaries = [a for a in anomalies if a.type == "orphan_sale_summary"]
         assert len(orphan_summaries) == 0
 
@@ -1102,7 +1102,7 @@ class TestZeroAmountSale:
             },
         }
         transactions: dict[str, list[dict[str, object]]] = {}
-        result_txs, _ = parser._match_and_build(sales, transactions, shopify_config)
+        result_txs, _, _ = parser._match_and_build(sales, transactions, shopify_config)
         assert len(result_txs) == 1
         assert result_txs[0].reference == "#1228"
         assert result_txs[0].amount_ttc == 0.0

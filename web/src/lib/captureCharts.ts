@@ -76,7 +76,7 @@ function renderDonut(
   ctx.fillRect(0, 0, width, height);
 
   const cx = width / 2;
-  const cy = height * 0.4;
+  const cy = height * 0.38;
   const outerR = Math.min(width, height) * 0.28;
   const innerR = outerR * 0.6;
   const padAngle = 0.02;
@@ -114,7 +114,7 @@ function renderDonut(
   ctx.fillText(centerLabel, cx, cy + 16);
 
   // Legend below donut
-  const legendY = height * 0.75;
+  const legendY = height * 0.78;
   const legendItemW = width / Math.max(nonZero.length, 1);
 
   for (let i = 0; i < nonZero.length; i++) {
@@ -159,32 +159,33 @@ function renderBars(
 
   if (data.length === 0 || maxValue <= 0) return canvas.toDataURL("image/png");
 
-  const labelAreaW = 140;
-  const rightPad = 40;
+  // Scale factor: all sizes are designed for a 2400x1000 canvas
+  const labelAreaW = 280;
+  const rightPad = 80;
   const barAreaW = width - labelAreaW - rightPad;
-  const barH = 50;
-  const barGap = 30;
-  const topPad = 30;
+  const barH = 100;
+  const barGap = 60;
+  const topPad = 60;
   const totalBarsH = data.length * barH + (data.length - 1) * barGap;
-  const startY = topPad + Math.max(0, (height - topPad - 60 - totalBarsH) / 2);
+  const startY = topPad + Math.max(0, (height - topPad - 120 - totalBarsH) / 2);
 
   // Grid lines + axis labels
   ctx.strokeStyle = "#E2E8F0";
-  ctx.lineWidth = 1;
-  ctx.setLineDash([4, 4]);
+  ctx.lineWidth = 2;
+  ctx.setLineDash([6, 6]);
   const ticks = 5;
   for (let i = 0; i <= ticks; i++) {
     const x = labelAreaW + (barAreaW * i) / ticks;
     ctx.beginPath();
-    ctx.moveTo(x, startY - 10);
-    ctx.lineTo(x, startY + totalBarsH + 5);
+    ctx.moveTo(x, startY - 20);
+    ctx.lineTo(x, startY + totalBarsH + 10);
     ctx.stroke();
 
     // Tick label
     ctx.fillStyle = "#A0AEC0";
-    ctx.font = "11px Helvetica, Arial, sans-serif";
+    ctx.font = "22px Helvetica, Arial, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText(fmtK((maxValue * i) / ticks), x, startY + totalBarsH + 20);
+    ctx.fillText(fmtK((maxValue * i) / ticks), x, startY + totalBarsH + 40);
   }
   ctx.setLineDash([]);
 
@@ -195,10 +196,10 @@ function renderBars(
 
     // Channel label
     ctx.fillStyle = "#1B2A4A";
-    ctx.font = "bold 14px Helvetica, Arial, sans-serif";
+    ctx.font = "bold 28px Helvetica, Arial, sans-serif";
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
-    ctx.fillText(item.label, labelAreaW - 12, y + barH / 2);
+    ctx.fillText(item.label, labelAreaW - 20, y + barH / 2);
 
     // Draw stacked segments
     let xOffset = labelAreaW;
@@ -207,7 +208,7 @@ function renderBars(
       if (segW > 0) {
         ctx.fillStyle = seg.color;
         // Rounded corners for first and last visible segments
-        const radius = 4;
+        const radius = 8;
         ctx.beginPath();
         ctx.roundRect(xOffset, y, Math.max(segW, 1), barH, radius);
         ctx.fill();
@@ -217,42 +218,42 @@ function renderBars(
 
     // Total amount label right of bar
     const totalValue = item.segments.reduce((s, seg) => s + seg.value, 0);
-    ctx.font = "bold 12px Helvetica, Arial, sans-serif";
+    ctx.font = "bold 24px Helvetica, Arial, sans-serif";
     ctx.textBaseline = "middle";
     const amountText = fmtNum(totalValue);
     const amountTextW = ctx.measureText(amountText).width;
-    if (xOffset + 8 + amountTextW < width - rightPad) {
+    if (xOffset + 16 + amountTextW < width - rightPad) {
       // Fits right of bar
       ctx.fillStyle = "#1B2A4A";
       ctx.textAlign = "left";
-      ctx.fillText(amountText, xOffset + 8, y + barH / 2);
+      ctx.fillText(amountText, xOffset + 16, y + barH / 2);
     } else {
       // Overflow — place above bar end, dark text
       ctx.fillStyle = "#1B2A4A";
       ctx.textAlign = "right";
       ctx.textBaseline = "bottom";
-      ctx.fillText(amountText, xOffset, y - 4);
+      ctx.fillText(amountText, xOffset, y - 8);
     }
   }
 
   // Legend at bottom — generic pattern explanation (not channel-specific)
-  const legendY = height - 20;
+  const legendY = height - 40;
   const legendStartX = labelAreaW;
 
   // Dark square = Produits
   ctx.fillStyle = "#374151"; // neutral dark gray
-  ctx.fillRect(legendStartX, legendY - 6, 12, 12);
+  ctx.fillRect(legendStartX, legendY - 10, 20, 20);
   ctx.fillStyle = "#2D3748";
-  ctx.font = "12px Helvetica, Arial, sans-serif";
+  ctx.font = "22px Helvetica, Arial, sans-serif";
   ctx.textAlign = "left";
-  ctx.fillText("Produits HT", legendStartX + 16, legendY + 4);
+  ctx.fillText("Produits HT", legendStartX + 28, legendY + 6);
 
   // Light square = Frais de port
-  const lx2 = legendStartX + 120;
+  const lx2 = legendStartX + 220;
   ctx.fillStyle = "#D1D5DB"; // neutral light gray
-  ctx.fillRect(lx2, legendY - 6, 12, 12);
+  ctx.fillRect(lx2, legendY - 10, 20, 20);
   ctx.fillStyle = "#2D3748";
-  ctx.fillText("Frais de port HT", lx2 + 16, legendY + 4);
+  ctx.fillText("Frais de port HT", lx2 + 28, legendY + 6);
 
   return canvas.toDataURL("image/png");
 }
@@ -274,7 +275,7 @@ export function renderChartImages(params: RenderChartParams): ChartImages {
       params.revenuePie.total,
       params.revenuePie.centerLabel,
       800,
-      600,
+      800,
     );
   }
 
@@ -284,7 +285,7 @@ export function renderChartImages(params: RenderChartParams): ChartImages {
       params.commissionPie.total,
       params.commissionPie.centerLabel,
       800,
-      600,
+      800,
     );
   }
 
@@ -292,8 +293,8 @@ export function renderChartImages(params: RenderChartParams): ChartImages {
     result.ventilation = renderBars(
       params.ventilation.data,
       params.ventilation.maxValue,
-      1200,
-      500,
+      2400,
+      1000,
     );
   }
 

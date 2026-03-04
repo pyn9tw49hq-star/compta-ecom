@@ -990,7 +990,7 @@ class TestSpecialTypesParserToEngine:
     """Tests intégration parser→moteur : types spéciaux → écritures HT+TVA+TTC."""
 
     def test_eco_contribution_ht_tva_split(self, sample_config: AppConfig, tmp_path: Path) -> None:
-        """ECO_CONTRIBUTION → 62802000 D (HT) + 44566001 D (TVA) + 411MANO C (TTC)."""
+        """ECO_CONTRIBUTION → 62802000 D (HT) + 44566001 D (TVA) + 4672 C (TTC)."""
         from compta_ecom.engine.marketplace_payout_entries import generate_marketplace_payout
 
         ca_df = _make_ca_df()
@@ -1017,11 +1017,11 @@ class TestSpecialTypesParserToEngine:
         assert entries[0].debit == 17.13
         assert entries[1].account == "44566001"
         assert entries[1].debit == 3.43
-        assert entries[2].account == "411MANO"
+        assert entries[2].account == "46720000"
         assert entries[2].credit == 20.56
 
     def test_refund_penalty_ht_tva_split(self, sample_config: AppConfig, tmp_path: Path) -> None:
-        """REFUND_PENALTY → 62220300 D (HT) + 44566001 D (TVA) + 411MANO C (TTC)."""
+        """REFUND_PENALTY → 62220300 D (HT) + 44566001 D (TVA) + 4672 C (TTC)."""
         from compta_ecom.engine.marketplace_payout_entries import generate_marketplace_payout
 
         ca_df = _make_ca_df()
@@ -1048,11 +1048,11 @@ class TestSpecialTypesParserToEngine:
         assert entries[0].debit == 12.50
         assert entries[1].account == "44566001"
         assert entries[1].debit == 2.50
-        assert entries[2].account == "411MANO"
+        assert entries[2].account == "46720000"
         assert entries[2].credit == 15.00
 
     def test_subscription_ht_tva_split(self, sample_config: AppConfig, tmp_path: Path) -> None:
-        """SUBSCRIPTION → 61311111 D (HT) + 44566001 D (TVA) + 411MANO C (TTC)."""
+        """SUBSCRIPTION → 61311111 D (HT) + 44566001 D (TVA) + 4672 C (TTC)."""
         from compta_ecom.engine.marketplace_payout_entries import generate_marketplace_payout
 
         ca_df = _make_ca_df()
@@ -1079,7 +1079,7 @@ class TestSpecialTypesParserToEngine:
         assert entries[0].debit == 41.58
         assert entries[1].account == "44566001"
         assert entries[1].debit == 8.32
-        assert entries[2].account == "411MANO"
+        assert entries[2].account == "46720000"
         assert entries[2].credit == 49.90
 
     @pytest.mark.parametrize(

@@ -16,7 +16,6 @@ import type { Summary, Anomaly } from "./types";
 // ---------------------------------------------------------------------------
 
 export interface FlashPdfSections {
-  synthese: boolean;
   profitability: boolean;
   ventilation: boolean;
   tva: boolean;
@@ -282,12 +281,13 @@ function renderKpisPage(doc: jsPDF, data: FlashPdfData): void {
   const allChannels = channels.length > 1 ? ["total", ...channels] : channels;
   const nCards = allChannels.length;
   const GAP_BETWEEN_CARDS = 5;
-  const MAX_CARDS_PER_ROW = 4;
+  // Allow up to 6 cards in a single row to avoid overflow beyond printable area
+  const MAX_CARDS_PER_ROW = nCards <= 6 ? Math.max(nCards, 4) : 4;
   const CARD_PADDING = 4;
   const contentWidth = 267; // 297 - 2 * 15mm margins
   const multiRow = nCards > MAX_CARDS_PER_ROW;
-  const valueFontSize = multiRow ? 14 : nCards === 4 ? 16 : 24;
-  const labelFontSize = multiRow ? 7 : 8;
+  const valueFontSize = multiRow ? 14 : nCards >= 5 ? 13 : nCards === 4 ? 16 : 24;
+  const labelFontSize = multiRow ? 7 : nCards >= 5 ? 6.5 : 8;
 
   // KPI definitions
   const totalTx = channels.reduce((s, c) => s + (summary.transactions_par_canal[c] ?? 0), 0);
@@ -333,7 +333,7 @@ function renderKpisPage(doc: jsPDF, data: FlashPdfData): void {
     ];
   }
 
-  const kpiBlockH = 26;
+  const kpiBlockH = nCards >= 5 ? 22 : 26;
   const cardH = 8 + 5 * kpiBlockH; // channel name header + 5 KPIs
   const sepPad = CARD_PADDING;
   const ROW_GAP = 6; // mm between rows
@@ -372,7 +372,7 @@ function renderKpisPage(doc: jsPDF, data: FlashPdfData): void {
       doc.setFillColor(...C.rowAlt);
       doc.rect(x + 2, rowY, rowCardW - 2, 8, "F");
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
+      doc.setFontSize(nCards >= 5 ? 8.5 : 10);
       doc.setTextColor(...C.primary);
       const label = ch === "total" ? "TOTAL" : channelLabel(ch);
       doc.text(label, x + rowCardW / 2, rowY + 5.5, { align: "center" });
@@ -407,71 +407,7 @@ function renderKpisPage(doc: jsPDF, data: FlashPdfData): void {
 }
 
 // ---------------------------------------------------------------------------
-// Table slide helpers
-// ---------------------------------------------------------------------------
-
-function renderSyntheseSlide(doc: jsPDF, data: FlashPdfData): void {
-  doc.addPage();
-  renderPageHeader(doc, data);
-  const y = renderSlideTitle(doc, "Synth\u00e8se Financi\u00e8re", "R\u00e9capitulatif par canal de vente");
-
-  const { summary, channels, mode } = data;
-  const isHt = mode === "ht";
-
-  const head = isHt
-    ? [["Canal", "CA HT", "Remb. HT", "Commissions HT", "Taux comm.", "Net vendeur HT"]]
-    : [["Canal", "CA TTC", "Remb. TTC", "Commissions TTC", "Taux comm.", "Net vendeur TTC"]];
-
-  const body = channels.map((c) => {
-    const ca = isHt ? summary.ca_par_canal[c].ht : summary.ca_par_canal[c].ttc;
-    const remb = isHt ? summary.remboursements_par_canal[c].ht : summary.remboursements_par_canal[c].ttc;
-    const comm = isHt ? summary.commissions_par_canal[c].ht : summary.commissions_par_canal[c].ttc;
-    const rate = ca > 0 ? fmtPct(Math.round(comm / ca * 1000) / 10) : fmtPct(0);
-    const net = isHt
-      ? fmt(summary.net_vendeur_ht_par_canal?.[c] ?? 0)
-      : fmt(summary.net_vendeur_par_canal[c]);
-    return [channelLabel(c), fmt(ca), fmt(remb), fmt(comm), rate, net];
-  });
-
-  const totCa = channels.reduce((s, c) => s + (isHt ? summary.ca_par_canal[c].ht : summary.ca_par_canal[c].ttc), 0);
-  const totRemb = channels.reduce((s, c) => s + (isHt ? summary.remboursements_par_canal[c].ht : summary.remboursements_par_canal[c].ttc), 0);
-  const totComm = channels.reduce((s, c) => s + (isHt ? summary.commissions_par_canal[c].ht : summary.commissions_par_canal[c].ttc), 0);
-  const totRate = totCa > 0 ? fmtPct(Math.round(totComm / totCa * 1000) / 10) : fmtPct(0);
-  const totNet = isHt
-    ? fmt(channels.reduce((s, c) => s + (summary.net_vendeur_ht_par_canal?.[c] ?? 0), 0))
-    : fmt(channels.reduce((s, c) => s + summary.net_vendeur_par_canal[c], 0));
-  body.push(["TOTAL", fmt(totCa), fmt(totRemb), fmt(totComm), totRate, totNet]);
-
-  autoTable(doc, {
-    startY: y,
-    margin: { top: L.contentStartY, left: L.margin, right: L.margin, bottom: 25 },
-    tableWidth: L.contentWidth,
-    head,
-    body,
-    headStyles: HEAD_STYLE,
-    bodyStyles: BODY_STYLE,
-    alternateRowStyles: ALT_ROW_STYLE,
-    columnStyles: {
-      0: { cellWidth: 50 },
-      1: { halign: "right" },
-      2: { halign: "right" },
-      3: { halign: "right" },
-      4: { halign: "right" },
-      5: { halign: "right" },
-    },
-    didParseCell(hookData) {
-      if (hookData.section === "body" && hookData.row.index === body.length - 1) {
-        Object.assign(hookData.cell.styles, TOTAL_ROW_STYLE);
-      }
-    },
-    didDrawPage() {
-      renderPageHeader(doc, data);
-    },
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Rentabilité par canal (slide between synthèse and ventilation)
+// Rentabilité par canal
 // ---------------------------------------------------------------------------
 
 function renderProfitabilitySlide(doc: jsPDF, data: FlashPdfData): void {
@@ -549,17 +485,19 @@ function renderChartImagePage(doc: jsPDF, data: FlashPdfData, title: string, ima
 /** Render the two pie charts (revenue + commission) side by side on a new page. */
 function renderPieChartsPage(doc: jsPDF, data: FlashPdfData): void {
   const images: { src: string; x: number; y: number; w: number; h: number }[] = [];
-  // Available space: 267mm wide × ~141mm tall (from tableStartY+6 ~48mm to footer 189mm)
-  // Two charts side by side: each ~131mm wide × 135mm tall, flush under title
-  // Pie charts: fill available space while keeping proportions balanced
-  const chartW = 131;
-  const chartH = 120; // compact — titles stripped from captured images
+  // Two donut charts side by side with 1:1 ratio (square) to avoid deformation
+  // Each 120x120mm, gap between them, centered in 267mm content width
+  const chartW = 120;
+  const chartH = 120; // 1:1 ratio matches 800x800 canvas
+  const gapBetween = 7;
+  const totalChartsW = 2 * chartW + gapBetween; // 247mm < 267mm available
+  const chartOffsetX = L.margin + (L.contentWidth - totalChartsW) / 2; // center
   const chartY = L.tableStartY + 8;
   if (data.chartImages?.revenuePie) {
-    images.push({ src: data.chartImages.revenuePie, x: L.margin, y: chartY, w: chartW, h: chartH });
+    images.push({ src: data.chartImages.revenuePie, x: chartOffsetX, y: chartY, w: chartW, h: chartH });
   }
   if (data.chartImages?.commissionPie) {
-    images.push({ src: data.chartImages.commissionPie, x: L.margin + chartW + 5, y: chartY, w: chartW, h: chartH });
+    images.push({ src: data.chartImages.commissionPie, x: chartOffsetX + chartW + gapBetween, y: chartY, w: chartW, h: chartH });
   }
   if (images.length > 0) {
     renderChartImagePage(doc, data, "Répartition CA HT & Commissions", images);
@@ -569,10 +507,10 @@ function renderPieChartsPage(doc: jsPDF, data: FlashPdfData): void {
 /** Render the ventilation bar chart image on a new page. */
 function renderVentilationChartPage(doc: jsPDF, data: FlashPdfData): void {
   if (data.chartImages?.ventilation) {
-    // Single chart full-width: 267mm wide × 135mm tall, flush under title
+    // Single chart full-width: 267mm wide × 145mm tall, flush under title
     const chartW = L.contentWidth;
-    const chartH = 120;
-    const chartY = L.tableStartY + 8;
+    const chartH = 145;
+    const chartY = L.tableStartY;
     renderChartImagePage(doc, data, "Ventilation CA — Graphique", [
       { src: data.chartImages.ventilation, x: L.margin, y: chartY, w: chartW, h: chartH },
     ]);
@@ -923,18 +861,13 @@ export function generateFlashPdf(data: FlashPdfData): void {
     renderKpisPage(doc, data);
   }
 
-  // Slide 3 — Synthese
-  if (data.sections.synthese) {
-    renderSyntheseSlide(doc, data);
-    // Charts: pie charts after synthèse
+  // Slide 3 — Rentabilité par canal
+  if (data.sections.profitability) {
+    renderProfitabilitySlide(doc, data);
+    // Charts: pie charts after rentabilité
     if (data.chartImages?.revenuePie || data.chartImages?.commissionPie) {
       renderPieChartsPage(doc, data);
     }
-  }
-
-  // Slide 4 — Rentabilité par canal
-  if (data.sections.profitability) {
-    renderProfitabilitySlide(doc, data);
   }
 
   // Slide 5 — Ventilation

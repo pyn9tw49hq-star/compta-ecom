@@ -38,7 +38,7 @@ export default function VentilationChart({ data, isDark }: VentilationChartProps
     <ChartCard
       title="Ventilation CA"
       subtitle="Produits vs frais de port (HT)"
-      minHeight={240}
+      minHeight={320}
       empty={data.length === 0}
       accessibleTable={{
         caption: "Ventilation CA produits vs frais de port par canal",
@@ -51,7 +51,7 @@ export default function VentilationChart({ data, isDark }: VentilationChartProps
         ]),
       }}
     >
-      <ResponsiveContainer width="100%" height={240}>
+      <ResponsiveContainer width="100%" height={320}>
         <BarChart
           data={data}
           layout="vertical"

@@ -1,8 +1,8 @@
 clients:
   shopify: "411SHOPIFY"
-  manomano: "411MANO"
-  decathlon: "CDECATHLON"
-  leroy_merlin: "411LM"
+  manomano: "46720000"
+  decathlon: "46730000"
+  leroy_merlin: "46740000"
 
 fournisseurs:
   manomano: "FMANO"

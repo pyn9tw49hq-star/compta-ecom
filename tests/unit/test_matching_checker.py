@@ -350,9 +350,10 @@ class TestRefundMatching:
         assert result == []
 
     def test_refund_sans_vente(self) -> None:
-        """Refund sans vente correspondante → orphan_refund."""
+        """Refund sans vente correspondante → orphan_refund (non-Shopify channel)."""
         refund = _make_tx(
             reference="#9999",
+            channel="decathlon",
             tx_type="refund",
             commission_ttc=-3.50,
             net_amount=-116.50,
@@ -364,6 +365,18 @@ class TestRefundMatching:
         assert result[0].reference == "#9999"
         assert "#9999" in result[0].detail
 
+    def test_shopify_refund_skipped_in_refund_matching(self) -> None:
+        """Shopify refund sans vente → skip (handled by parser)."""
+        refund = _make_tx(
+            reference="#9999",
+            channel="shopify",
+            tx_type="refund",
+            commission_ttc=-3.50,
+            net_amount=-116.50,
+        )
+        result = MatchingChecker._check_refund_matching([refund])
+        assert len(result) == 0
+
     def test_sale_sans_refund(self) -> None:
         """Sale sans refund → pas d'anomalie (normal)."""
         sale = _make_tx(reference="#1001")
@@ -371,9 +384,10 @@ class TestRefundMatching:
         assert result == []
 
     def test_special_type_refund_sans_vente(self) -> None:
-        """Refund avec special_type sans vente → orphan_refund (inclus)."""
+        """Refund avec special_type sans vente → orphan_refund (inclus, non-Shopify)."""
         refund = _make_tx(
             reference="#8888",
+            channel="decathlon",
             tx_type="refund",
             special_type="ADJUSTMENT",
         )
@@ -437,9 +451,10 @@ class TestRefundMatching:
 class TestPriorPeriodRefund:
     def test_orphan_refund_prior_period(self) -> None:
         """Refund ref #500, ventes commençant à #1000 → prior_period_refund info."""
-        sale = _make_tx(reference="#1000", tx_type="sale")
+        sale = _make_tx(reference="#1000", channel="decathlon", tx_type="sale")
         refund = _make_tx(
             reference="#500",
+            channel="decathlon",
             tx_type="refund",
             commission_ttc=-3.50,
             net_amount=-116.50,
@@ -453,9 +468,10 @@ class TestPriorPeriodRefund:
 
     def test_orphan_refund_current_period(self) -> None:
         """Refund ref #9999, ventes commençant à #1000 → orphan_refund warning."""
-        sale = _make_tx(reference="#1000", tx_type="sale")
+        sale = _make_tx(reference="#1000", channel="decathlon", tx_type="sale")
         refund = _make_tx(
             reference="#9999",
+            channel="decathlon",
             tx_type="refund",
             commission_ttc=-3.50,
             net_amount=-116.50,
@@ -469,10 +485,10 @@ class TestPriorPeriodRefund:
 
     def test_multiple_prior_period_refunds_single_anomaly(self) -> None:
         """3 refunds prior → 1 seule anomalie avec count=3."""
-        sale = _make_tx(reference="#1000", tx_type="sale")
-        refund1 = _make_tx(reference="#100", tx_type="refund", commission_ttc=-1.0, net_amount=-50.0, amount_ttc=51.0)
-        refund2 = _make_tx(reference="#200", tx_type="refund", commission_ttc=-2.0, net_amount=-60.0, amount_ttc=62.0)
-        refund3 = _make_tx(reference="#300", tx_type="refund", commission_ttc=-3.0, net_amount=-70.0, amount_ttc=73.0)
+        sale = _make_tx(reference="#1000", channel="decathlon", tx_type="sale")
+        refund1 = _make_tx(reference="#100", channel="decathlon", tx_type="refund", commission_ttc=-1.0, net_amount=-50.0, amount_ttc=51.0)
+        refund2 = _make_tx(reference="#200", channel="decathlon", tx_type="refund", commission_ttc=-2.0, net_amount=-60.0, amount_ttc=62.0)
+        refund3 = _make_tx(reference="#300", channel="decathlon", tx_type="refund", commission_ttc=-3.0, net_amount=-70.0, amount_ttc=73.0)
         result = MatchingChecker._check_refund_matching([sale, refund1, refund2, refund3])
         assert len(result) == 1
         assert result[0].type == "prior_period_refund"
@@ -486,6 +502,7 @@ class TestPriorPeriodRefund:
         """0 ventes → comportement orphan_refund inchangé (pas de contexte période)."""
         refund = _make_tx(
             reference="#500",
+            channel="decathlon",
             tx_type="refund",
             commission_ttc=-3.50,
             net_amount=-116.50,
@@ -517,9 +534,10 @@ class TestOrchestration:
             reference="#2002",
             payout_date=None,
         )
-        # orphan_refund: refund sans vente correspondante
+        # orphan_refund: refund sans vente correspondante (use decathlon, not shopify which is skipped)
         tx_orphan_refund = _make_tx(
             reference="#9999",
+            channel="decathlon",
             tx_type="refund",
             commission_ttc=-3.50,
             net_amount=-116.50,

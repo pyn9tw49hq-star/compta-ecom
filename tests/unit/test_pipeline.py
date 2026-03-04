@@ -270,7 +270,7 @@ class TestPipelineCheckersIntegration:
 def _make_kpi_config() -> AppConfig:
     """Config avec 2 canaux et 2 pays pour les tests KPI."""
     return AppConfig(
-        clients={"shopify": "411SHOPIFY", "manomano": "411MANOMANO"},
+        clients={"shopify": "411SHOPIFY", "manomano": "46720000"},
         fournisseurs={},
         psp={"card": PspConfig(compte="51150007", commission="62700002")},
         transit="58000000",
@@ -663,7 +663,7 @@ class TestBuildSummaryAbonnements:
     def test_abonnements_par_canal_mirakl_with_vat(self) -> None:
         """SUBSCRIPTION Mirakl avec TVA 20% → HT déduit du TTC."""
         config = AppConfig(
-            clients={"leroy_merlin": "411LM"},
+            clients={"leroy_merlin": "46740000"},
             fournisseurs={},
             psp={},
             transit="58000000",
