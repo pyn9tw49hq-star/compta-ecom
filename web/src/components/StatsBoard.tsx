@@ -153,7 +153,7 @@ export default function StatsBoard({ summary, entries, anomalies, htTtcMode, onH
     const taux = caTtc > 0 ? Math.round(rembTtc / caTtc * 1000) / 10 : 0;
     const tauxComm = caHt > 0 ? Math.round(commHt / caHt * 1000) / 10 : 0;
     return { caTtc, caHt, rembTtc, rembHt, commTtc, commHt, net, taux, tauxComm };
-  }, [hasKpis, kpiChannels, summary]);
+  }, [hasKpis, kpiChannels, summary, isHtMode]);
 
   return (
     <div className="space-y-6">

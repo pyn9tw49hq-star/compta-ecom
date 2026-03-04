@@ -13,7 +13,6 @@ import {
 } from "recharts";
 import ChartCard from "./ChartCard";
 import { useReducedMotion } from "./useReducedMotion";
-import { getCommissionRateColor } from "./chartColors";
 import { formatPercent } from "@/lib/format";
 
 interface CommissionRateItem {
