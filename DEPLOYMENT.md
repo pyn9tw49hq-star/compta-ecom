@@ -13,7 +13,7 @@
 
 | Variable | Valeur | Description |
 |----------|--------|-------------|
-| `CORS_ORIGINS` | `https://compta-ecom-alpha.vercel.app` | Domaine frontend autorisé (CORS). Plusieurs domaines séparés par virgule. |
+| `CORS_ORIGINS` | `https://compta-ecom-alpha.vercel.app,https://www.mappe-commerce.fr` | Domaine(s) frontend autorisé(s) (CORS). Plusieurs domaines séparés par virgule, sans espace. |
 | `CONFIG_DIR` | `./config` | Répertoire des fichiers YAML de configuration (optionnel, valeur par défaut). |
 
 ### Frontend — Vercel
@@ -57,6 +57,9 @@
 
 1. Sur le dashboard Render, mettre à jour `CORS_ORIGINS` avec l'URL Vercel réelle (ex: `https://compta-ecom.vercel.app`)
 2. Render redéploie automatiquement quand une variable d'environnement change
+
+> **Domaine custom :** Si un domaine custom est ajouté sur Vercel (ex: `www.mappe-commerce.fr`), il est **OBLIGATOIRE** de l'ajouter à `CORS_ORIGINS` sur Render. Syntaxe : valeurs séparées par virgule, sans espace.
+> Exemple : `https://compta-ecom-alpha.vercel.app,https://www.mappe-commerce.fr`
 
 ### 4. Smoke test
 
