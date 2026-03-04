@@ -17,11 +17,19 @@ import type { Summary, Anomaly } from "./types";
 
 export interface FlashPdfSections {
   synthese: boolean;
+  profitability: boolean;
   ventilation: boolean;
   tva: boolean;
   geo: boolean;
   kpis: boolean;
   anomalies: boolean;
+}
+
+/** Base64 PNG images captured from DOM charts. */
+export interface ChartImages {
+  revenuePie?: string;
+  commissionPie?: string;
+  ventilation?: string;
 }
 
 export interface FlashPdfData {
@@ -33,6 +41,7 @@ export interface FlashPdfData {
   sections: FlashPdfSections;
   generatedAt: Date;
   anomalies: Anomaly[];
+  chartImages?: ChartImages;
 }
 
 // ---------------------------------------------------------------------------
@@ -60,10 +69,10 @@ const C = {
 };
 
 const CHANNEL_COLORS: Record<string, readonly [number, number, number]> = {
-  shopify: [90, 142, 59],
-  manomano: [194, 115, 36],
-  decathlon: [43, 108, 176],
-  leroy_merlin: [107, 70, 193],
+  shopify: [22, 163, 74],       // #16a34a
+  manomano: [37, 99, 235],      // #2563eb
+  decathlon: [234, 88, 12],     // #ea580c
+  leroy_merlin: [147, 51, 234], // #9333ea
 };
 const TOTAL_COLOR = C.primary;
 function getChannelColor(key: string): readonly [number, number, number] {
@@ -461,6 +470,115 @@ function renderSyntheseSlide(doc: jsPDF, data: FlashPdfData): void {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Rentabilité par canal (slide between synthèse and ventilation)
+// ---------------------------------------------------------------------------
+
+function renderProfitabilitySlide(doc: jsPDF, data: FlashPdfData): void {
+  doc.addPage();
+  renderPageHeader(doc, data);
+  const y = renderSlideTitle(doc, "Rentabilité par Canal", "Détail commissions, abonnements et net vendeur HT");
+
+  const { summary, channels } = data;
+
+  const head = [["Canal", "CA HT", "Comm. HT", "Abon. HT", "Remb. HT", "Net Vendeur HT", "Taux comm."]];
+
+  const body = channels.map((c) => {
+    const caHt = summary.ca_par_canal[c]?.ht ?? 0;
+    const commHt = summary.commissions_par_canal[c]?.ht ?? 0;
+    const aboHt = summary.abonnements_par_canal?.[c]?.ht ?? 0;
+    const rembHt = summary.remboursements_par_canal[c]?.ht ?? 0;
+    const netHt = summary.net_vendeur_ht_par_canal?.[c] ?? 0;
+    const rate = caHt > 0 ? fmtPct(Math.round(commHt / caHt * 1000) / 10) : fmtPct(0);
+    return [channelLabel(c), fmt(caHt), fmt(commHt), fmt(aboHt), fmt(rembHt), fmt(netHt), rate];
+  });
+
+  const totCaHt = channels.reduce((s, c) => s + (summary.ca_par_canal[c]?.ht ?? 0), 0);
+  const totCommHt = channels.reduce((s, c) => s + (summary.commissions_par_canal[c]?.ht ?? 0), 0);
+  const totAboHt = channels.reduce((s, c) => s + (summary.abonnements_par_canal?.[c]?.ht ?? 0), 0);
+  const totRembHt = channels.reduce((s, c) => s + (summary.remboursements_par_canal[c]?.ht ?? 0), 0);
+  const totNetHt = channels.reduce((s, c) => s + (summary.net_vendeur_ht_par_canal?.[c] ?? 0), 0);
+  const totRate = totCaHt > 0 ? fmtPct(Math.round(totCommHt / totCaHt * 1000) / 10) : fmtPct(0);
+  body.push(["TOTAL", fmt(totCaHt), fmt(totCommHt), fmt(totAboHt), fmt(totRembHt), fmt(totNetHt), totRate]);
+
+  // Column widths: Canal(45) + 5 numeric(38 each) + Taux(32) = 267mm total
+  autoTable(doc, {
+    startY: y,
+    margin: { top: L.contentStartY, left: L.margin, right: L.margin, bottom: 25 },
+    tableWidth: L.contentWidth,
+    head,
+    body,
+    headStyles: HEAD_STYLE,
+    bodyStyles: BODY_STYLE,
+    alternateRowStyles: ALT_ROW_STYLE,
+    columnStyles: {
+      0: { cellWidth: 45 },
+      1: { halign: "right", cellWidth: 38 },
+      2: { halign: "right", cellWidth: 38 },
+      3: { halign: "right", cellWidth: 38 },
+      4: { halign: "right", cellWidth: 38 },
+      5: { halign: "right", cellWidth: 38 },
+      6: { halign: "right", cellWidth: 32 },
+    },
+    didParseCell(hookData) {
+      if (hookData.section === "body" && hookData.row.index === body.length - 1) {
+        Object.assign(hookData.cell.styles, TOTAL_ROW_STYLE);
+      }
+    },
+    didDrawPage() {
+      renderPageHeader(doc, data);
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Chart image helpers
+// ---------------------------------------------------------------------------
+
+/** Insert a chart image as a new page with a title. */
+function renderChartImagePage(doc: jsPDF, data: FlashPdfData, title: string, images: { src: string; x: number; y: number; w: number; h: number }[]): void {
+  doc.addPage();
+  renderPageHeader(doc, data);
+  renderSlideTitle(doc, title);
+
+  for (const img of images) {
+    doc.addImage(img.src, "PNG", img.x, img.y, img.w, img.h);
+  }
+}
+
+/** Render the two pie charts (revenue + commission) side by side on a new page. */
+function renderPieChartsPage(doc: jsPDF, data: FlashPdfData): void {
+  const images: { src: string; x: number; y: number; w: number; h: number }[] = [];
+  // Available space: 267mm wide × ~141mm tall (from tableStartY+6 ~48mm to footer 189mm)
+  // Two charts side by side: each ~131mm wide × 135mm tall, flush under title
+  // Pie charts: fill available space while keeping proportions balanced
+  const chartW = 131;
+  const chartH = 120; // compact — titles stripped from captured images
+  const chartY = L.tableStartY + 8;
+  if (data.chartImages?.revenuePie) {
+    images.push({ src: data.chartImages.revenuePie, x: L.margin, y: chartY, w: chartW, h: chartH });
+  }
+  if (data.chartImages?.commissionPie) {
+    images.push({ src: data.chartImages.commissionPie, x: L.margin + chartW + 5, y: chartY, w: chartW, h: chartH });
+  }
+  if (images.length > 0) {
+    renderChartImagePage(doc, data, "Répartition CA HT & Commissions", images);
+  }
+}
+
+/** Render the ventilation bar chart image on a new page. */
+function renderVentilationChartPage(doc: jsPDF, data: FlashPdfData): void {
+  if (data.chartImages?.ventilation) {
+    // Single chart full-width: 267mm wide × 135mm tall, flush under title
+    const chartW = L.contentWidth;
+    const chartH = 120;
+    const chartY = L.tableStartY + 8;
+    renderChartImagePage(doc, data, "Ventilation CA — Graphique", [
+      { src: data.chartImages.ventilation, x: L.margin, y: chartY, w: chartW, h: chartH },
+    ]);
+  }
+}
+
 function renderVentilationSlide(doc: jsPDF, data: FlashPdfData): void {
   doc.addPage();
   renderPageHeader(doc, data);
@@ -526,11 +644,14 @@ function renderTvaSlide(doc: jsPDF, data: FlashPdfData): void {
 
     const head = [["Pays", "Taux TVA", "Montant TVA"]];
     const body: string[][] = [];
+    const continuationRows = new Set<number>();
     for (const [pays, rows] of Object.entries(tvaPays)) {
       const filteredRows = rows.filter(r => Math.abs(r.montant) >= 0.01);
       if (filteredRows.length === 0) continue;
+      const displayPays = pays || "Non renseigné";
       for (let i = 0; i < filteredRows.length; i++) {
-        body.push([i === 0 ? pays : "", fmtPct(filteredRows[i].taux), fmt(filteredRows[i].montant)]);
+        if (i > 0) continuationRows.add(body.length);
+        body.push([displayPays, fmtPct(filteredRows[i].taux), fmt(filteredRows[i].montant)]);
       }
     }
     const totalTva = summary.tva_collectee_par_canal[canal];
@@ -553,6 +674,10 @@ function renderTvaSlide(doc: jsPDF, data: FlashPdfData): void {
       didParseCell(hookData) {
         if (hookData.section === "body" && hookData.row.index === body.length - 1) {
           Object.assign(hookData.cell.styles, TOTAL_ROW_STYLE);
+        }
+        if (hookData.section === "body" && hookData.column.index === 0 && continuationRows.has(hookData.row.index)) {
+          hookData.cell.styles.textColor = [160, 174, 192];
+          hookData.cell.styles.fontStyle = "italic";
         }
       },
       didDrawPage() {
@@ -801,11 +926,24 @@ export function generateFlashPdf(data: FlashPdfData): void {
   // Slide 3 — Synthese
   if (data.sections.synthese) {
     renderSyntheseSlide(doc, data);
+    // Charts: pie charts after synthèse
+    if (data.chartImages?.revenuePie || data.chartImages?.commissionPie) {
+      renderPieChartsPage(doc, data);
+    }
   }
 
-  // Slide 4 — Ventilation
+  // Slide 4 — Rentabilité par canal
+  if (data.sections.profitability) {
+    renderProfitabilitySlide(doc, data);
+  }
+
+  // Slide 5 — Ventilation
   if (data.sections.ventilation) {
     renderVentilationSlide(doc, data);
+    // Charts: ventilation bar chart after table
+    if (data.chartImages?.ventilation) {
+      renderVentilationChartPage(doc, data);
+    }
   }
 
   // Slide 5 — TVA

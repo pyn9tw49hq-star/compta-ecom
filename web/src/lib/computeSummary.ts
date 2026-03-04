@@ -91,6 +91,30 @@ export function computeSummary(
     }
   }
 
+  // --- Abonnements par canal (passe séparée sur les SUBSCRIPTION) ---
+  const aboHt: Record<string, number> = {};
+  const aboTtc: Record<string, number> = {};
+
+  for (const t of transactions) {
+    if (t.special_type !== "SUBSCRIPTION") continue;
+    const c = t.channel;
+    if (!(c in aboHt)) {
+      aboHt[c] = 0;
+      aboTtc[c] = 0;
+    }
+    // TTC: amount_ttc if non-zero, else abs(net_amount)
+    const ttc = t.amount_ttc !== 0 ? Math.abs(t.amount_ttc) : Math.abs(t.net_amount);
+    // HT: amount_ht if non-zero, else same as TTC (no commission_vat_rate on frontend)
+    const ht = t.amount_ht !== 0 ? Math.abs(t.amount_ht) : ttc;
+    aboHt[c] += ht;
+    aboTtc[c] += ttc;
+  }
+
+  for (const c of Object.keys(aboHt)) {
+    aboHt[c] = round2(aboHt[c]);
+    aboTtc[c] = round2(aboTtc[c]);
+  }
+
   // Round
   const channels = Object.keys(caHt).sort();
   for (const c of channels) {
@@ -112,6 +136,7 @@ export function computeSummary(
   const tauxRapprochementParCanal: Summary["taux_rapprochement_par_canal"] = {};
   const ventesParCanal: Summary["ventes_par_canal"] = {};
   const commissionsParCanal: Summary["commissions_par_canal"] = {};
+  const abonnementsParCanal: NonNullable<Summary["abonnements_par_canal"]> = {};
   const netVendeurParCanal: Summary["net_vendeur_par_canal"] = {};
   const netVendeurHtParCanal: Summary["net_vendeur_ht_par_canal"] = {};
   const tvaCollecteeParCanal: Summary["tva_collectee_par_canal"] = {};
@@ -128,15 +153,18 @@ export function computeSummary(
       : 0;
     ventesParCanal[c] = salesNb[c];
     commissionsParCanal[c] = { ht: commHt[c], ttc: commTtc[c] };
-    netVendeurParCanal[c] = round2(caTtc[c] - commTtc[c] - refundTtc[c]);
-    netVendeurHtParCanal[c] = round2(caHt[c] - commHt[c] - refundHt[c]);
+    abonnementsParCanal[c] = { ht: aboHt[c] ?? 0, ttc: aboTtc[c] ?? 0 };
+    netVendeurParCanal[c] = round2(caTtc[c] - commTtc[c] - refundTtc[c] - (aboTtc[c] ?? 0));
+    netVendeurHtParCanal[c] = round2(caHt[c] - commHt[c] - refundHt[c] - (aboHt[c] ?? 0));
     tvaCollecteeParCanal[c] = tvaCol[c];
     ventilationCaParCanal[c] = { produits_ht: prodHt[c], port_ht: portHt[c], total_ht: caHt[c] };
   }
 
   // --- Geo breakdown (sales only, skip special_type) ---
-  const resolveCountry = (code: string): string =>
-    countryMap[code] ?? (code === "000" ? "Non renseigné" : code);
+  const resolveCountry = (code: string): string => {
+    if (!code || code === "000") return "Non renseigné";
+    return countryMap[code] ?? code;
+  };
 
   const geoGCount: Record<string, number> = {};
   const geoGCaTtc: Record<string, number> = {};
@@ -230,6 +258,7 @@ export function computeSummary(
     taux_rapprochement_par_canal: tauxRapprochementParCanal,
     ventes_par_canal: ventesParCanal,
     commissions_par_canal: commissionsParCanal,
+    abonnements_par_canal: abonnementsParCanal,
     net_vendeur_par_canal: netVendeurParCanal,
     net_vendeur_ht_par_canal: netVendeurHtParCanal,
     tva_collectee_par_canal: tvaCollecteeParCanal,

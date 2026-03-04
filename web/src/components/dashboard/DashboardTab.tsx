@@ -18,18 +18,20 @@ import { formatCurrency, formatCount, formatPercent } from "@/lib/format";
 import {
   getChannelColor,
   getRefundRateColor,
+  getCommissionRateColor,
   getSeverityColor,
   ENTRY_TYPE_COLORS,
   GEO_PALETTE,
 } from "./chartColors";
 import KpiCard from "./KpiCard";
 import RevenuePieChart from "./RevenuePieChart";
-import RevenueBarChart from "./RevenueBarChart";
 import ProfitabilityChart from "./ProfitabilityChart";
 import RefundRateChart from "./RefundRateChart";
+import CommissionPieChart from "./CommissionPieChart";
+import CommissionRateChart from "./CommissionRateChart";
+import VatByCountryChart from "./VatByCountryChart";
 import AnomalySeverityChart from "./AnomalySeverityChart";
 import EntryTypeDonut from "./EntryTypeDonut";
-import VatChart from "./VatChart";
 import GeoChart from "./GeoChart";
 import VentilationChart from "./VentilationChart";
 import AnomalyCategoryDonut from "./AnomalyCategoryDonut";
@@ -120,17 +122,33 @@ export function DashboardTab({ summary, anomalies, htTtcMode, onHtTtcModeChange,
 
   const revenueTotal = useMemo(() => revenueData.reduce((s, d) => s + d.value, 0), [revenueData]);
 
+  // --- Zone 2 right: Commission pie ---
+  const commissionPieData = useMemo(() => {
+    return channels
+      .map((c, i) => ({
+        channel: c,
+        label: getChannelMeta(c).label,
+        value: summary.commissions_par_canal[c]?.ht ?? 0,
+        fill: getChannelColor(c, isDark, i),
+      }))
+      .sort((a, b) => b.value - a.value);
+  }, [channels, summary.commissions_par_canal, isDark]);
+
+  const commissionPieTotal = useMemo(() => commissionPieData.reduce((s, d) => s + d.value, 0), [commissionPieData]);
+
   // --- Zone 3: Profitability ---
   const profitabilityData = useMemo(() => {
     return channels.map((c) => {
       const ca = summary.ca_par_canal[c]?.ht ?? 0;
       const commissions = summary.commissions_par_canal[c]?.ht ?? 0;
+      const abonnements = summary.abonnements_par_canal?.[c]?.ht ?? 0;
       const net = summary.net_vendeur_par_canal[c] ?? 0;
       return {
         channel: c,
         label: getChannelMeta(c).label,
         ca,
         commissions,
+        abonnements,
         net,
         commissionRate: ca > 0 ? (commissions / ca) * 100 : 0,
       };
@@ -147,7 +165,52 @@ export function DashboardTab({ summary, anomalies, htTtcMode, onHtTtcModeChange,
     }));
   }, [channels, summary.taux_remboursement_par_canal, isDark]);
 
-  // --- Zone 4 right: Anomaly severity ---
+  // --- Zone 4 right: Commission rate ---
+  const commissionRateData = useMemo(() => {
+    return channels.map((c) => {
+      const caHt = summary.ca_par_canal[c]?.ht ?? 0;
+      const commHt = summary.commissions_par_canal[c]?.ht ?? 0;
+      const rate = caHt > 0 ? (commHt / caHt) * 100 : 0;
+      return {
+        channel: c,
+        label: getChannelMeta(c).label,
+        rate,
+        fill: getCommissionRateColor(rate, isDark),
+      };
+    });
+  }, [channels, summary.ca_par_canal, summary.commissions_par_canal, isDark]);
+
+  // --- Zone 5 right: TVA by country ---
+  const vatByCountryData = useMemo(() => {
+    const tvaByCountry: Record<string, number> = {};
+    const tvaData = summary.tva_par_pays_par_canal ?? {};
+    for (const canal of Object.keys(tvaData)) {
+      for (const [country, rates] of Object.entries(tvaData[canal])) {
+        const total = rates.reduce((s, r) => s + r.montant, 0);
+        tvaByCountry[country] = (tvaByCountry[country] ?? 0) + total;
+      }
+    }
+    const sorted = Object.entries(tvaByCountry)
+      .map(([country, amount]) => ({ country, amount }))
+      .sort((a, b) => b.amount - a.amount);
+
+    const top10 = sorted.slice(0, 10);
+    const rest = sorted.slice(10);
+    if (rest.length > 0) {
+      top10.push({
+        country: "Autres",
+        amount: rest.reduce((s, d) => s + d.amount, 0),
+      });
+    }
+    return top10.map((d, i) => {
+      const geo = GEO_PALETTE[i % GEO_PALETTE.length];
+      return { ...d, fill: isDark ? geo.dark : geo.light };
+    });
+  }, [summary.tva_par_pays_par_canal, isDark]);
+
+  const vatByCountryTotal = useMemo(() => vatByCountryData.reduce((s, d) => s + d.amount, 0), [vatByCountryData]);
+
+  // --- Anomaly severity ---
   const severityData = useMemo(() => {
     const counts: Record<string, number> = { error: 0, warning: 0, info: 0 };
     for (const a of anomalies) counts[a.severity] = (counts[a.severity] ?? 0) + 1;
@@ -173,17 +236,7 @@ export function DashboardTab({ summary, anomalies, htTtcMode, onHtTtcModeChange,
 
   const entryTypeTotal = useMemo(() => entryTypeData.reduce((s, d) => s + d.count, 0), [entryTypeData]);
 
-  // --- Lot 2: VAT by channel ---
-  const vatData = useMemo(() => {
-    return channels.map((c, i) => ({
-      channel: c,
-      label: getChannelMeta(c).label,
-      amount: summary.tva_collectee_par_canal[c] ?? 0,
-      fill: getChannelColor(c, isDark, i),
-    }));
-  }, [channels, summary.tva_collectee_par_canal, isDark]);
-
-  // --- Lot 2: Geo treemap ---
+  // --- Geo data ---
   const geoData = useMemo(() => {
     const entries = Object.entries(summary.repartition_geo_globale ?? {})
       .map(([country, data]) => ({ country, ca_ht: data.ca_ht, count: data.count }))
@@ -361,24 +414,31 @@ export function DashboardTab({ summary, anomalies, htTtcMode, onHtTtcModeChange,
         />
       </div>
 
-      {/* Zone 2 — Répartition CA */}
+      {/* Zone 2 — Répartition CA + Commissions (donuts) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
-        <RevenueBarChart data={revenueData} modeLabel={modeLabel} />
-        <RevenuePieChart data={revenueData} total={revenueTotal} modeLabel={modeLabel} />
+        <div data-pdf-chart="revenue-pie">
+          <RevenuePieChart data={revenueData} total={revenueTotal} modeLabel={modeLabel} />
+        </div>
+        <div data-pdf-chart="commission-pie">
+          <CommissionPieChart data={commissionPieData} total={commissionPieTotal} />
+        </div>
       </div>
 
-      {/* Zone 3 — Rentabilité (full width) */}
-      <ProfitabilityChart data={profitabilityData} isDark={isDark} />
+      {/* Zone 3 — Rentabilité + Ventilation */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
+        <ProfitabilityChart data={profitabilityData} isDark={isDark} />
+        {hasVentilationData && (
+          <div data-pdf-chart="ventilation">
+            <VentilationChart data={ventilationData} isDark={isDark} />
+          </div>
+        )}
+      </div>
 
-      {/* Zone 4 — Qualité & Santé */}
+      {/* Zone 4 — Taux de remboursement + Taux de commissions */}
       {hasAnomalyOrRefund && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
           <RefundRateChart data={refundRateData} />
-          <AnomalySeverityChart
-            data={severityData}
-            total={anomalies.length}
-            onNavigateAnomalies={onNavigateTab ? () => onNavigateTab("anomalies") : undefined}
-          />
+          <CommissionRateChart data={commissionRateData} />
         </div>
       )}
 
@@ -388,25 +448,27 @@ export function DashboardTab({ summary, anomalies, htTtcMode, onHtTtcModeChange,
         </div>
       )}
 
-      {/* Zone 5 — Géographie & Ventilation */}
-      {(hasGeoData || hasVentilationData) && (
+      {/* Zone 5 — Géographie + TVA par pays */}
+      {(hasGeoData || vatByCountryData.length > 0) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
           {hasGeoData && <GeoChart data={geoData} total={geoTotal} isDark={isDark} />}
-          {hasVentilationData && <VentilationChart data={ventilationData} isDark={isDark} />}
+          {vatByCountryData.length > 0 && <VatByCountryChart data={vatByCountryData} total={vatByCountryTotal} isDark={isDark} />}
         </div>
       )}
 
-      {/* Lot 2 — Charts supplémentaires */}
+      {/* Zone 6 — Écritures par type + Anomalies par catégorie */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
         <EntryTypeDonut data={entryTypeData} total={entryTypeTotal} />
-        <VatChart data={vatData} />
+        {anomalyCategoryData.length > 0 && <AnomalyCategoryDonut data={anomalyCategoryData} total={anomalies.length} />}
       </div>
 
-      {/* Lot 2 — Anomaly category donut */}
-      {anomalyCategoryData.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
-          <AnomalyCategoryDonut data={anomalyCategoryData} total={anomalies.length} />
-        </div>
+      {/* Zone 7 — Santé des données (dernier, pleine largeur) */}
+      {severityData.length > 0 && (
+        <AnomalySeverityChart
+          data={severityData}
+          total={anomalies.length}
+          onNavigateAnomalies={onNavigateTab ? () => onNavigateTab("anomalies") : undefined}
+        />
       )}
     </div>
   );

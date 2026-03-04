@@ -20,6 +20,7 @@ const FALLBACK_COLORS = [
 export const METRIC_COLORS = {
   commissions: { light: "#dc2626", dark: "#f87171" },    // red-600 / red-400
   net_vendeur: { light: "#059669", dark: "#34d399" },    // emerald-600 / emerald-400
+  abonnements: { light: "#d97706", dark: "#fbbf24" },    // amber-600 / amber-400
 };
 
 export const SEVERITY_COLORS: Record<string, { light: string; dark: string }> = {
@@ -54,6 +55,15 @@ export function getSeverityColor(severity: string, isDark = false): string {
   const entry = SEVERITY_COLORS[severity];
   if (!entry) return isDark ? "#94a3b8" : "#64748b"; // slate fallback
   return isDark ? entry.dark : entry.light;
+}
+
+/**
+ * Conditional color for commission rate thresholds.
+ */
+export function getCommissionRateColor(rate: number, isDark = false): string {
+  if (rate < 15) return isDark ? "#4ade80" : "#16a34a";   // green
+  if (rate <= 25) return isDark ? "#fb923c" : "#ea580c";   // orange
+  return isDark ? "#f87171" : "#dc2626";                   // red
 }
 
 /** Geo chart neutral palette — blue-tinted slate for dark mode to contrast with hover overlay */

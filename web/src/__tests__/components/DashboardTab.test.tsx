@@ -332,7 +332,7 @@ describe("DashboardTab", () => {
     );
     expect(screen.getByText("Écritures par type")).toBeTruthy();
     // Title + sr-only table caption both contain this text
-    expect(screen.getAllByText("TVA collectée par canal").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("TVA collectée par pays").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("Répartition géographique").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Ventilation CA")).toBeTruthy();
   });

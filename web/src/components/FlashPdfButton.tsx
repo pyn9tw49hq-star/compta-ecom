@@ -7,7 +7,10 @@ import * as Checkbox from "@radix-ui/react-checkbox";
 import * as RadioGroup from "@radix-ui/react-radio-group";
 import { Button } from "@/components/ui/button";
 import { generateFlashPdf } from "@/lib/generateFlashPdf";
-import type { FlashPdfSections } from "@/lib/generateFlashPdf";
+import type { FlashPdfSections, ChartImages } from "@/lib/generateFlashPdf";
+import { renderChartImages, getChannelColor } from "@/lib/captureCharts";
+import type { PieChartData, BarChartData } from "@/lib/captureCharts";
+import { channelLabel } from "@/lib/pdfStyles";
 import type { Summary, Anomaly } from "@/lib/types";
 import type { DateRange } from "@/lib/datePresets";
 
@@ -22,6 +25,7 @@ interface FlashPdfButtonProps {
 const SECTION_DEFS: { key: keyof FlashPdfSections; label: string; desc: string }[] = [
   { key: "kpis", label: "Indicateurs clés (KPIs)", desc: "CA, net vendeur, transactions, taux" },
   { key: "synthese", label: "Synthèse financière par canal", desc: "CA, remboursements, commissions" },
+  { key: "profitability", label: "Rentabilité par canal", desc: "Commissions, abonnements, net vendeur HT" },
   { key: "ventilation", label: "Ventilation CA Produits / FdP", desc: "Répartition produits vs frais de port" },
   { key: "tva", label: "Fiscalité — TVA collectée", desc: "Détail par canal et par pays/taux" },
   { key: "geo", label: "Répartition géographique", desc: "CA HT par pays, détail par canal" },
@@ -46,6 +50,7 @@ export default function FlashPdfButton({
   const [sections, setSections] = useState<FlashPdfSections>({
     kpis: true,
     synthese: true,
+    profitability: true,
     ventilation: true,
     tva: true,
     geo: true,
@@ -72,7 +77,7 @@ export default function FlashPdfButton({
 
   const toggleAll = useCallback(() => {
     const next = !allChecked;
-    setSections({ kpis: next, synthese: next, ventilation: next, tva: next, geo: next, anomalies: next });
+    setSections({ kpis: next, synthese: next, profitability: next, ventilation: next, tva: next, geo: next, anomalies: next });
   }, [allChecked]);
 
   const handleGenerate = useCallback(async () => {
@@ -81,7 +86,44 @@ export default function FlashPdfButton({
       // Use requestAnimationFrame to let the UI update before heavy work
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
+      // Render chart images from data via Canvas 2D
       const channels = Object.keys(summary.ca_par_canal).sort();
+
+      let chartImages: ChartImages | undefined;
+      try {
+        const totalCaHt = channels.reduce((s, c) => s + (summary.ca_par_canal[c]?.ht ?? 0), 0);
+        const totalCommHt = channels.reduce((s, c) => s + (summary.commissions_par_canal[c]?.ht ?? 0), 0);
+
+        const revenuePieData: PieChartData[] = channels.map((c) => ({
+          label: channelLabel(c),
+          value: summary.ca_par_canal[c]?.ht ?? 0,
+          color: getChannelColor(c),
+        }));
+
+        const commissionPieData: PieChartData[] = channels.map((c) => ({
+          label: channelLabel(c),
+          value: summary.commissions_par_canal[c]?.ht ?? 0,
+          color: getChannelColor(c),
+        }));
+
+        const ventilationData: BarChartData[] = channels.map((c) => ({
+          label: channelLabel(c),
+          segments: [
+            { value: summary.ventilation_ca_par_canal[c]?.produits_ht ?? 0, color: getChannelColor(c), label: "Produits HT" },
+            { value: summary.ventilation_ca_par_canal[c]?.port_ht ?? 0, color: getChannelColor(c) + "4D", label: "Frais de port HT" },
+          ],
+        }));
+        const maxVentilation = Math.max(...channels.map((c) => summary.ventilation_ca_par_canal[c]?.total_ht ?? 0));
+
+        chartImages = renderChartImages({
+          revenuePie: { data: revenuePieData, total: totalCaHt, centerLabel: "CA HT" },
+          commissionPie: { data: commissionPieData, total: totalCommHt, centerLabel: "Commissions HT" },
+          ventilation: { data: ventilationData, maxValue: maxVentilation },
+        });
+      } catch {
+        // If chart rendering fails, proceed without images
+        chartImages = undefined;
+      }
       generateFlashPdf({
         summary,
         dateRange,
@@ -91,6 +133,7 @@ export default function FlashPdfButton({
         sections,
         generatedAt: new Date(),
         anomalies,
+        chartImages,
       });
 
       setOpen(false);

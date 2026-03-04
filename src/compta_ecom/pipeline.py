@@ -177,13 +177,13 @@ class PipelineOrchestrator:
         config: AppConfig,
     ) -> dict[str, object]:
         """Construit le résumé : transactions par canal, écritures par type, totaux, KPIs financiers."""
-        # Transactions par canal (unique par reference + channel + type)
-        seen_refs: set[tuple[str, str, str]] = set()
+        # Transactions par canal (unique par reference + channel + type + special_type)
+        seen_refs: set[tuple[str, str, str, str | None]] = set()
         transactions_par_canal: Counter[str] = Counter()
         unique_txs: list[NormalizedTransaction] = []
         for pr in all_parse_results:
             for t in pr.transactions:
-                key = (t.reference, t.channel, t.type)
+                key = (t.reference, t.channel, t.type, t.special_type)
                 if key not in seen_refs:
                     seen_refs.add(key)
                     transactions_par_canal[t.channel] += 1
@@ -242,6 +242,36 @@ class PipelineOrchestrator:
             if t.commission_ht is not None:
                 comm_ht[c] += abs(t.commission_ht)
 
+        # --- Abonnements par canal (passe séparée sur les SUBSCRIPTION) ---
+        abonnements_ht: dict[str, float] = {}
+        abonnements_ttc: dict[str, float] = {}
+
+        for t in unique_txs:
+            if t.special_type != "SUBSCRIPTION":
+                continue
+            c = t.channel
+            if c not in abonnements_ht:
+                abonnements_ht[c] = 0.0
+                abonnements_ttc[c] = 0.0
+
+            # TTC : amount_ttc si disponible, sinon abs(net_amount)
+            ttc = abs(t.amount_ttc) if t.amount_ttc != 0 else abs(t.net_amount)
+
+            # HT : amount_ht si disponible, sinon dériver du TTC via commission_vat_rate
+            if t.amount_ht != 0:
+                ht = abs(t.amount_ht)
+            else:
+                ch_cfg = config.channels.get(c)
+                vat_rate = ch_cfg.commission_vat_rate if ch_cfg and ch_cfg.commission_vat_rate else 0.0
+                ht = round(ttc / (1 + vat_rate), 2) if vat_rate > 0 else ttc
+
+            abonnements_ht[c] += ht
+            abonnements_ttc[c] += ttc
+
+        for c in abonnements_ht:
+            abonnements_ht[c] = round(abonnements_ht[c], 2)
+            abonnements_ttc[c] = round(abonnements_ttc[c], 2)
+
         # Arrondi financier systématique (round(x, 2))
         channels = sorted(ca_ht.keys())
         for c in channels:
@@ -271,12 +301,16 @@ class PipelineOrchestrator:
         }
         ventes_par_canal = {c: sales_nb[c] for c in channels}
         commissions_par_canal = {c: {"ht": comm_ht[c], "ttc": comm_ttc[c]} for c in channels}
+        abonnements_par_canal = {
+            c: {"ht": abonnements_ht.get(c, 0.0), "ttc": abonnements_ttc.get(c, 0.0)}
+            for c in channels
+        }
         net_vendeur_par_canal = {
-            c: round(ca_ttc[c] - comm_ttc[c] - refund_ttc[c], 2)
+            c: round(ca_ttc[c] - comm_ttc[c] - refund_ttc[c] - abonnements_ttc.get(c, 0.0), 2)
             for c in channels
         }
         net_vendeur_ht_par_canal = {
-            c: round(ca_ht[c] - comm_ht[c] - refund_ht[c], 2)
+            c: round(ca_ht[c] - comm_ht[c] - refund_ht[c] - abonnements_ht.get(c, 0.0), 2)
             for c in channels
         }
         tva_collectee_par_canal = {c: tva_col[c] for c in channels}
@@ -372,6 +406,7 @@ class PipelineOrchestrator:
             "taux_rapprochement_par_canal": taux_rapprochement_par_canal,
             "ventes_par_canal": ventes_par_canal,
             "commissions_par_canal": commissions_par_canal,
+            "abonnements_par_canal": abonnements_par_canal,
             "net_vendeur_par_canal": net_vendeur_par_canal,
             "net_vendeur_ht_par_canal": net_vendeur_ht_par_canal,
             "tva_collectee_par_canal": tva_collectee_par_canal,
@@ -385,12 +420,12 @@ class PipelineOrchestrator:
     def _deduplicate_transactions(
         all_parse_results: list[ParseResult],
     ) -> list[NormalizedTransaction]:
-        """Déduplique les transactions par (reference, channel, type)."""
-        seen: set[tuple[str, str, str]] = set()
+        """Déduplique les transactions par (reference, channel, type, special_type)."""
+        seen: set[tuple[str, str, str, str | None]] = set()
         unique: list[NormalizedTransaction] = []
         for pr in all_parse_results:
             for t in pr.transactions:
-                key = (t.reference, t.channel, t.type)
+                key = (t.reference, t.channel, t.type, t.special_type)
                 if key not in seen:
                     seen.add(key)
                     unique.append(t)

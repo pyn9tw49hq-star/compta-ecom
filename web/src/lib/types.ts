@@ -35,6 +35,7 @@ export interface Summary {
   commissions_par_canal: Record<string, { ht: number; ttc: number }>;
   net_vendeur_par_canal: Record<string, number>;
   net_vendeur_ht_par_canal: Record<string, number>;
+  abonnements_par_canal?: Record<string, { ht: number; ttc: number }>;
   tva_collectee_par_canal: Record<string, number>;
   ventilation_ca_par_canal: Record<string, { produits_ht: number; port_ht: number; total_ht: number }>;
   repartition_geo_globale: Record<string, { count: number; ca_ttc: number; ca_ht: number }>;
@@ -56,6 +57,7 @@ export interface Transaction {
   country_code: string;
   commission_ttc: number;
   commission_ht: number | null;
+  net_amount: number;
   special_type: string | null;
   payout_date: string | null;
   payout_reference: string | null;

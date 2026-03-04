@@ -570,3 +570,195 @@ class TestBuildSummaryRapprochement:
 
         assert summary["taux_rapprochement_par_canal"]["shopify"] == 0.0
         assert summary["ventes_par_canal"]["shopify"] == 0
+
+
+class TestBuildSummaryAbonnements:
+    """Tests pour l'inclusion des abonnements dans le résumé (#36)."""
+
+    def test_abonnements_par_canal_manomano(self) -> None:
+        """SUBSCRIPTION ManoMano → abonnements_par_canal avec HT/TTC depuis amount_ht/ttc."""
+        config = _make_kpi_config()
+
+        tx_sale = _make_tx(
+            reference="#M001", channel="manomano", type="sale",
+            amount_ht=80.0, amount_tva=16.0, amount_ttc=96.0,
+            shipping_ht=5.0, shipping_tva=1.0,
+            country_code="250", commission_ttc=-12.0, commission_ht=-10.0,
+        )
+        tx_sub = _make_tx(
+            reference="SUB001", channel="manomano", type="sale",
+            amount_ht=41.58, amount_tva=8.32, amount_ttc=49.90,
+            shipping_ht=0.0, shipping_tva=0.0,
+            country_code="250", commission_ttc=0.0, commission_ht=None,
+            net_amount=-49.90, special_type="SUBSCRIPTION",
+            payment_method=None, payout_date=None, payout_reference=None,
+        )
+
+        parse_results = [
+            ParseResult(
+                transactions=[tx_sale, tx_sub],
+                payouts=[], anomalies=[], channel="manomano",
+            ),
+        ]
+        entries = [_make_entry(channel="manomano")]
+
+        summary = PipelineOrchestrator()._build_summary(entries, parse_results, config)
+
+        abo = summary["abonnements_par_canal"]
+        assert abo["manomano"] == {"ht": 41.58, "ttc": 49.90}
+
+    def test_abonnements_par_canal_mirakl_no_vat(self) -> None:
+        """SUBSCRIPTION Mirakl sans TVA → HT = TTC = abs(net_amount)."""
+        config = AppConfig(
+            clients={"decathlon": "411DECA"},
+            fournisseurs={},
+            psp={},
+            transit="58000000",
+            banque="51200000",
+            comptes_speciaux={},
+            comptes_vente_prefix="707",
+            canal_codes={"decathlon": "03"},
+            comptes_tva_prefix="4457",
+            vat_table={"250": {"name": "France", "rate": 20.0, "alpha2": "FR"}},
+            alpha2_to_numeric={"FR": "250"},
+            channels={
+                "decathlon": ChannelConfig(
+                    files={"sales": "*.csv"},
+                    encoding="utf-8",
+                    separator=";",
+                    commission_vat_rate=None,
+                ),
+            },
+        )
+
+        tx_sale = _make_tx(
+            reference="#D001", channel="decathlon", type="sale",
+            amount_ht=100.0, amount_tva=20.0, amount_ttc=120.0,
+            shipping_ht=0.0, shipping_tva=0.0,
+            country_code="250", commission_ttc=-5.0, commission_ht=-5.0,
+        )
+        tx_sub = _make_tx(
+            reference="SUB_DECA", channel="decathlon", type="sale",
+            amount_ht=0.0, amount_tva=0.0, amount_ttc=0.0,
+            shipping_ht=0.0, shipping_tva=0.0,
+            country_code="250", commission_ttc=0.0, commission_ht=None,
+            net_amount=-39.90, special_type="SUBSCRIPTION",
+            payment_method=None, payout_date=None, payout_reference=None,
+        )
+
+        parse_results = [
+            ParseResult(
+                transactions=[tx_sale, tx_sub],
+                payouts=[], anomalies=[], channel="decathlon",
+            ),
+        ]
+        entries = [_make_entry(channel="decathlon")]
+
+        summary = PipelineOrchestrator()._build_summary(entries, parse_results, config)
+
+        abo = summary["abonnements_par_canal"]
+        # No commission_vat_rate → HT = TTC
+        assert abo["decathlon"] == {"ht": 39.90, "ttc": 39.90}
+
+    def test_abonnements_par_canal_mirakl_with_vat(self) -> None:
+        """SUBSCRIPTION Mirakl avec TVA 20% → HT déduit du TTC."""
+        config = AppConfig(
+            clients={"leroy_merlin": "411LM"},
+            fournisseurs={},
+            psp={},
+            transit="58000000",
+            banque="51200000",
+            comptes_speciaux={},
+            comptes_vente_prefix="707",
+            canal_codes={"leroy_merlin": "04"},
+            comptes_tva_prefix="4457",
+            vat_table={"250": {"name": "France", "rate": 20.0, "alpha2": "FR"}},
+            alpha2_to_numeric={"FR": "250"},
+            channels={
+                "leroy_merlin": ChannelConfig(
+                    files={"sales": "*.csv"},
+                    encoding="utf-8",
+                    separator=";",
+                    commission_vat_rate=0.20,
+                ),
+            },
+        )
+
+        tx_sale = _make_tx(
+            reference="#LM001", channel="leroy_merlin", type="sale",
+            amount_ht=100.0, amount_tva=20.0, amount_ttc=120.0,
+            shipping_ht=0.0, shipping_tva=0.0,
+            country_code="250", commission_ttc=-6.0, commission_ht=-5.0,
+        )
+        tx_sub = _make_tx(
+            reference="SUB_LM", channel="leroy_merlin", type="sale",
+            amount_ht=0.0, amount_tva=0.0, amount_ttc=0.0,
+            shipping_ht=0.0, shipping_tva=0.0,
+            country_code="250", commission_ttc=0.0, commission_ht=None,
+            net_amount=-60.0, special_type="SUBSCRIPTION",
+            payment_method=None, payout_date=None, payout_reference=None,
+        )
+
+        parse_results = [
+            ParseResult(
+                transactions=[tx_sale, tx_sub],
+                payouts=[], anomalies=[], channel="leroy_merlin",
+            ),
+        ]
+        entries = [_make_entry(channel="leroy_merlin")]
+
+        summary = PipelineOrchestrator()._build_summary(entries, parse_results, config)
+
+        abo = summary["abonnements_par_canal"]
+        # TTC = 60.0, HT = 60 / 1.20 = 50.0
+        assert abo["leroy_merlin"] == {"ht": 50.0, "ttc": 60.0}
+
+    def test_net_vendeur_deducts_abonnements(self) -> None:
+        """net_vendeur = CA - commissions - remboursements - abonnements."""
+        config = _make_kpi_config()
+
+        tx_sale = _make_tx(
+            reference="#M001", channel="manomano", type="sale",
+            amount_ht=80.0, amount_tva=16.0, amount_ttc=96.0,
+            shipping_ht=5.0, shipping_tva=1.0,
+            country_code="250", commission_ttc=-12.0, commission_ht=-10.0,
+        )
+        tx_sub = _make_tx(
+            reference="SUB001", channel="manomano", type="sale",
+            amount_ht=41.58, amount_tva=8.32, amount_ttc=49.90,
+            shipping_ht=0.0, shipping_tva=0.0,
+            country_code="250", commission_ttc=0.0, commission_ht=None,
+            net_amount=-49.90, special_type="SUBSCRIPTION",
+            payment_method=None, payout_date=None, payout_reference=None,
+        )
+
+        parse_results = [
+            ParseResult(
+                transactions=[tx_sale, tx_sub],
+                payouts=[], anomalies=[], channel="manomano",
+            ),
+        ]
+        entries = [_make_entry(channel="manomano")]
+
+        summary = PipelineOrchestrator()._build_summary(entries, parse_results, config)
+
+        # CA TTC=96, comm_ttc=12, refund_ttc=0, abo_ttc=49.90
+        # net_vendeur = 96 - 12 - 0 - 49.90 = 34.10
+        assert summary["net_vendeur_par_canal"]["manomano"] == 34.10
+        # CA HT=85, comm_ht=10, refund_ht=0, abo_ht=41.58
+        # net_vendeur_ht = 85 - 10 - 0 - 41.58 = 33.42
+        assert summary["net_vendeur_ht_par_canal"]["manomano"] == 33.42
+
+    def test_canal_sans_abonnement_default_zero(self) -> None:
+        """Canal sans SUBSCRIPTION → abonnements = 0, net_vendeur inchangé."""
+        entries, parse_results, config = _build_kpi_test_data()
+        summary = PipelineOrchestrator()._build_summary(entries, parse_results, config)
+
+        # Existing test data has no SUBSCRIPTION → all abonnements are 0
+        abo = summary["abonnements_par_canal"]
+        assert abo["shopify"] == {"ht": 0.0, "ttc": 0.0}
+        assert abo["manomano"] == {"ht": 0.0, "ttc": 0.0}
+
+        # net_vendeur unchanged from original test expectations
+        assert summary["net_vendeur_par_canal"]["shopify"] == 289.34
+        assert summary["net_vendeur_par_canal"]["manomano"] == 84.0

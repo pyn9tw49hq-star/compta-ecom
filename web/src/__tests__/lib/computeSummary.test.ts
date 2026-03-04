@@ -17,6 +17,7 @@ function makeTx(overrides: Partial<Transaction> = {}): Transaction {
     country_code: "250",
     commission_ttc: 5,
     commission_ht: 0,
+    net_amount: 115,
     special_type: null,
     payout_date: "2026-01-20",
     payout_reference: "P001",
@@ -148,5 +149,84 @@ describe("computeSummary — returns_avoir transactions", () => {
 
     // Refund rate = 1 refund / 1 sale * 100 = 100%
     expect(summary.taux_remboursement_par_canal.shopify).toBe(100);
+  });
+});
+
+describe("computeSummary — SUBSCRIPTION abonnements", () => {
+  it("accumulates abonnements from SUBSCRIPTION transactions (ManoMano-style)", () => {
+    const txs: Transaction[] = [
+      makeTx({
+        reference: "#S1",
+        channel: "manomano",
+        type: "sale",
+        special_type: null,
+        amount_ht: 500,
+        amount_tva: 100,
+        amount_ttc: 600,
+        commission_ttc: 50,
+        commission_ht: 50,
+        net_amount: 550,
+      }),
+      makeTx({
+        reference: "ABO-MANO-1",
+        channel: "manomano",
+        type: "sale",
+        special_type: "SUBSCRIPTION",
+        amount_ht: 29.9,
+        amount_tva: 5.98,
+        amount_ttc: 35.88,
+        commission_ttc: 0,
+        commission_ht: null,
+        net_amount: 35.88,
+      }),
+    ];
+
+    const summary = computeSummary(txs, [], {});
+
+    expect(summary.abonnements_par_canal?.manomano).toBeDefined();
+    expect(summary.abonnements_par_canal!.manomano.ht).toBe(29.9);
+    expect(summary.abonnements_par_canal!.manomano.ttc).toBe(35.88);
+
+    // Net vendeur = 600 (CA TTC) - 50 (comm) - 0 (refund) - 35.88 (abo) = 514.12
+    expect(summary.net_vendeur_par_canal.manomano).toBe(514.12);
+  });
+
+  it("uses net_amount for SUBSCRIPTION when amount_ttc is 0 (Mirakl-style)", () => {
+    const txs: Transaction[] = [
+      makeTx({
+        reference: "#S2",
+        channel: "decathlon",
+        type: "sale",
+        special_type: null,
+        amount_ht: 200,
+        amount_tva: 40,
+        amount_ttc: 240,
+        commission_ttc: 20,
+        commission_ht: 20,
+        net_amount: 220,
+      }),
+      makeTx({
+        reference: "ABO-DECA-1",
+        channel: "decathlon",
+        type: "sale",
+        special_type: "SUBSCRIPTION",
+        amount_ht: 0,
+        amount_tva: 0,
+        amount_ttc: 0,
+        commission_ttc: 0,
+        commission_ht: null,
+        net_amount: -49.90,
+      }),
+    ];
+
+    const summary = computeSummary(txs, [], {});
+
+    // Should use abs(net_amount) = 49.90 as both HT and TTC
+    expect(summary.abonnements_par_canal?.decathlon).toBeDefined();
+    expect(summary.abonnements_par_canal!.decathlon.ttc).toBe(49.9);
+    expect(summary.abonnements_par_canal!.decathlon.ht).toBe(49.9);
+
+    // Net vendeur = 240 - 20 - 0 - 49.90 = 170.10
+    expect(summary.net_vendeur_par_canal.decathlon).toBe(170.1);
   });
 });

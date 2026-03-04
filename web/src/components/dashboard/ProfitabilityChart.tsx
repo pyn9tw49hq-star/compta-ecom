@@ -20,6 +20,7 @@ interface ProfitabilityItem {
   label: string;
   ca: number;
   commissions: number;
+  abonnements: number;
   net: number;
   commissionRate: number;
 }
@@ -30,27 +31,30 @@ interface ProfitabilityChartProps {
 }
 
 /**
- * Stacked vertical bar chart — CA HT decomposed into Net vendeur + Commissions per channel.
- * Each bar shows the financial breakdown: CA = Net + Commissions.
+ * Stacked vertical bar chart — CA HT decomposed into Net vendeur + Commissions + Abonnements per channel.
+ * Each bar shows the financial breakdown: CA = Net + Commissions + Abonnements.
  */
 export default function ProfitabilityChart({ data, isDark }: ProfitabilityChartProps) {
   const reducedMotion = useReducedMotion();
   const commColor = isDark ? METRIC_COLORS.commissions.dark : METRIC_COLORS.commissions.light;
   const netColor = isDark ? METRIC_COLORS.net_vendeur.dark : METRIC_COLORS.net_vendeur.light;
+  const aboColor = isDark ? METRIC_COLORS.abonnements.dark : METRIC_COLORS.abonnements.light;
+  const hasAbonnements = data.some((d) => d.abonnements > 0);
 
   return (
     <ChartCard
       title="Rentabilité par canal"
-      subtitle="Décomposition du CA HT : net vendeur + commissions"
+      subtitle={hasAbonnements ? "Décomposition du CA HT : net vendeur + commissions + abonnements" : "Décomposition du CA HT : net vendeur + commissions"}
       minHeight={320}
       empty={data.length === 0}
       accessibleTable={{
         caption: "Rentabilité par canal de vente",
-        headers: ["Canal", "CA HT", "Commissions HT", "Net vendeur", "Taux comm."],
+        headers: ["Canal", "CA HT", "Commissions HT", ...(hasAbonnements ? ["Abonnements HT"] : []), "Net vendeur", "Taux comm."],
         rows: data.map((d) => [
           d.label,
           `${formatCurrency(d.ca)} €`,
           `${formatCurrency(d.commissions)} €`,
+          ...(hasAbonnements ? [`${formatCurrency(d.abonnements)} €`] : []),
           `${formatCurrency(d.net)} €`,
           formatPercent(d.commissionRate),
         ]),
@@ -86,6 +90,12 @@ export default function ProfitabilityChart({ data, isDark }: ProfitabilityChartP
                       <dt className="text-muted-foreground">Commissions HT</dt>
                       <dd className="tabular-nums text-right">{formatCurrency(item.commissions)} €</dd>
                     </div>
+                    {item.abonnements > 0 && (
+                      <div className="flex justify-between gap-4">
+                        <dt className="text-muted-foreground">Abonnements HT</dt>
+                        <dd className="tabular-nums text-right">{formatCurrency(item.abonnements)} €</dd>
+                      </div>
+                    )}
                     <div className="flex justify-between gap-4">
                       <dt className="text-muted-foreground">Taux commission</dt>
                       <dd className="tabular-nums text-right">{formatPercent(item.commissionRate)}</dd>
@@ -106,11 +116,18 @@ export default function ProfitabilityChart({ data, isDark }: ProfitabilityChartP
                   <span className="inline-block w-3 h-3 rounded-sm" style={{ backgroundColor: commColor }} />
                   Commissions HT
                 </span>
+                {hasAbonnements && (
+                  <span className="flex items-center gap-1">
+                    <span className="inline-block w-3 h-3 rounded-sm" style={{ backgroundColor: aboColor }} />
+                    Abonnements
+                  </span>
+                )}
               </div>
             )}
           />
           <Bar dataKey="net" stackId="profitability" name="Net vendeur" fill={netColor} isAnimationActive={!reducedMotion} />
           <Bar dataKey="commissions" stackId="profitability" name="Commissions HT" fill={commColor} isAnimationActive={!reducedMotion} />
+          {hasAbonnements && <Bar dataKey="abonnements" stackId="profitability" name="Abonnements" fill={aboColor} isAnimationActive={!reducedMotion} />}
         </BarChart>
       </ResponsiveContainer>
     </ChartCard>
