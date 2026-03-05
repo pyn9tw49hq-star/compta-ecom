@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useMemo } from "react";
-import { CheckCircle2, ChevronDown, ChevronRight, Circle, CircleAlert, File as FileIcon, X } from "lucide-react";
+import { CheckCircle2, ChevronDown, ChevronRight, CircleAlert, File as FileIcon, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   Collapsible,
