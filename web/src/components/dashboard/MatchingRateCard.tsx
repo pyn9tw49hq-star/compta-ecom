@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { getChannelMeta } from "@/lib/channels";
 import { formatCount, formatPercent } from "@/lib/format";
+import { useNewDesign } from "@/hooks/useNewDesign";
 
 interface MatchingRateCardProps {
   tauxParCanal: Record<string, number>;
@@ -42,19 +43,38 @@ export default function MatchingRateCard({ tauxParCanal, ventesParCanal }: Match
     return { totalVentes: tv, totalMatched: tm, totalRate: tr, allPerfect: ap };
   }, [rapChannels, tauxParCanal, ventesParCanal]);
 
+  const isV2 = useNewDesign();
+
   if (rapChannels.length === 0) return null;
 
   return (
-    <Card className="p-4">
-      <h3 className="text-base font-semibold">Taux de rapprochement</h3>
+    <Card className={isV2 ? "rounded-xl border border-border bg-card p-6" : "p-4"}>
+      <h3 className={isV2 ? "text-sm font-semibold text-foreground" : "text-base font-semibold"}>Taux de rapprochement</h3>
       <p className="text-sm text-muted-foreground">Rapprochement des ventes par canal</p>
+
+      {/* V2: Overall progress bar */}
+      {isV2 && (
+        <div className="mt-4 mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm text-muted-foreground">Taux global</span>
+            <span className="font-mono text-2xl font-bold text-foreground">{formatPercent(totalRate)}</span>
+          </div>
+          <div className="h-3 rounded-full bg-muted overflow-hidden">
+            <div
+              className="h-full bg-primary rounded-full transition-all duration-500"
+              style={{ width: `${Math.min(100, totalRate)}%` }}
+            />
+          </div>
+        </div>
+      )}
+
       <div className="mt-3 overflow-x-auto">
         <table className="w-full text-sm" aria-label="Taux de rapprochement par canal de vente">
           <thead>
             <tr className="border-b">
               <th scope="col" className="text-left py-2 font-medium">Canal</th>
               <th scope="col" className="text-right py-2 font-medium">Ventes</th>
-              <th scope="col" className="text-right py-2 font-medium">Rapprochees</th>
+              <th scope="col" className="text-right py-2 font-medium">Rapprochées</th>
               <th scope="col" className="text-right py-2 font-medium">Taux</th>
             </tr>
           </thead>
@@ -96,8 +116,8 @@ export default function MatchingRateCard({ tauxParCanal, ventesParCanal }: Match
       </div>
       <p className="text-sm mt-2 text-muted-foreground">
         {allPerfect
-          ? "Toutes les transactions ont ete rapprochees avec succes."
-          : "Certains canaux presentent des transactions non rapprochees."}
+          ? "Toutes les transactions ont été rapprochées avec succès."
+          : "Certains canaux présentent des transactions non rapprochées."}
       </p>
     </Card>
   );

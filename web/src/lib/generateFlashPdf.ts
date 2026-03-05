@@ -69,10 +69,10 @@ const C = {
 };
 
 const CHANNEL_COLORS: Record<string, readonly [number, number, number]> = {
-  shopify: [22, 163, 74],       // #16a34a
-  manomano: [37, 99, 235],      // #2563eb
-  decathlon: [234, 88, 12],     // #ea580c
-  leroy_merlin: [147, 51, 234], // #9333ea
+  shopify: [149, 191, 71],      // #95BF47
+  manomano: [0, 178, 169],      // #00B2A9
+  decathlon: [0, 85, 160],      // #0055A0
+  leroy_merlin: [45, 140, 60],  // #2D8C3C
 };
 const TOTAL_COLOR = C.primary;
 function getChannelColor(key: string): readonly [number, number, number] {

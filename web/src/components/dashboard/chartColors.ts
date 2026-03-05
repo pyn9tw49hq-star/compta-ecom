@@ -4,10 +4,10 @@
  */
 
 export const CHANNEL_CHART_COLORS: Record<string, { light: string; dark: string }> = {
-  shopify:      { light: "#16a34a", dark: "#4ade80" },   // green-600 / green-400
-  manomano:     { light: "#2563eb", dark: "#60a5fa" },   // blue-600 / blue-400
-  decathlon:    { light: "#ea580c", dark: "#fb923c" },   // orange-600 / orange-400
-  leroy_merlin: { light: "#9333ea", dark: "#c084fc" },   // purple-600 / purple-400
+  shopify:      { light: "#95BF47", dark: "#A8D45A" },   // lime green
+  manomano:     { light: "#00B2A9", dark: "#33C5BD" },   // turquoise/teal
+  decathlon:    { light: "#0055A0", dark: "#3380BF" },   // medium blue
+  leroy_merlin: { light: "#2D8C3C", dark: "#4AA85A" },   // forest green
 };
 
 const FALLBACK_COLORS = [

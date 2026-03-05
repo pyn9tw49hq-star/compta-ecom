@@ -1,7 +1,8 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
+import { ArrowRight, CheckCircle2, Loader2, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useNewDesign } from "@/hooks/useNewDesign";
 import type { ChannelStatus } from "@/lib/types";
 
 interface ValidationBarProps {
@@ -10,6 +11,7 @@ interface ValidationBarProps {
   isLoading: boolean;
   onGenerate: () => void;
   disabled?: boolean;
+  onOpenSettings?: () => void;
 }
 
 type ValidationState = "no-files" | "all-complete" | "partial" | "none-complete";
@@ -20,7 +22,9 @@ export default function ValidationBar({
   isLoading,
   onGenerate,
   disabled = false,
+  onOpenSettings,
 }: ValidationBarProps) {
+  const isV2 = useNewDesign();
   const activeChannels = channelStatuses.filter(
     (s) => s.uploadedRequiredCount > 0 || s.isComplete,
   );
@@ -39,6 +43,52 @@ export default function ValidationBar({
           : "none-complete";
 
   const isDisabled = !hasFiles || isLoading || !hasCompleteChannel || disabled;
+
+  if (isV2) {
+    const readyCount = completeChannels.length;
+    const readyLabel = readyCount <= 1
+      ? `${readyCount} canal prêt`
+      : `${readyCount} canaux prêts`;
+
+    return (
+      <div className="rounded-xl border bg-card p-4 flex items-center justify-between">
+        {/* Status text */}
+        <div className="flex items-center gap-2 text-sm font-semibold">
+          {readyCount > 0 ? (
+            <>
+              <CheckCircle2 className="h-4 w-4 text-green-500" aria-hidden="true" />
+              <span>{readyLabel}</span>
+            </>
+          ) : (
+            <span className="text-muted-foreground">Aucun canal prêt</span>
+          )}
+        </div>
+
+        {/* Action buttons */}
+        <div className="flex items-center gap-2">
+          {onOpenSettings && (
+            <Button variant="outline" size="sm" onClick={onOpenSettings}>
+              <Settings className="h-4 w-4 mr-1.5" aria-hidden="true" />
+              Paramètres
+            </Button>
+          )}
+          <Button onClick={onGenerate} disabled={isDisabled} size="sm">
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Traitement...
+              </>
+            ) : (
+              <>
+                Générer les écritures
+                <ArrowRight className="ml-1.5 h-4 w-4" aria-hidden="true" />
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-lg border p-4 space-y-3">

@@ -14,7 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { getChannelMeta } from "@/lib/channels";
 import { ANOMALY_TYPE_LABELS } from "@/components/AnomaliesPanel";
-import { countVisualCardsBySeverity, getVisualCardKey, HIDDEN_TYPES } from "@/lib/anomalyCardKey";
+import { countVisualCardsBySeverity } from "@/lib/anomalyCardKey";
 import { formatCurrency, formatCount, formatPercent } from "@/lib/format";
 import {
   getChannelColor,
@@ -24,6 +24,7 @@ import {
   ENTRY_TYPE_COLORS,
   GEO_PALETTE,
 } from "./chartColors";
+import { useNewDesign } from "@/hooks/useNewDesign";
 import KpiCard from "./KpiCard";
 import RevenuePieChart from "./RevenuePieChart";
 import ProfitabilityChart from "./ProfitabilityChart";
@@ -68,6 +69,7 @@ const ENTRY_TYPE_LABELS: Record<string, string> = {
  * Dashboard tab orchestrator — transforms summary Record→Array, renders all chart zones.
  */
 export function DashboardTab({ summary, anomalies, htTtcMode, onHtTtcModeChange, onNavigateTab, tolerance = 0.01 }: DashboardTabProps) {
+  const isV2 = useNewDesign();
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
   const modeLabel = htTtcMode === "ht" ? "HT" : "TTC";
@@ -346,7 +348,7 @@ export function DashboardTab({ summary, anomalies, htTtcMode, onHtTtcModeChange,
   const hasVentilationData = ventilationData.length > 0;
 
   return (
-    <div className="space-y-6">
+    <div className={isV2 ? "space-y-8" : "space-y-6"}>
       {/* HT/TTC Toggle */}
       {onHtTtcModeChange && (
         <div className="flex justify-end">
@@ -378,7 +380,7 @@ export function DashboardTab({ summary, anomalies, htTtcMode, onHtTtcModeChange,
       )}
 
       {/* Zone 1 — KPI Hero Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+      <div className={isV2 ? "grid grid-cols-3 gap-4" : "grid grid-cols-2 sm:grid-cols-3 gap-4"}>
         <KpiCard
           title={`CA Total ${modeLabel}`}
           value={`${formatCurrency(kpiData.caDisplay)} €`}
@@ -433,7 +435,7 @@ export function DashboardTab({ summary, anomalies, htTtcMode, onHtTtcModeChange,
       )}
 
       {/* Zone 2 — Répartition CA + Commissions (donuts) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
+      <div className={isV2 ? "grid grid-cols-2 gap-6" : "grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6"}>
         <div data-pdf-chart="revenue-pie">
           <RevenuePieChart data={revenueData} total={revenueTotal} modeLabel={modeLabel} />
         </div>
@@ -443,7 +445,7 @@ export function DashboardTab({ summary, anomalies, htTtcMode, onHtTtcModeChange,
       </div>
 
       {/* Zone 3 — Rentabilité + Ventilation */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
+      <div className={isV2 ? "grid grid-cols-2 gap-6" : "grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6"}>
         <ProfitabilityChart data={profitabilityData} isDark={isDark} />
         {hasVentilationData && (
           <div data-pdf-chart="ventilation">
@@ -454,7 +456,7 @@ export function DashboardTab({ summary, anomalies, htTtcMode, onHtTtcModeChange,
 
       {/* Zone 4 — Taux de remboursement + Taux de commissions */}
       {hasAnomalyOrRefund && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
+        <div className={isV2 ? "grid grid-cols-2 gap-6" : "grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6"}>
           <RefundRateChart data={refundRateData} />
           <CommissionRateChart data={commissionRateData} />
         </div>
@@ -468,14 +470,14 @@ export function DashboardTab({ summary, anomalies, htTtcMode, onHtTtcModeChange,
 
       {/* Zone 5 — Géographie + TVA par pays */}
       {(hasGeoData || vatByCountryData.length > 0) && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
+        <div className={isV2 ? "grid grid-cols-2 gap-6" : "grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6"}>
           {hasGeoData && <GeoChart data={geoData} total={geoTotal} isDark={isDark} />}
           {vatByCountryData.length > 0 && <VatByCountryChart data={vatByCountryData} total={vatByCountryTotal} isDark={isDark} />}
         </div>
       )}
 
       {/* Zone 6 — Écritures par type + Anomalies par catégorie */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
+      <div className={isV2 ? "grid grid-cols-2 gap-6" : "grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6"}>
         <EntryTypeDonut data={entryTypeData} total={entryTypeTotal} />
         {anomalyCategoryData.length > 0 && <AnomalyCategoryDonut data={anomalyCategoryData} total={anomalyCategoryData.reduce((s, d) => s + d.count, 0)} />}
       </div>

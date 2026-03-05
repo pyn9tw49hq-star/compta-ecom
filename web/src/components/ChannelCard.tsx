@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useMemo } from "react";
-import { ChevronDown, ChevronRight, CircleAlert } from "lucide-react";
+import { CheckCircle2, ChevronDown, ChevronRight, Circle, CircleAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   Collapsible,
@@ -9,6 +9,7 @@ import {
   CollapsibleContent,
 } from "@/components/ui/collapsible";
 import FileSlot from "@/components/FileSlot";
+import { useNewDesign } from "@/hooks/useNewDesign";
 import type { ChannelMeta } from "@/lib/channels";
 import type { FileGroupConfig, FileSlotConfig, UploadedFile } from "@/lib/types";
 
@@ -28,6 +29,7 @@ interface ChannelCardProps {
  * completion badge, and inline help for missing files.
  */
 const ChannelCard = memo(function ChannelCard({
+  channelKey,
   meta,
   expectedFiles,
   fileGroups,
@@ -36,6 +38,7 @@ const ChannelCard = memo(function ChannelCard({
   onToggle,
   onRemoveFile,
 }: ChannelCardProps) {
+  const isV2 = useNewDesign();
   const Icon = meta.icon;
 
   const { requiredSlots, optionalSlots, slotMatches, uploadedRequiredCount, isComplete, isActive, hasPartialFiles, groupStatuses } =
@@ -106,6 +109,65 @@ const ChannelCard = memo(function ChannelCard({
   const missingRequiredPatterns = requiredSlots
     .filter((s) => slotMatches.get(s.key) === null)
     .map((s) => s.patternHuman);
+
+  if (isV2) {
+    // Channel color mapping for the icon circle
+    const channelColors: Record<string, string> = {
+      shopify: "#95BF47",
+      manomano: "#00B2A9",
+      decathlon: "#0055A0",
+      leroy_merlin: "#2D8C3C",
+    };
+    const circleColor = channelColors[channelKey] ?? "#9ca3af";
+
+    // Build display list: all required slots (or grouped slots)
+    const displaySlots = fileGroups
+      ? fileGroups.flatMap((g) =>
+          g.slots.map((slotKey) => expectedFiles.find((f) => f.key === slotKey)).filter(Boolean)
+        ) as FileSlotConfig[]
+      : requiredSlots;
+
+    return (
+      <div className="rounded-xl p-5 border border-border bg-card">
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: circleColor }}>
+            <Icon className="h-4 w-4 text-white" aria-hidden="true" />
+          </div>
+          <span className="font-semibold text-sm">{meta.label}</span>
+          {isComplete && isActive ? (
+            <Badge variant="outline" className="ml-auto bg-green-50 text-green-700 border-green-300 text-xs dark:bg-green-950 dark:text-green-200 dark:border-green-700">
+              Complet
+            </Badge>
+          ) : isActive ? (
+            <Badge variant="outline" className="ml-auto bg-gray-100 text-gray-600 border-gray-300 text-xs dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600">
+              Partiel
+            </Badge>
+          ) : null}
+        </div>
+
+        {/* File slots list */}
+        <div className="space-y-1.5">
+          {displaySlots.map((slot) => {
+            const match = slotMatches.get(slot.key);
+            const isFilled = match !== null;
+            return (
+              <div key={slot.key} className="flex items-center gap-2 text-[13px]">
+                {isFilled ? (
+                  <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" aria-hidden="true" />
+                ) : (
+                  <Circle className="h-4 w-4 text-gray-300 shrink-0" aria-hidden="true" />
+                )}
+                <span className={isFilled ? "text-foreground" : "text-muted-foreground"}>
+                  {isFilled ? match!.file.file.name : slot.patternHuman}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Collapsible open={isExpanded} onOpenChange={onToggle}>

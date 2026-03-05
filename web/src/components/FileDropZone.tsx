@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import { CloudUpload } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { useNewDesign } from "@/hooks/useNewDesign";
 import { detectChannel } from "@/lib/channels";
 import type { UploadedFile } from "@/lib/types";
 
@@ -11,6 +13,7 @@ interface FileDropZoneProps {
 }
 
 export default function FileDropZone({ files, onAddFiles }: FileDropZoneProps) {
+  const isV2 = useNewDesign();
   const [isDragOver, setIsDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -76,6 +79,73 @@ export default function FileDropZone({ files, onAddFiles }: FileDropZoneProps) {
   );
 
   const unmatchedCount = files.filter((f) => f.channel === null).length;
+
+  if (isV2) {
+    return (
+      <div>
+        <div
+          role="button"
+          tabIndex={0}
+          aria-label="Zone de dépôt de fichiers CSV. Appuyez sur Entrée ou Espace pour parcourir les fichiers."
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+          onDragEnter={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onKeyDown={handleKeyDown}
+          onClick={openFilePicker}
+          className={`border-2 border-dashed rounded-2xl py-12 px-8 text-center cursor-pointer transition-colors bg-card focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ${
+            isDragOver
+              ? "border-primary bg-primary/5"
+              : "border-border hover:border-primary/50"
+          }`}
+        >
+          <CloudUpload className="mx-auto h-12 w-12 text-primary mb-4" aria-hidden="true" />
+          <p className="font-semibold text-base text-foreground mb-1">
+            Glissez vos fichiers CSV ici
+          </p>
+          <p className="text-sm mb-3">
+            <span
+              role="link"
+              tabIndex={-1}
+              className="text-primary hover:underline cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation();
+                openFilePicker();
+              }}
+            >
+              ou parcourez vos fichiers
+            </span>
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Formats acceptés: CSV &mdash; Taille max. 50 Mo par fichier
+          </p>
+        </div>
+
+        <input
+          ref={inputRef}
+          type="file"
+          accept=".csv"
+          multiple
+          className="hidden"
+          onChange={handleInputChange}
+          data-testid="file-input"
+          aria-label="Sélectionner des fichiers CSV"
+        />
+
+        {files.length > 0 && (
+          <p className="text-sm text-muted-foreground mt-3 text-center">
+            {files.length === 1 ? "1 fichier déposé" : `${files.length} fichiers déposés`}
+            {unmatchedCount > 0 && (
+              <span className="text-amber-600 dark:text-amber-400">
+                {" · "}
+                {unmatchedCount === 1 ? "1 non reconnu" : `${unmatchedCount} non reconnus`}
+              </span>
+            )}
+          </p>
+        )}
+      </div>
+    );
+  }
 
   return (
     <Card className="p-6">

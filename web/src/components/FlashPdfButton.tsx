@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { FileText, Loader2 } from "lucide-react";
+import { useState, useCallback, useRef, useEffect } from "react";
+import { FileText, Loader2, Check } from "lucide-react";
 import * as Popover from "@radix-ui/react-popover";
 import * as Checkbox from "@radix-ui/react-checkbox";
 import * as RadioGroup from "@radix-ui/react-radio-group";
 import { Button } from "@/components/ui/button";
+import { useNewDesign } from "@/hooks/useNewDesign";
 import { generateFlashPdf } from "@/lib/generateFlashPdf";
 import type { FlashPdfSections, ChartImages } from "@/lib/generateFlashPdf";
 import { renderChartImages, getChannelColor } from "@/lib/captureCharts";
@@ -38,13 +39,11 @@ function fmtDate(d: Date): string {
   return `${dd}/${mm}/${yyyy}`;
 }
 
-export default function FlashPdfButton({
-  summary,
-  dateRange,
-  htTtcMode,
-  countryNames,
-  anomalies,
-}: FlashPdfButtonProps) {
+/* ------------------------------------------------------------------ */
+/*  Shared hooks & generate logic                                      */
+/* ------------------------------------------------------------------ */
+
+function useFlashPdfState(htTtcMode: "ht" | "ttc") {
   const [open, setOpen] = useState(false);
   const [sections, setSections] = useState<FlashPdfSections>({
     kpis: true,
@@ -57,7 +56,6 @@ export default function FlashPdfButton({
   const [mode, setMode] = useState<"ht" | "ttc">(htTtcMode);
   const [generating, setGenerating] = useState(false);
 
-  // Sync mode when popover opens
   const handleOpenChange = useCallback(
     (isOpen: boolean) => {
       if (isOpen) setMode(htTtcMode);
@@ -78,13 +76,27 @@ export default function FlashPdfButton({
     setSections({ kpis: next, profitability: next, ventilation: next, tva: next, geo: next, anomalies: next });
   }, [allChecked]);
 
-  const handleGenerate = useCallback(async () => {
+  return {
+    open, setOpen, sections, mode, setMode, generating, setGenerating,
+    handleOpenChange, toggleSection, allChecked, noneChecked, toggleAll,
+  };
+}
+
+function useGenerateHandler(
+  summary: Summary,
+  dateRange: DateRange,
+  mode: "ht" | "ttc",
+  countryNames: Record<string, string>,
+  sections: FlashPdfSections,
+  anomalies: Anomaly[],
+  setGenerating: (v: boolean) => void,
+  setOpen: (v: boolean) => void,
+) {
+  return useCallback(async () => {
     setGenerating(true);
     try {
-      // Use requestAnimationFrame to let the UI update before heavy work
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
-      // Render chart images from data via Canvas 2D
       const channels = Object.keys(summary.ca_par_canal).sort();
 
       let chartImages: ChartImages | undefined;
@@ -119,7 +131,6 @@ export default function FlashPdfButton({
           ventilation: { data: ventilationData, maxValue: maxVentilation },
         });
       } catch {
-        // If chart rendering fails, proceed without images
         chartImages = undefined;
       }
       generateFlashPdf({
@@ -138,7 +149,241 @@ export default function FlashPdfButton({
     } finally {
       setGenerating(false);
     }
-  }, [summary, dateRange, mode, countryNames, sections, anomalies]);
+  }, [summary, dateRange, mode, countryNames, sections, anomalies, setGenerating, setOpen]);
+}
+
+/* ------------------------------------------------------------------ */
+/*  V2 Popover — matches .pen "Popover Flash PDF" design               */
+/* ------------------------------------------------------------------ */
+
+function FlashPdfButtonV2({
+  summary,
+  dateRange,
+  htTtcMode,
+  countryNames,
+  anomalies,
+}: FlashPdfButtonProps) {
+  const {
+    open, setOpen, sections, mode, setMode, generating, setGenerating,
+    handleOpenChange, toggleSection, allChecked, noneChecked, toggleAll,
+  } = useFlashPdfState(htTtcMode);
+
+  const handleGenerate = useGenerateHandler(
+    summary, dateRange, mode, countryNames, sections, anomalies, setGenerating, setOpen,
+  );
+
+  // Click-outside-to-close via ref
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClickOutside(e: MouseEvent) {
+      const target = e.target as Node;
+      if (
+        popoverRef.current && !popoverRef.current.contains(target) &&
+        triggerRef.current && !triggerRef.current.contains(target)
+      ) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open, setOpen]);
+
+  const TEAL = "#0D6E6E";
+
+  return (
+    <div className="relative">
+      {/* Trigger button */}
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => handleOpenChange(!open)}
+        aria-label="Générer un PDF Flash E-Commerce"
+        className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+      >
+        <FileText className="h-4 w-4" />
+        Flash PDF
+      </button>
+
+      {/* Popover */}
+      {open && (
+        <div
+          ref={popoverRef}
+          className="absolute right-0 top-full z-50 mt-2 w-80 rounded-xl bg-white shadow-lg dark:bg-slate-800"
+          style={{ borderRadius: 12 }}
+        >
+          {/* Header — py-4 px-5 = padding [16, 20] */}
+          <div className="flex flex-col gap-1 px-5 pt-4 pb-3">
+            <h3
+              className="font-bold tracking-wide text-foreground"
+              style={{ fontFamily: "Inter, sans-serif", fontSize: 13 }}
+            >
+              FLASH E-COMMERCE
+            </h3>
+            <p className="text-muted-foreground" style={{ fontFamily: "Inter, sans-serif", fontSize: 11 }}>
+              Sélectionnez les sections à inclure
+            </p>
+          </div>
+
+          {/* Separator */}
+          <div className="h-px w-full bg-border" />
+
+          {/* Checkboxes section — padding [12, 20], gap 10 */}
+          <div className="flex flex-col gap-2.5 px-5 py-3">
+            {SECTION_DEFS.map((sec) => (
+              <label
+                key={sec.key}
+                className="flex cursor-pointer items-start gap-2.5"
+              >
+                {/* Custom checkbox matching .pen: 16x16, cornerRadius 3, teal when checked */}
+                <button
+                  type="button"
+                  role="checkbox"
+                  aria-checked={sections[sec.key]}
+                  onClick={() => toggleSection(sec.key)}
+                  className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-[3px] transition-colors ${!sections[sec.key] ? "border-[1.5px] border-slate-300 dark:border-slate-500" : ""}`}
+                  style={{
+                    backgroundColor: sections[sec.key] ? TEAL : "transparent",
+                  }}
+                >
+                  {sections[sec.key] && (
+                    <Check className="h-3 w-3 text-white" strokeWidth={2.5} />
+                  )}
+                </button>
+                <div className="flex flex-col gap-0.5 leading-tight">
+                  <span className="text-foreground" style={{ fontFamily: "Inter, sans-serif", fontSize: 12, fontWeight: 500 }}>
+                    {sec.label}
+                  </span>
+                  <span className="text-muted-foreground" style={{ fontFamily: "Inter, sans-serif", fontSize: 10 }}>
+                    {sec.desc}
+                  </span>
+                </div>
+              </label>
+            ))}
+
+            {/* Toggle all link */}
+            <button
+              type="button"
+              onClick={toggleAll}
+              className="mt-0.5 self-start text-left transition-opacity hover:opacity-80"
+              style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: TEAL }}
+            >
+              {allChecked ? "Tout désélectionner" : "Tout sélectionner"}
+            </button>
+          </div>
+
+          {/* Separator */}
+          <div className="h-px w-full bg-border" />
+
+          {/* Radio HT / TTC — padding [12, 20], gap 16 */}
+          <div className="flex items-center gap-4 px-5 py-3">
+            {(["ht", "ttc"] as const).map((val) => {
+              const isActive = mode === val;
+              return (
+                <button
+                  key={val}
+                  type="button"
+                  role="radio"
+                  aria-checked={isActive}
+                  onClick={() => setMode(val)}
+                  className="flex items-center gap-1.5 cursor-pointer"
+                >
+                  {/* Radio outer circle: 16x16 */}
+                  <span
+                    className="flex h-4 w-4 items-center justify-center rounded-full border-[1.5px] border-slate-300 dark:border-slate-500 bg-transparent"
+                  >
+                    {isActive && (
+                      <span
+                        className="block h-2 w-2 rounded-full"
+                        style={{ backgroundColor: TEAL }}
+                      />
+                    )}
+                  </span>
+                  <span
+                    className={isActive ? "text-foreground" : "text-muted-foreground"}
+                    style={{ fontFamily: "Inter, sans-serif", fontSize: 12, fontWeight: 500 }}
+                  >
+                    {val.toUpperCase()}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Separator */}
+          <div className="h-px w-full bg-border" />
+
+          {/* Period display — padding [12, 20], gap 4 */}
+          <div className="flex flex-col gap-1 px-5 py-3">
+            <p className="text-muted-foreground" style={{ fontFamily: "Inter, sans-serif", fontSize: 11 }}>
+              Période : {fmtDate(dateRange.from)} — {fmtDate(dateRange.to)}
+            </p>
+            <p className="text-muted-foreground" style={{ fontFamily: "Inter, sans-serif", fontSize: 10, fontStyle: "italic" }}>
+              (Correspond au filtre actif)
+            </p>
+          </div>
+
+          {/* Separator */}
+          <div className="h-px w-full bg-border" />
+
+          {/* Generate button — padding [12, 20] */}
+          <div className="px-5 py-3">
+            <button
+              type="button"
+              onClick={handleGenerate}
+              disabled={noneChecked || generating}
+              className="flex w-full items-center justify-center gap-2 transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{
+                height: 40,
+                borderRadius: 8,
+                backgroundColor: TEAL,
+                fontFamily: "Inter, sans-serif",
+                fontSize: 13,
+                fontWeight: 600,
+                color: "#FFFFFF",
+              }}
+              aria-busy={generating}
+            >
+              {generating ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin text-white" />
+                  Génération...
+                </>
+              ) : (
+                <>
+                  <FileText className="h-4 w-4 text-white" />
+                  Générer le PDF
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  V1 Popover — original Radix-based implementation                   */
+/* ------------------------------------------------------------------ */
+
+function FlashPdfButtonV1({
+  summary,
+  dateRange,
+  htTtcMode,
+  countryNames,
+  anomalies,
+}: FlashPdfButtonProps) {
+  const {
+    open, setOpen, sections, mode, setMode, generating, setGenerating,
+    handleOpenChange, toggleSection, allChecked, noneChecked, toggleAll,
+  } = useFlashPdfState(htTtcMode);
+
+  const handleGenerate = useGenerateHandler(
+    summary, dateRange, mode, countryNames, sections, anomalies, setGenerating, setOpen,
+  );
 
   return (
     <Popover.Root open={open} onOpenChange={handleOpenChange}>
@@ -274,4 +519,18 @@ export default function FlashPdfButton({
       </Popover.Portal>
     </Popover.Root>
   );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Default export — switches V1 / V2 based on feature flag            */
+/* ------------------------------------------------------------------ */
+
+export default function FlashPdfButton(props: FlashPdfButtonProps) {
+  const isV2 = useNewDesign();
+
+  if (isV2) {
+    return <FlashPdfButtonV2 {...props} />;
+  }
+
+  return <FlashPdfButtonV1 {...props} />;
 }

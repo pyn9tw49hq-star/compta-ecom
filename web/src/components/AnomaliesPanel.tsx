@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useMemo, Fragment } from "react";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, ListFilter, ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getChannelMeta } from "@/lib/channels";
 import { countVisualCardsBySeverity } from "@/lib/anomalyCardKey";
+import { useNewDesign } from "@/hooks/useNewDesign";
 import type { Anomaly } from "@/lib/types";
 
 // --- Task 1: Constants ---
@@ -167,7 +168,55 @@ interface AnomaliesPanelProps {
 /**
  * Displays anomalies with color-coded severity, filters, and counters.
  */
+// --- V2 styling maps (faithful to .pen design) ---
+
+const V2_SEV = {
+  info: { bg: "#E8F0FA", stroke: "#BFDBFE", text: "#007B96", dot: "#3B82F6", label: "Info" },
+  warning: { bg: "#FEF3EE", stroke: "#FED7AA", text: "#004080", dot: "#F97316", label: "Avertissement" },
+  error: { bg: "#FEF2F2", stroke: "#FECACA", text: "#DC2626", dot: "#EF4444", label: "Erreur" },
+} as const;
+
+const V2_SEV_PLURAL: Record<string, [string, string]> = {
+  info: ["info", "infos"],
+  warning: ["avertissement", "avertissements"],
+  error: ["erreur", "erreurs"],
+};
+
+const CANAL_COLORS: Record<string, string> = {
+  shopify: "#95BF47",
+  manomano: "#00B2A9",
+  decathlon: "#0055A0",
+  leroy_merlin: "#2D8C3C",
+  leroymerlin: "#2D8C3C",
+};
+
+function getCanalColor(canal: string): string {
+  return CANAL_COLORS[canal] ?? "#6B7280";
+}
+
+// --- V1 styling maps (kept for backward compat) ---
+
+const V2_BADGE_STYLES: Record<string, string> = {
+  info: "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
+  warning: "bg-orange-50 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300",
+  error: "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300",
+  total: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
+};
+
+const V2_CARD_BG: Record<string, string> = {
+  info: "bg-blue-50 border-l-4 border-blue-400 dark:bg-blue-900/20 dark:border-blue-500",
+  warning: "bg-orange-50 border-l-4 border-orange-400 dark:bg-orange-900/20 dark:border-orange-500",
+  error: "bg-red-50 border-l-4 border-red-400 dark:bg-red-900/20 dark:border-red-500",
+};
+
+const V2_BADGE_LABELS: Record<string, [string, string]> = {
+  info: ["info", "infos"],
+  warning: ["avertissement", "avertissements"],
+  error: ["erreur", "erreurs"],
+};
+
 export default function AnomaliesPanel({ anomalies }: AnomaliesPanelProps) {
+  const isV2 = useNewDesign();
   const [selectedCanals, setSelectedCanals] = useState<Set<string>>(new Set());
   const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
   const [selectedSeverities, setSelectedSeverities] = useState<Set<string>>(new Set());
@@ -249,6 +298,10 @@ export default function AnomaliesPanel({ anomalies }: AnomaliesPanelProps) {
     });
   };
 
+  // Dropdown state for V2 filters
+  const [canalDropdownOpen, setCanalDropdownOpen] = useState(false);
+  const [sevDropdownOpen, setSevDropdownOpen] = useState(false);
+
   // Empty state
   if (anomalies.length === 0) {
     return (
@@ -261,31 +314,338 @@ export default function AnomaliesPanel({ anomalies }: AnomaliesPanelProps) {
     );
   }
 
+  // =====================================================================
+  // V2 — Faithful .pen design: flat list, colored borders, inline badges
+  // =====================================================================
+  if (isV2) {
+    const totalCount = severityCounts.info + severityCounts.warning + severityCounts.error;
+    const totalAll = (() => {
+      const allCounts = countVisualCardsBySeverity(anomalies);
+      return allCounts.info + allCounts.warning + allCounts.error;
+    })();
+
+    // Build flat list sorted by severity (error first, then warning, then info)
+    const v2Sorted = filteredAnomalies.slice().sort(
+      (a, b) => getSeverityMeta(b.severity).order - getSeverityMeta(a.severity).order,
+    );
+
+    // Group anomalies for collapsible cards (same logic as V1 but rendered differently)
+    const GROUPED_TYPES = new Set(["missing_payout", "missing_payout_summary", "negative_solde", "orphan_sale_summary", "orphan_sale", "direct_payment", "tva_mismatch", "payment_delay"]);
+    const PRIOR_PERIOD_TYPES = new Set(["prior_period_settlement", "prior_period_refund", "prior_period_manomano_refund", "prior_period_lm_refund"]);
+
+    // Build grouped structures per severity
+    type GroupEntry = { key: string; severity: string; type: string; canal: string; label: string; items: Anomaly[]; summaries?: Anomaly[] };
+    const groupedCards: GroupEntry[] = [];
+    const flatCards: Anomaly[] = [];
+
+    const SEVERITY_ORDER_ASC = ["info", "warning", "error"] as const;
+    for (const severity of SEVERITY_ORDER_ASC) {
+      const sevAnomalies = v2Sorted.filter((a) => a.severity === severity);
+      if (sevAnomalies.length === 0) continue;
+
+      const grouped = sevAnomalies.filter((a) => GROUPED_TYPES.has(a.type));
+      const priorPeriod = sevAnomalies.filter((a) => PRIOR_PERIOD_TYPES.has(a.type));
+      const others = sevAnomalies.filter((a) => !GROUPED_TYPES.has(a.type) && !PRIOR_PERIOD_TYPES.has(a.type));
+
+      // Prior period → flat
+      for (const a of priorPeriod) flatCards.push(a);
+      for (const a of others) flatCards.push(a);
+
+      // missing_payout by canal
+      const mpByCanal = new Map<string, Anomaly[]>();
+      const summaryByCanal = new Map<string, Anomaly[]>();
+      for (const a of grouped.filter((a) => a.type === "missing_payout")) {
+        const g = mpByCanal.get(a.canal) ?? []; g.push(a); mpByCanal.set(a.canal, g);
+      }
+      for (const a of grouped.filter((a) => a.type === "missing_payout_summary" || a.type === "negative_solde")) {
+        const g = summaryByCanal.get(a.canal) ?? []; g.push(a); summaryByCanal.set(a.canal, g);
+      }
+      Array.from(mpByCanal.entries()).forEach(([canal, items]) => {
+        groupedCards.push({ key: `mp-${severity}-${canal}`, severity, type: "missing_payout", canal, label: `${items.length} ${items.length > 1 ? "reversements manquants" : "reversement manquant"}`, items, summaries: summaryByCanal.get(canal) });
+      });
+
+      // payment_delay by canal
+      const pdByCanal = new Map<string, Anomaly[]>();
+      for (const a of grouped.filter((a) => a.type === "payment_delay")) {
+        const g = pdByCanal.get(a.canal) ?? []; g.push(a); pdByCanal.set(a.canal, g);
+      }
+      Array.from(pdByCanal.entries()).forEach(([canal, items]) => {
+        groupedCards.push({ key: `pd-${severity}-${canal}`, severity, type: "payment_delay", canal, label: `${items.length} ${items.length > 1 ? "retards de paiement" : "retard de paiement"}`, items });
+      });
+
+      // orphan_sale by canal
+      const osByCanal = new Map<string, Anomaly[]>();
+      for (const a of grouped.filter((a) => a.type === "orphan_sale_summary" || a.type === "orphan_sale")) {
+        const g = osByCanal.get(a.canal) ?? []; g.push(a); osByCanal.set(a.canal, g);
+      }
+      Array.from(osByCanal.entries()).forEach(([canal, items]) => {
+        const count = getOrphanSaleCount(items);
+        groupedCards.push({ key: `os-${severity}-${canal}`, severity, type: "orphan_sale", canal, label: `${count} ${count > 1 ? "commandes sans encaissement" : "commande sans encaissement"}`, items });
+      });
+
+      // direct_payment by method
+      const dpByMethod = new Map<string, Anomaly[]>();
+      for (const a of grouped.filter((a) => a.type === "direct_payment")) {
+        const method = extractPaymentMethod(a.detail);
+        const g = dpByMethod.get(method) ?? []; g.push(a); dpByMethod.set(method, g);
+      }
+      Array.from(dpByMethod.entries()).forEach(([method, items]) => {
+        groupedCards.push({ key: `dp-${severity}-${method}`, severity, type: "direct_payment", canal: items[0].canal, label: `${items.length} ${items.length > 1 ? "paiements directs" : "paiement direct"} — ${method}`, items });
+      });
+
+      // tva_mismatch by rate
+      const tvaByRate = new Map<string, Anomaly[]>();
+      for (const a of grouped.filter((a) => a.type === "tva_mismatch")) {
+        const rk = `${a.actual_value ?? "?"}% au lieu de ${a.expected_value ?? "?"}%`;
+        const g = tvaByRate.get(rk) ?? []; g.push(a); tvaByRate.set(rk, g);
+      }
+      Array.from(tvaByRate.entries()).forEach(([rateKey, items]) => {
+        groupedCards.push({ key: `tva-${severity}-${rateKey}`, severity, type: "tva_mismatch", canal: items[0].canal, label: `${items.length} ${items.length > 1 ? "factures" : "facture"} avec taux de TVA incohérent — ${rateKey}`, items });
+      });
+    }
+
+    const renderV2Card = (anomaly: Anomaly, idx: number) => {
+      const sev = V2_SEV[anomaly.severity as keyof typeof V2_SEV] ?? V2_SEV.info;
+      const channelMeta = getChannelMeta(anomaly.canal);
+      return (
+        <div
+          key={`v2-flat-${idx}`}
+          className="rounded-lg bg-card p-3 px-4 border"
+          style={{ borderColor: sev.stroke }}
+        >
+          <div className="flex items-center gap-2.5">
+            <span
+              className="rounded px-2 py-0.5 text-[10px] font-semibold border"
+              style={{ background: sev.bg, borderColor: sev.stroke, color: sev.text }}
+            >
+              {sev.label}
+            </span>
+            <span className="text-xs font-semibold text-foreground">{getTypeLabel(anomaly.type)}</span>
+            <span className="flex-1" />
+            <span className="text-[11px] font-medium" style={{ color: getCanalColor(anomaly.canal) }}>
+              {channelMeta.label}
+            </span>
+            {anomaly.reference && (
+              <span className="text-[11px] text-muted-foreground">{anomaly.reference}</span>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground mt-2 leading-relaxed">{anomaly.detail}</p>
+        </div>
+      );
+    };
+
+    const renderV2GroupedCard = (group: GroupEntry) => {
+      const sev = V2_SEV[group.severity as keyof typeof V2_SEV] ?? V2_SEV.info;
+      const channelMeta = getChannelMeta(group.canal);
+      return (
+        <details
+          key={group.key}
+          className="group rounded-lg bg-card border"
+          style={{ borderColor: sev.stroke }}
+        >
+          <summary className="cursor-pointer list-none p-3 px-4">
+            <div className="flex items-center gap-2.5">
+              <ChevronRight className="h-3.5 w-3.5 shrink-0 transition-transform group-open:rotate-90 text-muted-foreground" />
+              <span
+                className="rounded px-2 py-0.5 text-[10px] font-semibold border"
+                style={{ background: sev.bg, borderColor: sev.stroke, color: sev.text }}
+              >
+                {sev.label}
+              </span>
+              <span className="text-xs font-semibold text-foreground">{group.label}</span>
+              <span className="flex-1" />
+              <span className="text-[11px] font-medium" style={{ color: getCanalColor(group.canal) }}>
+                {channelMeta.label}
+              </span>
+            </div>
+            {group.summaries && group.summaries.map((s, i) => (
+              <div key={i} className="text-[11px] text-muted-foreground mt-1 ml-8">
+                {s.detail}
+              </div>
+            ))}
+            <div className="text-[11px] italic text-muted-foreground mt-1 ml-8">
+              Cliquer pour voir les {group.items.length} references
+            </div>
+          </summary>
+          <div className="px-4 pb-3 space-y-1">
+            {group.items.map((anomaly, i) => (
+              <div key={i} className="text-xs text-muted-foreground pl-1 py-1 border-t first:border-t-0">
+                <span className="font-medium text-foreground">{anomaly.reference}</span>
+                {" — "}{anomaly.detail}
+              </div>
+            ))}
+          </div>
+        </details>
+      );
+    };
+
+    return (
+      <div>
+        {/* Severity badges bar + filters */}
+        <div className="flex items-center gap-3 mb-6 flex-wrap">
+          {(["info", "warning", "error"] as const).map((sev) => {
+            const count = severityCounts[sev];
+            if (count === 0) return null;
+            const s = V2_SEV[sev];
+            const [singular, plural] = V2_SEV_PLURAL[sev];
+            return (
+              <div
+                key={sev}
+                className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold border"
+                style={{ background: s.bg, borderColor: s.stroke, color: s.text }}
+              >
+                <span className="w-2 h-2 rounded-full" style={{ background: s.dot }} />
+                {count} {count > 1 ? plural : singular}
+              </div>
+            );
+          })}
+          <div className="flex-1" />
+
+          {/* Canal filter dropdown */}
+          {uniqueCanals.length > 1 && (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => { setCanalDropdownOpen((v) => !v); setSevDropdownOpen(false); }}
+                className="flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent"
+              >
+                <ListFilter className="h-3.5 w-3.5" />
+                Canal
+                {selectedCanals.size > 0 && <span className="text-muted-foreground">({selectedCanals.size})</span>}
+                <ChevronDown className="h-3 w-3" />
+              </button>
+              {canalDropdownOpen && (
+                <div className="absolute right-0 top-full mt-1 z-50 rounded-md border border-border bg-card p-2 shadow-md min-w-[160px]">
+                  {uniqueCanals.map((canal) => (
+                    <label key={canal} className="flex items-center gap-2 px-2 py-1 text-xs cursor-pointer hover:bg-accent rounded">
+                      <input
+                        type="checkbox"
+                        checked={selectedCanals.has(canal)}
+                        onChange={() => toggleCanal(canal)}
+                        className="rounded"
+                      />
+                      <span style={{ color: getCanalColor(canal) }} className="font-medium">
+                        {getChannelMeta(canal).label}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Severity filter dropdown */}
+          {uniqueSeverities.length > 1 && (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => { setSevDropdownOpen((v) => !v); setCanalDropdownOpen(false); }}
+                className="flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent"
+              >
+                Sévérité
+                {selectedSeverities.size > 0 && <span className="text-muted-foreground">({selectedSeverities.size})</span>}
+                <ChevronDown className="h-3 w-3" />
+              </button>
+              {sevDropdownOpen && (
+                <div className="absolute right-0 top-full mt-1 z-50 rounded-md border border-border bg-card p-2 shadow-md min-w-[160px]">
+                  {uniqueSeverities.map((sev) => {
+                    const s = V2_SEV[sev as keyof typeof V2_SEV] ?? V2_SEV.info;
+                    return (
+                      <label key={sev} className="flex items-center gap-2 px-2 py-1 text-xs cursor-pointer hover:bg-accent rounded">
+                        <input
+                          type="checkbox"
+                          checked={selectedSeverities.has(sev)}
+                          onChange={() => toggleSeverity(sev)}
+                          className="rounded"
+                        />
+                        <span className="w-2 h-2 rounded-full" style={{ background: s.dot }} />
+                        <span style={{ color: s.text }} className="font-medium">{s.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          <span className="text-xs text-muted-foreground">{totalCount} anomalies sur {totalAll} total</span>
+        </div>
+
+        {/* Flat card list */}
+        <div className="space-y-2">
+          {(() => {
+            // Interleave grouped and flat cards by severity order
+            const rendered: React.ReactNode[] = [];
+            for (const severity of (["info", "warning", "error"] as const)) {
+              // Grouped cards for this severity
+              for (const gc of groupedCards.filter((g) => g.severity === severity)) {
+                rendered.push(renderV2GroupedCard(gc));
+              }
+              // Flat cards for this severity
+              const sevFlat = flatCards.filter((a) => a.severity === severity);
+              for (let i = 0; i < sevFlat.length; i++) {
+                rendered.push(renderV2Card(sevFlat[i], rendered.length));
+              }
+            }
+            return rendered;
+          })()}
+        </div>
+      </div>
+    );
+  }
+
+  // =====================================================================
+  // V1 — Original design
+  // =====================================================================
+
   return (
     <div>
       {/* Severity counters */}
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        {severityCounts.info > 0 && (
-          <Badge variant="outline" className={SEVERITY_META.info.badgeClass}>
-            {severityCounts.info} {severityCounts.info > 1 ? "infos" : "info"}
-          </Badge>
-        )}
-        {severityCounts.warning > 0 && (
-          <Badge variant="outline" className={SEVERITY_META.warning.badgeClass}>
-            {severityCounts.warning} {severityCounts.warning > 1 ? "avertissements" : "avertissement"}
-          </Badge>
-        )}
-        {severityCounts.error > 0 && (
-          <Badge variant="outline" className={SEVERITY_META.error.badgeClass}>
-            {severityCounts.error} {severityCounts.error > 1 ? "erreurs" : "erreur"}
-          </Badge>
-        )}
-        {isFiltered && (
-          <span className="text-sm text-muted-foreground">
-            (sur {anomalies.length} total)
+      {isV2 ? (
+        <div className="flex items-center gap-3 mb-6">
+          {(["info", "warning", "error"] as const).map((sev) => {
+            const count = severityCounts[sev];
+            if (count === 0) return null;
+            const [singular, plural] = V2_BADGE_LABELS[sev];
+            return (
+              <span
+                key={sev}
+                className={`rounded-full px-3 py-1 text-xs font-semibold ${V2_BADGE_STYLES[sev]}`}
+              >
+                {count} {count > 1 ? plural : singular}
+              </span>
+            );
+          })}
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-semibold ${V2_BADGE_STYLES.total}`}
+          >
+            {severityCounts.info + severityCounts.warning + severityCounts.error} au total
           </span>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          {severityCounts.info > 0 && (
+            <Badge variant="outline" className={SEVERITY_META.info.badgeClass}>
+              {severityCounts.info} {severityCounts.info > 1 ? "infos" : "info"}
+            </Badge>
+          )}
+          {severityCounts.warning > 0 && (
+            <Badge variant="outline" className={SEVERITY_META.warning.badgeClass}>
+              {severityCounts.warning} {severityCounts.warning > 1 ? "avertissements" : "avertissement"}
+            </Badge>
+          )}
+          {severityCounts.error > 0 && (
+            <Badge variant="outline" className={SEVERITY_META.error.badgeClass}>
+              {severityCounts.error} {severityCounts.error > 1 ? "erreurs" : "erreur"}
+            </Badge>
+          )}
+          {isFiltered && (
+            <span className="text-sm text-muted-foreground">
+              (sur {anomalies.length} total)
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Filters */}
       <div className="mb-4 space-y-3">
@@ -424,7 +784,9 @@ export default function AnomaliesPanel({ anomalies }: AnomaliesPanelProps) {
                   return (
                     <div
                       key={`pp-${severity}-${i}`}
-                      className={`rounded-md border border-l-4 ${meta.borderClass} bg-card p-3`}
+                      className={isV2
+                        ? `rounded-lg p-4 mb-3 ${V2_CARD_BG[anomaly.severity] ?? ""}`
+                        : `rounded-md border border-l-4 ${meta.borderClass} bg-card p-3`}
                     >
                       <div className="flex items-center gap-2 text-sm font-medium">
                         <Badge variant="outline" className={meta.badgeClass}>
@@ -450,7 +812,9 @@ export default function AnomaliesPanel({ anomalies }: AnomaliesPanelProps) {
                   const meta = getSeverityMeta(group[0].severity);
                   const canalSummaries = summaryByCanal.get(canal);
                   return (
-                    <details key={`mp-${severity}-${canal}`} className={`group rounded-md border border-l-4 ${meta.borderClass} bg-card`}>
+                    <details key={`mp-${severity}-${canal}`} className={isV2
+                      ? `group rounded-lg mb-3 ${V2_CARD_BG[group[0].severity] ?? ""}`
+                      : `group rounded-md border border-l-4 ${meta.borderClass} bg-card`}>
                       <summary className="cursor-pointer list-none p-3 text-sm font-medium">
                         <div className="flex items-center gap-2">
                           <ChevronRight className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
@@ -487,7 +851,9 @@ export default function AnomaliesPanel({ anomalies }: AnomaliesPanelProps) {
                   const channelMeta = getChannelMeta(canal);
                   const meta = getSeverityMeta(group[0].severity);
                   return (
-                    <details key={`pd-${severity}-${canal}`} className={`group rounded-md border border-l-4 ${meta.borderClass} bg-card`}>
+                    <details key={`pd-${severity}-${canal}`} className={isV2
+                      ? `group rounded-lg mb-3 ${V2_CARD_BG[group[0].severity] ?? ""}`
+                      : `group rounded-md border border-l-4 ${meta.borderClass} bg-card`}>
                       <summary className="cursor-pointer list-none p-3 text-sm font-medium">
                         <div className="flex items-center gap-2">
                           <ChevronRight className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
@@ -520,7 +886,9 @@ export default function AnomaliesPanel({ anomalies }: AnomaliesPanelProps) {
                   const meta = getSeverityMeta(group[0].severity);
                   const orderCount = getOrphanSaleCount(group);
                   return (
-                    <details key={`os-${severity}-${canal}`} className={`group rounded-md border border-l-4 ${meta.borderClass} bg-card`}>
+                    <details key={`os-${severity}-${canal}`} className={isV2
+                      ? `group rounded-lg mb-3 ${V2_CARD_BG[group[0].severity] ?? ""}`
+                      : `group rounded-md border border-l-4 ${meta.borderClass} bg-card`}>
                       <summary className="cursor-pointer list-none p-3 flex items-center gap-2 text-sm font-medium">
                         <ChevronRight className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
                         <Badge variant="outline" className={meta.badgeClass}>
@@ -550,7 +918,9 @@ export default function AnomaliesPanel({ anomalies }: AnomaliesPanelProps) {
                   const meta = getSeverityMeta(group[0].severity);
                   const channelMeta = getChannelMeta(group[0].canal);
                   return (
-                    <details key={`dp-${severity}-${method}`} className={`group rounded-md border border-l-4 ${meta.borderClass} bg-card`}>
+                    <details key={`dp-${severity}-${method}`} className={isV2
+                      ? `group rounded-lg mb-3 ${V2_CARD_BG[group[0].severity] ?? ""}`
+                      : `group rounded-md border border-l-4 ${meta.borderClass} bg-card`}>
                       <summary className="cursor-pointer list-none p-3 flex items-center gap-2 text-sm font-medium">
                         <ChevronRight className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
                         <Badge variant="outline" className={meta.badgeClass}>
@@ -580,7 +950,9 @@ export default function AnomaliesPanel({ anomalies }: AnomaliesPanelProps) {
                   const meta = getSeverityMeta(group[0].severity);
                   const channelMeta = getChannelMeta(group[0].canal);
                   return (
-                    <details key={`tva-${severity}-${rateKey}`} className={`group rounded-md border border-l-4 ${meta.borderClass} bg-card`}>
+                    <details key={`tva-${severity}-${rateKey}`} className={isV2
+                      ? `group rounded-lg mb-3 ${V2_CARD_BG[group[0].severity] ?? ""}`
+                      : `group rounded-md border border-l-4 ${meta.borderClass} bg-card`}>
                       <summary className="cursor-pointer list-none p-3 flex items-center gap-2 text-sm font-medium">
                         <ChevronRight className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
                         <Badge variant="outline" className={meta.badgeClass}>
@@ -612,7 +984,9 @@ export default function AnomaliesPanel({ anomalies }: AnomaliesPanelProps) {
                   return (
                     <div
                       key={`other-${severity}-${i}`}
-                      className={`rounded-md border border-l-4 ${meta.borderClass} bg-card p-3`}
+                      className={isV2
+                        ? `rounded-lg p-4 mb-3 ${V2_CARD_BG[anomaly.severity] ?? ""}`
+                        : `rounded-md border border-l-4 ${meta.borderClass} bg-card p-3`}
                     >
                       <div className="flex items-center gap-2 text-sm font-medium">
                         <Badge variant="outline" className={meta.badgeClass}>

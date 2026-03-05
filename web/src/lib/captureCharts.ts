@@ -30,10 +30,10 @@ export interface RenderChartParams {
 // ---------------------------------------------------------------------------
 
 const CHANNEL_COLORS: Record<string, string> = {
-  shopify: "#16a34a",
-  manomano: "#2563eb",
-  decathlon: "#ea580c",
-  leroy_merlin: "#9333ea",
+  shopify: "#95BF47",
+  manomano: "#00B2A9",
+  decathlon: "#0055A0",
+  leroy_merlin: "#2D8C3C",
 };
 
 export function getChannelColor(key: string): string {

@@ -39,30 +39,30 @@ export const CHANNEL_META: Record<string, ChannelMeta> = {
   shopify: {
     label: "Shopify",
     icon: ShoppingBag,
-    iconClass: "text-green-600 dark:text-green-400",
+    iconClass: "text-[#95BF47] dark:text-[#A8D45A]",
     badgeClass:
-      "bg-green-100 text-green-800 border-green-300 hover:bg-green-100 dark:bg-green-900 dark:text-green-200 dark:border-green-700 dark:hover:bg-green-900",
+      "bg-[#95BF47]/15 text-[#6B8A30] border-[#95BF47]/30 hover:bg-[#95BF47]/20 dark:bg-[#95BF47]/20 dark:text-[#A8D45A] dark:border-[#95BF47]/30 dark:hover:bg-[#95BF47]/25",
   },
   manomano: {
     label: "ManoMano",
     icon: Wrench,
-    iconClass: "text-blue-600 dark:text-blue-400",
+    iconClass: "text-[#00B2A9] dark:text-[#33C5BD]",
     badgeClass:
-      "bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-100 dark:bg-blue-900 dark:text-blue-200 dark:border-blue-700 dark:hover:bg-blue-900",
+      "bg-[#00B2A9]/15 text-[#008A83] border-[#00B2A9]/30 hover:bg-[#00B2A9]/20 dark:bg-[#00B2A9]/20 dark:text-[#33C5BD] dark:border-[#00B2A9]/30 dark:hover:bg-[#00B2A9]/25",
   },
   decathlon: {
     label: "Décathlon",
     icon: Mountain,
-    iconClass: "text-orange-600 dark:text-orange-400",
+    iconClass: "text-[#0055A0] dark:text-[#3380BF]",
     badgeClass:
-      "bg-orange-100 text-orange-800 border-orange-300 hover:bg-orange-100 dark:bg-orange-900 dark:text-orange-200 dark:border-orange-700 dark:hover:bg-orange-900",
+      "bg-[#0055A0]/15 text-[#004080] border-[#0055A0]/30 hover:bg-[#0055A0]/20 dark:bg-[#0055A0]/20 dark:text-[#3380BF] dark:border-[#0055A0]/30 dark:hover:bg-[#0055A0]/25",
   },
   leroy_merlin: {
     label: "Leroy Merlin",
     icon: Home,
-    iconClass: "text-purple-600 dark:text-purple-400",
+    iconClass: "text-[#2D8C3C] dark:text-[#4AA85A]",
     badgeClass:
-      "bg-purple-100 text-purple-800 border-purple-300 hover:bg-purple-100 dark:bg-purple-900 dark:text-purple-200 dark:border-purple-700 dark:hover:bg-purple-900",
+      "bg-[#2D8C3C]/15 text-[#1F6B2B] border-[#2D8C3C]/30 hover:bg-[#2D8C3C]/20 dark:bg-[#2D8C3C]/20 dark:text-[#4AA85A] dark:border-[#2D8C3C]/30 dark:hover:bg-[#2D8C3C]/25",
   },
 };
 

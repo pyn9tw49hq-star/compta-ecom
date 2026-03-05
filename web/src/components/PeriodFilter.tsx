@@ -15,6 +15,8 @@ import {
   getPresetRange,
   type PresetKey,
 } from "@/lib/datePresets";
+// import { useNewDesign } from "@/hooks/useNewDesign";
+// import V2CalendarPicker from "@/components/V2CalendarPicker";
 
 interface PeriodFilterProps {
   dateRange: DateRange;
@@ -32,6 +34,7 @@ const MONTH_NAMES = [
  * Period filter: preset toggle buttons + custom calendar picker with drill-down.
  */
 export default function PeriodFilter({ dateRange, onChange }: PeriodFilterProps) {
+  // const isV2 = useNewDesign();
   const [activePreset, setActivePreset] = useState<PresetKey>(DEFAULT_PRESET);
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [customFrom, setCustomFrom] = useState<Date | undefined>(undefined);
@@ -98,6 +101,17 @@ export default function PeriodFilter({ dateRange, onChange }: PeriodFilterProps)
 
   const formatShort = (d: Date) => format(d, "dd/MM/yyyy", { locale: fr });
 
+  // ── V2 layout: custom calendar picker matching .pen design ──
+  // TEMPORARILY DISABLED for debugging
+  // if (isV2) {
+  //   return (
+  //     <div className="mb-6">
+  //       <V2CalendarPicker dateRange={dateRange} onChange={onChange} />
+  //     </div>
+  //   );
+  // }
+
+  // ── V1 layout (original) ──
   return (
     <div className="sticky top-0 z-10 bg-background border-b shadow-sm py-3 -mx-4 px-4">
       <div className="flex items-center gap-2 flex-wrap">

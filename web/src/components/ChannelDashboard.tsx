@@ -5,6 +5,7 @@ import { ChevronsUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import ChannelCard from "@/components/ChannelCard";
+import { useNewDesign } from "@/hooks/useNewDesign";
 import { matchFileToSlot } from "@/lib/channels";
 import type { ChannelConfig, UploadedFile } from "@/lib/types";
 
@@ -23,6 +24,7 @@ export default function ChannelDashboard({
   channelConfig,
   onRemoveFile,
 }: ChannelDashboardProps) {
+  const isV2 = useNewDesign();
   // Group files by channel
   const filesByChannel = useMemo(() => {
     const grouped: Record<string, UploadedFile[]> = {};
@@ -110,6 +112,58 @@ export default function ChannelDashboard({
     },
     [files, filesByChannel, onRemoveFile],
   );
+
+  if (isV2) {
+    // Count complete channels for the header counter
+    const completeCount = channelConfig.filter((config) => {
+      const channelFiles = filesByChannel[config.key] ?? [];
+      if (channelFiles.length === 0) return false;
+      const required = config.files.filter((f) => f.required);
+      if (config.fileGroups) {
+        return config.fileGroups.some((g) => {
+          return g.slots.every((slotKey) => {
+            const slot = config.files.find((f) => f.key === slotKey);
+            if (!slot || slot.regex === null) return false;
+            return channelFiles.some((u) => slot.regex!.test(u.file.name.normalize("NFC")));
+          });
+        });
+      }
+      const filledRequired = required.filter((slot) => {
+        if (slot.regex === null) return false;
+        return channelFiles.some((u) => slot.regex!.test(u.file.name.normalize("NFC")));
+      });
+      return filledRequired.length === required.length;
+    }).length;
+
+    return (
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+            Canaux détectés
+          </span>
+          <span className="text-xs text-muted-foreground">
+            {completeCount}/{channelConfig.length} complets
+          </span>
+        </div>
+
+        <div className="grid grid-cols-4 gap-4">
+          {channelConfig.map((config) => (
+            <ChannelCard
+              key={config.key}
+              channelKey={config.key}
+              meta={config.meta}
+              expectedFiles={config.files}
+              fileGroups={config.fileGroups}
+              uploadedFiles={filesByChannel[config.key] ?? []}
+              isExpanded={true}
+              onToggle={() => toggle(config.key)}
+              onRemoveFile={(localIdx) => handleRemoveFile(localIdx, config.key)}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Card className="p-4">

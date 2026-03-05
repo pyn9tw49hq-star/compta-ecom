@@ -28,6 +28,7 @@ import PeriodFilter from "@/components/PeriodFilter";
 import { useAccountOverrides } from "@/hooks/useAccountOverrides";
 import { useNewDesign } from "@/hooks/useNewDesign";
 import Sidebar from "@/components/Sidebar";
+import V2PageHeader from "@/components/V2PageHeader";
 import { processFiles, fetchDefaults } from "@/lib/api";
 import { CHANNEL_CONFIGS, matchFileToSlot } from "@/lib/channels";
 import { DEFAULT_PRESET, getPresetRange, computeDataRange } from "@/lib/datePresets";
@@ -251,14 +252,14 @@ export default function Home() {
           <Sidebar
             activeView={activeView}
             onViewChange={setActiveView}
-            anomalyCount={filteredAnomalies.length}
+            anomalyCount={uniqueAnomalyCount}
             hasResult={!!result}
             onOpenHelp={() => setIsHelpOpen(true)}
           />
           <main className="flex-1 min-w-0 p-8">
             {activeView === "upload" && (
               <>
-                <h1 className="text-2xl font-bold mb-6">Import fichiers</h1>
+                <V2PageHeader title="Importer des fichiers" subtitle="Déposez vos fichiers CSV pour lancer le traitement comptable." />
                 <FileDropZone files={files} onAddFiles={handleAddFiles} />
                 <div className="mt-4">
                   <ChannelDashboard
@@ -285,6 +286,7 @@ export default function Home() {
                     isLoading={loading}
                     onGenerate={handleProcess}
                     disabled={accountHasErrors}
+                    onOpenSettings={() => setActiveView("parametres")}
                   />
                 </div>
                 {error && (
@@ -296,55 +298,70 @@ export default function Home() {
             )}
             {activeView === "parametres" && (
               <>
-                <h1 className="text-2xl font-bold mb-6">Parametres</h1>
+                <V2PageHeader
+                  title="Paramètres du plan comptable"
+                  subtitle="Personnalisez les comptes, journaux et règles de traitement."
+                  actions={
+                    <button onClick={() => setActiveView("upload")} className="text-sm text-primary hover:underline flex items-center gap-1">
+                      ← Retour à l&apos;Import
+                    </button>
+                  }
+                />
                 <AccountSettingsPanel account={account} />
               </>
             )}
             {activeView === "ecritures" && result && (
               <>
-                <div className="flex items-center justify-between mb-4">
-                  <h1 className="text-2xl font-bold">Ecritures</h1>
-                  <DownloadButtons
-                    files={files.map((f) => f.file)}
-                    entries={filteredEntries}
-                    anomalies={filteredAnomalies}
-                    overrides={account.modifiedCount > 0 ? account.overrides : undefined}
-                    dateRange={dateRange}
-                  />
-                </div>
+                <V2PageHeader
+                  title="Écritures comptables"
+                  subtitle="Journal des écritures générées à partir de vos imports"
+                  actions={
+                    <DownloadButtons
+                      files={files.map((f) => f.file)}
+                      entries={filteredEntries}
+                      anomalies={filteredAnomalies}
+                      overrides={account.modifiedCount > 0 ? account.overrides : undefined}
+                      dateRange={dateRange}
+                    />
+                  }
+                />
                 <PeriodFilter dateRange={dateRange} onChange={setDateRange} />
                 <EntriesTable entries={filteredEntries} />
               </>
             )}
             {activeView === "anomalies" && result && (
               <>
-                <div className="flex items-center justify-between mb-4">
-                  <h1 className="text-2xl font-bold">Anomalies</h1>
-                  <AnomalyPdfButton anomalies={filteredAnomalies} dateRange={dateRange} />
-                </div>
+                <V2PageHeader
+                  title="Anomalies"
+                  subtitle="Contrôles et alertes détectées sur vos données"
+                  actions={<AnomalyPdfButton anomalies={filteredAnomalies} dateRange={dateRange} />}
+                />
                 <PeriodFilter dateRange={dateRange} onChange={setDateRange} />
                 <AnomaliesPanel anomalies={filteredAnomalies} />
               </>
             )}
             {activeView === "resume" && filteredSummary && (
               <>
-                <h1 className="text-2xl font-bold mb-4">Resume</h1>
+                <V2PageHeader title="Résumé financier" subtitle="Synthèse complète de vos opérations e-commerce" />
                 <PeriodFilter dateRange={dateRange} onChange={setDateRange} />
                 <StatsBoard summary={filteredSummary} entries={filteredEntries} anomalies={filteredAnomalies} htTtcMode={htTtcMode} onHtTtcModeChange={setHtTtcMode} tolerance={tolerance} />
               </>
             )}
             {activeView === "flash" && filteredSummary && (
               <>
-                <div className="flex items-center justify-between mb-4">
-                  <h1 className="text-2xl font-bold">Flash e-commerce</h1>
-                  <FlashPdfButton
-                    summary={filteredSummary}
-                    dateRange={dateRange}
-                    htTtcMode={htTtcMode}
-                    countryNames={result?.country_names ?? {}}
-                    anomalies={filteredAnomalies}
-                  />
-                </div>
+                <V2PageHeader
+                  title="Flash e-commerce"
+                  subtitle="Vue d'ensemble de vos performances e-commerce"
+                  actions={
+                    <FlashPdfButton
+                      summary={filteredSummary}
+                      dateRange={dateRange}
+                      htTtcMode={htTtcMode}
+                      countryNames={result?.country_names ?? {}}
+                      anomalies={filteredAnomalies}
+                    />
+                  }
+                />
                 <PeriodFilter dateRange={dateRange} onChange={setDateRange} />
                 <DashboardTab
                   summary={filteredSummary}

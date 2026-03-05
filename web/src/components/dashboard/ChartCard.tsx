@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { Card } from "@/components/ui/card";
+import { useNewDesign } from "@/hooks/useNewDesign";
 
 interface AccessibleTableData {
   caption: string;
@@ -33,9 +34,11 @@ export default function ChartCard({
   empty,
   emptyMessage = "Aucune donnée",
 }: ChartCardProps) {
+  const isV2 = useNewDesign();
+
   return (
-    <Card className="p-4">
-      <h3 className="text-base font-semibold">{title}</h3>
+    <Card className={isV2 ? "rounded-xl border border-border bg-card p-6" : "p-4"}>
+      <h3 className={isV2 ? "text-sm font-semibold text-foreground" : "text-base font-semibold"}>{title}</h3>
       {subtitle && (
         <p className="text-sm text-muted-foreground">{subtitle}</p>
       )}

@@ -2,6 +2,7 @@
 
 import { Card } from "@/components/ui/card";
 import type { LucideIcon } from "lucide-react";
+import { useNewDesign } from "@/hooks/useNewDesign";
 
 const BORDER_COLORS = {
   green: "border-l-green-500",
@@ -34,10 +35,65 @@ export default function KpiCard({
   onNavigate,
   loading,
 }: KpiCardProps) {
+  const isV2 = useNewDesign();
   const isStatus = variant === "status";
   const borderClass = isStatus && borderColor ? `border-l-4 ${BORDER_COLORS[borderColor]}` : "";
   const clickable = !!onNavigate;
 
+  /* ─── V2 Design ─── */
+  if (isV2) {
+    if (loading) {
+      return (
+        <div className="rounded-xl border border-border bg-card p-6">
+          <div className="h-3 w-24 animate-pulse rounded bg-muted mb-3" />
+          <div className="h-8 w-32 animate-pulse rounded bg-muted mb-3" />
+          <div className="h-3 w-20 animate-pulse rounded bg-muted" />
+        </div>
+      );
+    }
+
+    const cardContent = (
+      <div
+        className={`rounded-xl border border-border bg-card p-6 flex flex-col gap-3 ${
+          clickable
+            ? "cursor-pointer hover:-translate-y-0.5 hover:shadow-lg transition duration-200"
+            : "hover:-translate-y-0.5 hover:shadow-lg transition duration-200"
+        }`}
+        onClick={onNavigate}
+        role={clickable ? "button" : undefined}
+        tabIndex={clickable ? 0 : undefined}
+        onKeyDown={clickable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onNavigate?.(); } } : undefined}
+      >
+        {/* Header: label (Inter 11px 600) + icon circle */}
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] font-semibold uppercase tracking-[2px] text-muted-foreground">
+            {title}
+          </span>
+          {Icon && (
+            <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-primary/10">
+              <Icon className="h-[18px] w-[18px] text-primary" aria-hidden="true" />
+            </div>
+          )}
+        </div>
+
+        {/* Value (Newsreader 26px 700) */}
+        <p className="font-newsreader text-[26px] font-bold leading-tight text-foreground">
+          {value}
+        </p>
+
+        {/* Subtitle/footer (Inter 12px normal) */}
+        {subtitle && (
+          <p className="text-xs text-muted-foreground">
+            {subtitle}
+          </p>
+        )}
+      </div>
+    );
+
+    return cardContent;
+  }
+
+  /* ─── V1 Design (legacy) ─── */
   if (loading) {
     return (
       <Card className="p-4">
@@ -64,7 +120,7 @@ export default function KpiCard({
         <p className="text-xs text-muted-foreground">{title}</p>
         {Icon && <Icon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />}
       </div>
-      <p className={`${value.length > 8 ? "text-xl" : "text-2xl"} font-bold tabular-nums mt-1`}>{value}</p>
+      <p className={`${value.length > 8 ? "text-xl" : "text-2xl"} font-bold tabular-nums mt-1${isV2 ? " font-mono-numbers" : ""}`}>{value}</p>
       {subtitle && (
         <p className="text-sm text-muted-foreground mt-0.5">{subtitle}</p>
       )}

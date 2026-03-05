@@ -51,7 +51,18 @@ const config: Config = {
   				'3': 'hsl(var(--chart-3))',
   				'4': 'hsl(var(--chart-4))',
   				'5': 'hsl(var(--chart-5))'
-  			}
+  			},
+  			sidebar: {
+  				DEFAULT: 'hsl(var(--sidebar-bg))',
+  				active: 'hsl(var(--sidebar-active))',
+  				hover: 'hsl(var(--sidebar-hover))',
+  				text: 'hsl(var(--sidebar-text))',
+  				'text-muted': 'hsl(var(--sidebar-text-muted))',
+  			},
+  		},
+  		fontFamily: {
+  			'mono-numbers': ['var(--font-jetbrains-mono)', 'ui-monospace', 'monospace'],
+  			'newsreader': ['var(--font-newsreader)', 'Georgia', 'serif'],
   		},
   		borderRadius: {
   			lg: 'var(--radius)',
