@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import dynamic from "next/dynamic";
-import { HelpCircle, BarChart3, ArrowLeft, X } from "lucide-react";
+import { HelpCircle, BarChart3, ArrowLeft, X, Lightbulb } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,6 +28,7 @@ import PeriodFilter from "@/components/PeriodFilter";
 import { useAccountOverrides } from "@/hooks/useAccountOverrides";
 import { useNewDesign } from "@/hooks/useNewDesign";
 import Sidebar from "@/components/Sidebar";
+import HelpSidePanel from "@/components/HelpSidePanel";
 import V2PageHeader from "@/components/V2PageHeader";
 import { processFiles, fetchDefaults } from "@/lib/api";
 import { CHANNEL_CONFIGS, matchFileToSlot } from "@/lib/channels";
@@ -56,6 +57,7 @@ export default function Home() {
   const account = useAccountOverrides();
   const isV2 = useNewDesign();
   const [activeView, setActiveView] = useState("upload");
+  const [helpOpen, setHelpOpen] = useState(false);
 
   // Fetch defaults on mount
   useEffect(() => {
@@ -244,23 +246,39 @@ export default function Home() {
   if (isV2) {
     return (
       <>
-        <HelpDrawer isOpen={isHelpOpen} onOpenChange={(open) => {
-          if (isHelpButtonClickRef.current) return;
-          setIsHelpOpen(open);
-        }} />
         <div className="flex min-h-screen">
           <Sidebar
             activeView={activeView}
             onViewChange={setActiveView}
             anomalyCount={uniqueAnomalyCount}
             hasResult={!!result}
-            onOpenHelp={() => setIsHelpOpen(true)}
+            onToggleHelp={() => setHelpOpen((prev) => !prev)}
           />
+          <HelpSidePanel isOpen={helpOpen} onClose={() => setHelpOpen(false)} />
           <main className="flex-1 min-w-0 p-8">
             {activeView === "upload" && (
               <>
                 <V2PageHeader title="Importer des fichiers" subtitle="Déposez vos fichiers CSV pour lancer le traitement comptable." />
                 <FileDropZone files={files} onAddFiles={handleAddFiles} />
+                {/* Help banner — always visible on upload page */}
+                <div className="mt-4 rounded-xl p-5 flex gap-5 bg-[#F7FBF0] border border-[#BAE6FD] dark:bg-[#1E293B] dark:border-[#334155]">
+                  <div className="flex items-center justify-center w-9 h-9 rounded-full bg-[#DBEAFE] dark:bg-[#0D6E6E] shrink-0">
+                    <Lightbulb className="h-[18px] w-[18px] text-[#00B4D8] dark:text-white" />
+                  </div>
+                  <div className="flex flex-col gap-2.5 flex-1">
+                    <p className="text-[13px] font-semibold text-[#1E40AF] dark:text-[#E2E8F0]">Comment nommer vos fichiers ?</p>
+                    <p className="text-xs text-[#1E40AF] dark:text-[#94A3B8] leading-relaxed">
+                      Le nom de chaque fichier CSV doit commencer par un préfixe spécifique pour être reconnu automatiquement. [...] = texte optionnel (date, mois...).
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {["Ventes Shopify Janv 2026.csv", "CA Manomano 01-2026.csv", "Decathlon Mars.csv", "Leroy Merlin Q1 2026.csv"].map((ex) => (
+                        <span key={ex} className="rounded-md bg-[#DBEAFE] dark:bg-[#334155] px-2.5 py-1 text-[10px] font-medium text-[#1E40AF] dark:text-[#CBD5E1]">
+                          {ex}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
                 <div className="mt-4">
                   <ChannelDashboard
                     files={files}

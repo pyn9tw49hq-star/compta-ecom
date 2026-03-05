@@ -12,6 +12,7 @@ import {
   Sun,
   Moon,
   Monitor,
+  Lightbulb,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -19,7 +20,7 @@ interface SidebarProps {
   onViewChange: (view: string) => void;
   anomalyCount?: number;
   hasResult: boolean;
-  onOpenHelp: () => void;
+  onToggleHelp?: () => void;
 }
 
 interface NavItem {
@@ -96,7 +97,7 @@ export default function Sidebar({
   onViewChange,
   anomalyCount = 0,
   hasResult,
-  onOpenHelp,
+  onToggleHelp,
 }: SidebarProps) {
   const renderNavItem = (item: NavItem) => {
     const isActive = activeView === item.key;
@@ -173,14 +174,17 @@ export default function Sidebar({
       {/* Theme toggle */}
       <SidebarThemeToggle />
 
-      {/* Aide link */}
-      {activeView === "upload" && (
-        <button
-          onClick={onOpenHelp}
-          className="text-sidebar-text-muted text-xs mt-3 text-left hover:text-sidebar-text transition-colors px-1"
-        >
-          Aide
-        </button>
+      {/* Aide button — opens side panel */}
+      {activeView === "upload" && onToggleHelp && (
+        <div className="mt-3">
+          <button
+            onClick={onToggleHelp}
+            className="flex items-center justify-center gap-2 w-full bg-[#0D6E6E] rounded-lg py-2.5 px-3 text-white font-semibold text-sm hover:bg-[#0B5E5E] transition-colors"
+          >
+            <Lightbulb className="h-4 w-4 shrink-0" />
+            <span>Aide</span>
+          </button>
+        </div>
       )}
     </aside>
   );

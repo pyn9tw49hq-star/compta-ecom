@@ -93,13 +93,13 @@ export default function FileDropZone({ files, onAddFiles }: FileDropZoneProps) {
           onDragLeave={handleDragLeave}
           onKeyDown={handleKeyDown}
           onClick={openFilePicker}
-          className={`border-2 border-dashed rounded-2xl py-12 px-8 text-center cursor-pointer transition-colors bg-card focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ${
+          className={`border-2 border-dashed rounded-2xl py-5 px-8 text-center cursor-pointer transition-colors bg-card focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ${
             isDragOver
               ? "border-primary bg-primary/5"
               : "border-border hover:border-primary/50"
           }`}
         >
-          <CloudUpload className="mx-auto h-12 w-12 text-primary mb-4" aria-hidden="true" />
+          <CloudUpload className="mx-auto h-8 w-8 text-primary mb-2" aria-hidden="true" />
           <p className="font-semibold text-base text-foreground mb-1">
             Glissez vos fichiers CSV ici
           </p>

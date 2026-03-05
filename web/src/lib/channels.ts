@@ -145,7 +145,7 @@ export const CHANNEL_CONFIGS: ChannelConfig[] = [
       },
     ],
     fileGroups: [
-      { label: "Mode complet", slots: ["sales", "transactions", "payouts"] },
+      { label: "Mode complet", slots: ["sales", "transactions", "payouts", "payout_details"] },
       { label: "Mode avoirs", slots: ["returns"] },
     ],
   },
