@@ -133,6 +133,7 @@ class ParseResult:
     payouts: list[PayoutSummary]
     anomalies: list[Anomaly]
     channel: str
+    channel_metadata: dict[str, object] | None = None
 
 
 # --- Utilitaire d'affichage canal ---

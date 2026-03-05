@@ -154,11 +154,19 @@ class PipelineOrchestrator:
         entries, engine_anomalies = generate_entries(all_transactions, all_payouts, config)
         all_anomalies.extend(engine_anomalies)
 
+        # Collect channel_metadata from all parse results
+        channel_metadata: dict[str, dict] = {}
+        for pr in all_parse_results:
+            if pr.channel_metadata is not None:
+                channel_metadata[pr.channel] = dict(pr.channel_metadata)
+
         # Contrôles de cohérence
         vat_anomalies = VatChecker.check(all_transactions, config)
         logger.info("VatChecker: %d anomalies détectées", len(vat_anomalies))
 
-        matching_anomalies = MatchingChecker.check(all_transactions, config)
+        matching_anomalies = MatchingChecker.check(
+            all_transactions, config, channel_metadata=channel_metadata or None,
+        )
         logger.info("MatchingChecker: %d anomalies détectées", len(matching_anomalies))
 
         lettrage_anomalies = LettrageChecker.check(entries, tolerance=config.matching_tolerance)

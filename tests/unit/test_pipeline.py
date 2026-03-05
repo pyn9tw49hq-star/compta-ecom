@@ -216,7 +216,7 @@ class TestPipelineCheckersIntegration:
             vat_anomalies=[], matching_anomalies=[],
         )
 
-        mock_matching.check.assert_called_once_with([tx], config)
+        mock_matching.check.assert_called_once_with([tx], config, channel_metadata=None)
 
     def test_anomalies_aggregated(self, tmp_path: Path) -> None:
         """Les anomalies des checkers sont agrégées avec celles des parsers."""

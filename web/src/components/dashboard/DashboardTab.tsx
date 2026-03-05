@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { getChannelMeta } from "@/lib/channels";
 import { ANOMALY_TYPE_LABELS } from "@/components/AnomaliesPanel";
+import { countVisualCardsBySeverity, getVisualCardKey, HIDDEN_TYPES } from "@/lib/anomalyCardKey";
 import { formatCurrency, formatCount, formatPercent } from "@/lib/format";
 import {
   getChannelColor,
@@ -88,9 +89,8 @@ export function DashboardTab({ summary, anomalies, htTtcMode, onHtTtcModeChange,
     const balance = summary.totaux.debit - summary.totaux.credit;
     const isBalanced = Math.abs(balance) < tolerance;
 
-    // Severity counts for subtitle
-    const sevCounts: Record<string, number> = { error: 0, warning: 0, info: 0 };
-    for (const a of anomalies) sevCounts[a.severity] = (sevCounts[a.severity] ?? 0) + 1;
+    // Severity counts for subtitle — unique visual cards
+    const sevCounts = countVisualCardsBySeverity(anomalies);
     const sevParts: string[] = [];
     if (sevCounts.error > 0) sevParts.push(`${sevCounts.error}\u2298`);
     if (sevCounts.warning > 0) sevParts.push(`${sevCounts.warning}\u26A0`);
@@ -103,9 +103,11 @@ export function DashboardTab({ summary, anomalies, htTtcMode, onHtTtcModeChange,
     ).size;
     const anomalyPct = totalTx > 0 ? Math.min(100, (uniqueAnomalyTxCount / totalTx) * 100) : 0;
 
+    const uniqueAnomalyTypeCount = sevCounts.error + sevCounts.warning + sevCounts.info;
+
     return {
       caDisplay, net, netPct, totalTx, tauxRemb, balance, isBalanced,
-      anomalyCount: anomalies.length, anomalyPct, sevSubtitle: sevParts.join(" "),
+      anomalyCount: uniqueAnomalyTypeCount, anomalyPct, sevSubtitle: sevParts.join(" "),
     };
   }, [channels, summary, anomalies, htTtcMode, tolerance]);
 
@@ -212,10 +214,9 @@ export function DashboardTab({ summary, anomalies, htTtcMode, onHtTtcModeChange,
 
   const vatByCountryTotal = useMemo(() => vatByCountryData.reduce((s, d) => s + d.amount, 0), [vatByCountryData]);
 
-  // --- Anomaly severity ---
+  // --- Anomaly severity — unique visual cards ---
   const severityData = useMemo(() => {
-    const counts: Record<string, number> = { error: 0, warning: 0, info: 0 };
-    for (const a of anomalies) counts[a.severity] = (counts[a.severity] ?? 0) + 1;
+    const counts = countVisualCardsBySeverity(anomalies);
     return (["error", "warning", "info"] as const)
       .filter((s) => counts[s] > 0)
       .map((s) => ({
@@ -272,10 +273,17 @@ export function DashboardTab({ summary, anomalies, htTtcMode, onHtTtcModeChange,
     }));
   }, [channels, summary.ventilation_ca_par_canal]);
 
-  // --- Lot 2: Anomaly category donut ---
+  // --- Lot 2: Anomaly category donut — unique (type, canal) combinations ---
   const anomalyCategoryData = useMemo(() => {
     const counts: Record<string, number> = {};
-    for (const a of anomalies) counts[a.type] = (counts[a.type] ?? 0) + 1;
+    const seen = new Set<string>();
+    for (const a of anomalies) {
+      const key = `${a.type}|${a.canal}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        counts[a.type] = (counts[a.type] ?? 0) + 1;
+      }
+    }
     const CATEGORY_COLORS_LIGHT_DARK: Array<{ light: string; dark: string }> = [
       { light: "#2563eb", dark: "#60a5fa" },  // blue
       { light: "#dc2626", dark: "#f87171" },  // red
@@ -469,14 +477,14 @@ export function DashboardTab({ summary, anomalies, htTtcMode, onHtTtcModeChange,
       {/* Zone 6 — Écritures par type + Anomalies par catégorie */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
         <EntryTypeDonut data={entryTypeData} total={entryTypeTotal} />
-        {anomalyCategoryData.length > 0 && <AnomalyCategoryDonut data={anomalyCategoryData} total={anomalies.length} />}
+        {anomalyCategoryData.length > 0 && <AnomalyCategoryDonut data={anomalyCategoryData} total={anomalyCategoryData.reduce((s, d) => s + d.count, 0)} />}
       </div>
 
       {/* Zone 7 — Santé des données (dernier, pleine largeur) */}
       {severityData.length > 0 && (
         <AnomalySeverityChart
           data={severityData}
-          total={anomalies.length}
+          total={severityData.reduce((s, d) => s + d.count, 0)}
           onNavigateAnomalies={onNavigateTab ? () => onNavigateTab("anomalies") : undefined}
         />
       )}

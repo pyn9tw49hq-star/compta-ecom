@@ -26,10 +26,13 @@ import AnomalyPdfButton from "@/components/AnomalyPdfButton";
 import AccountSettingsPanel, { hasAccountValidationErrors } from "@/components/AccountSettingsPanel";
 import PeriodFilter from "@/components/PeriodFilter";
 import { useAccountOverrides } from "@/hooks/useAccountOverrides";
+import { useNewDesign } from "@/hooks/useNewDesign";
+import Sidebar from "@/components/Sidebar";
 import { processFiles, fetchDefaults } from "@/lib/api";
 import { CHANNEL_CONFIGS, matchFileToSlot } from "@/lib/channels";
 import { DEFAULT_PRESET, getPresetRange, computeDataRange } from "@/lib/datePresets";
 import { computeSummary } from "@/lib/computeSummary";
+import { countVisualCards } from "@/lib/anomalyCardKey";
 import type { DateRange } from "@/lib/datePresets";
 import type { UploadedFile, ProcessResponse, ChannelStatus, FileSlotConfig } from "@/lib/types";
 
@@ -50,6 +53,8 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState("ecritures");
   const [showFlash, setShowFlash] = useState(false);
   const account = useAccountOverrides();
+  const isV2 = useNewDesign();
+  const [activeView, setActiveView] = useState("upload");
 
   // Fetch defaults on mount
   useEffect(() => {
@@ -181,6 +186,10 @@ export default function Home() {
     });
   }, [result, filteredRefSet]);
 
+  const uniqueAnomalyCount = useMemo(() => {
+    return countVisualCards(filteredAnomalies);
+  }, [filteredAnomalies]);
+
   const handleAddFiles = useCallback((newFiles: UploadedFile[]) => {
     setFiles((prev) => [...prev, ...newFiles]);
     setError(null);
@@ -230,6 +239,130 @@ export default function Home() {
     }
   }, [files, account.overrides, account.modifiedCount]);
 
+  // ── V2 layout with sidebar ──
+  if (isV2) {
+    return (
+      <>
+        <HelpDrawer isOpen={isHelpOpen} onOpenChange={(open) => {
+          if (isHelpButtonClickRef.current) return;
+          setIsHelpOpen(open);
+        }} />
+        <div className="flex min-h-screen">
+          <Sidebar
+            activeView={activeView}
+            onViewChange={setActiveView}
+            anomalyCount={filteredAnomalies.length}
+            hasResult={!!result}
+            onOpenHelp={() => setIsHelpOpen(true)}
+          />
+          <main className="flex-1 min-w-0 p-8">
+            {activeView === "upload" && (
+              <>
+                <h1 className="text-2xl font-bold mb-6">Import fichiers</h1>
+                <FileDropZone files={files} onAddFiles={handleAddFiles} />
+                <div className="mt-4">
+                  <ChannelDashboard
+                    files={files}
+                    channelConfig={CHANNEL_CONFIGS}
+                    onRemoveFile={handleRemoveFile}
+                  />
+                </div>
+                <div className="mt-4">
+                  <UnmatchedFilesPanel
+                    unmatchedFiles={unmatchedFiles}
+                    channelConfig={CHANNEL_CONFIGS}
+                    missingSlots={missingSlots}
+                    onRemoveFile={(unmatchedIndex) => {
+                      handleRemoveFile(unmatchedGlobalIndices[unmatchedIndex]);
+                    }}
+                    onOpenHelp={() => setIsHelpOpen(true)}
+                  />
+                </div>
+                <div className="mt-4">
+                  <ValidationBar
+                    channelStatuses={channelStatuses}
+                    hasFiles={files.length > 0}
+                    isLoading={loading}
+                    onGenerate={handleProcess}
+                    disabled={accountHasErrors}
+                  />
+                </div>
+                {error && (
+                  <div role="alert" className="mt-4 rounded-md border border-red-300 bg-red-50 p-4 text-sm text-red-800 dark:border-red-700 dark:bg-red-950 dark:text-red-200">
+                    {error}
+                  </div>
+                )}
+              </>
+            )}
+            {activeView === "parametres" && (
+              <>
+                <h1 className="text-2xl font-bold mb-6">Parametres</h1>
+                <AccountSettingsPanel account={account} />
+              </>
+            )}
+            {activeView === "ecritures" && result && (
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <h1 className="text-2xl font-bold">Ecritures</h1>
+                  <DownloadButtons
+                    files={files.map((f) => f.file)}
+                    entries={filteredEntries}
+                    anomalies={filteredAnomalies}
+                    overrides={account.modifiedCount > 0 ? account.overrides : undefined}
+                    dateRange={dateRange}
+                  />
+                </div>
+                <PeriodFilter dateRange={dateRange} onChange={setDateRange} />
+                <EntriesTable entries={filteredEntries} />
+              </>
+            )}
+            {activeView === "anomalies" && result && (
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <h1 className="text-2xl font-bold">Anomalies</h1>
+                  <AnomalyPdfButton anomalies={filteredAnomalies} dateRange={dateRange} />
+                </div>
+                <PeriodFilter dateRange={dateRange} onChange={setDateRange} />
+                <AnomaliesPanel anomalies={filteredAnomalies} />
+              </>
+            )}
+            {activeView === "resume" && filteredSummary && (
+              <>
+                <h1 className="text-2xl font-bold mb-4">Resume</h1>
+                <PeriodFilter dateRange={dateRange} onChange={setDateRange} />
+                <StatsBoard summary={filteredSummary} entries={filteredEntries} anomalies={filteredAnomalies} htTtcMode={htTtcMode} onHtTtcModeChange={setHtTtcMode} tolerance={tolerance} />
+              </>
+            )}
+            {activeView === "flash" && filteredSummary && (
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <h1 className="text-2xl font-bold">Flash e-commerce</h1>
+                  <FlashPdfButton
+                    summary={filteredSummary}
+                    dateRange={dateRange}
+                    htTtcMode={htTtcMode}
+                    countryNames={result?.country_names ?? {}}
+                    anomalies={filteredAnomalies}
+                  />
+                </div>
+                <PeriodFilter dateRange={dateRange} onChange={setDateRange} />
+                <DashboardTab
+                  summary={filteredSummary}
+                  anomalies={filteredAnomalies}
+                  htTtcMode={htTtcMode}
+                  onHtTtcModeChange={setHtTtcMode}
+                  onNavigateTab={(tab) => setActiveView(tab)}
+                  tolerance={tolerance}
+                />
+              </>
+            )}
+          </main>
+        </div>
+      </>
+    );
+  }
+
+  // ── V1 layout (original) ──
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
       <HelpDrawer isOpen={isHelpOpen} onOpenChange={(open) => {
@@ -309,7 +442,7 @@ export default function Home() {
             <TabsList>
               <TabsTrigger value="ecritures">Écritures</TabsTrigger>
               <TabsTrigger value="anomalies">
-                Anomalies{filteredAnomalies.length > 0 && ` (${filteredAnomalies.length})`}
+                Anomalies{uniqueAnomalyCount > 0 && ` (${uniqueAnomalyCount})`}
               </TabsTrigger>
               <TabsTrigger value="resume">Résumé</TabsTrigger>
             </TabsList>

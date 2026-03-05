@@ -688,6 +688,6 @@ class TestOrphanSaleSummaryCount:
 
         summary = [a for a in result.anomalies if a.type == "orphan_sale_summary"]
         assert len(summary) == 1
-        assert "2 commandes sans encaissement" in summary[0].detail
+        assert "2 commandes Shopify sans encaissement" in summary[0].detail
         assert "#2001" in summary[0].detail
         assert "#2002" in summary[0].detail

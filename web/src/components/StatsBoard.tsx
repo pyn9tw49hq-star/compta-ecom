@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { getChannelMeta } from "@/lib/channels";
 import { formatCurrency, formatCount, formatPercent } from "@/lib/format";
+import { countVisualCardsBySeverity } from "@/lib/anomalyCardKey";
 import type { Summary, Entry, Anomaly } from "@/lib/types";
 
 // --- Constants ---
@@ -102,11 +103,7 @@ export default function StatsBoard({ summary, entries, anomalies, htTtcMode, onH
   );
 
   const severityCounts = useMemo(() => {
-    const counts: Record<string, number> = { error: 0, warning: 0, info: 0 };
-    for (const a of anomalies) {
-      counts[a.severity] = (counts[a.severity] ?? 0) + 1;
-    }
-    return counts;
+    return countVisualCardsBySeverity(anomalies);
   }, [anomalies]);
 
   const vatAnomalyStats = useMemo(() => {
@@ -325,7 +322,7 @@ export default function StatsBoard({ summary, entries, anomalies, htTtcMode, onH
                 const meta = SEVERITY_META[severity];
                 return (
                   <Badge key={severity} variant="outline" className={meta.badgeClass}>
-                    {count} {meta.label}
+                    {count} {severity === "error" ? (count > 1 ? "Erreurs" : "Erreur") : severity === "warning" ? (count > 1 ? "Avertissements" : "Avertissement") : (count > 1 ? "Infos" : "Info")}
                   </Badge>
                 );
               })}

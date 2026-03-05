@@ -587,10 +587,23 @@ class MiraklParser(BaseParser):
                 special_type="SUBSCRIPTION",
             ))
 
-        # 9. Build ParseResult
+        # 9. Extract Solde from last row (optional column — progressive balance)
+        # CSV is sorted by date ascending: last row = current balance
+        channel_metadata: dict[str, object] | None = None
+        if "Solde" in df.columns:
+            solde_raw = df["Solde"].iloc[-1] if len(df) > 0 else None
+            if solde_raw is not None:
+                # Handle French decimal separator (comma) via string replacement
+                solde_str = str(solde_raw).replace(",", ".") if isinstance(solde_raw, str) else str(solde_raw)
+                solde_val = pd.to_numeric(solde_str, errors="coerce")
+                if pd.notna(solde_val):
+                    channel_metadata = {"solde": float(solde_val)}
+
+        # 10. Build ParseResult
         return ParseResult(
             transactions=order_transactions + sub_transactions,
             payouts=payout_summaries,
             anomalies=anomalies,
             channel=self.channel,
+            channel_metadata=channel_metadata,
         )

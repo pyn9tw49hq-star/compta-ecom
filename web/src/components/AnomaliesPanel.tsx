@@ -4,6 +4,7 @@ import { useState, useMemo, Fragment } from "react";
 import { ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getChannelMeta } from "@/lib/channels";
+import { countVisualCardsBySeverity } from "@/lib/anomalyCardKey";
 import type { Anomaly } from "@/lib/types";
 
 // --- Task 1: Constants ---
@@ -43,12 +44,13 @@ export const ANOMALY_CATEGORIES: Record<string, { label: string; types: string[]
   },
   rapprochement: {
     label: "Rapprochement ventes/encaissements",
-    types: ["orphan_sale", "orphan_sale_summary", "orphan_settlement", "amount_mismatch", "orphan_refund", "prior_period_settlement", "prior_period_refund", "pending_manomano_payout", "overdue_manomano_payout"],
+    types: ["orphan_sale", "orphan_sale_summary", "orphan_settlement", "amount_mismatch", "orphan_refund", "prior_period_settlement", "prior_period_refund", "prior_period_lm_refund", "pending_manomano_payout", "overdue_manomano_payout"],
   },
   versements: {
     label: "Versements & détails",
     types: [
-      "missing_payout", "payout_detail_mismatch", "payout_missing_details",
+      "missing_payout", "missing_payout_summary", "negative_solde",
+      "payout_detail_mismatch", "payout_missing_details",
       "orphan_payout_detail", "mixed_psp_payout", "unknown_psp_detail",
       "payout_cycle_missing", "payout_detail_refund_discovered", "direct_payment",
       "prior_period_manomano_refund",
@@ -117,6 +119,9 @@ export const ANOMALY_TYPE_LABELS: Record<string, string> = {
   missing_country_iso: "Code pays manquant",
   unknown_country_alpha2: "Code pays non reconnu",
   order_reference_not_in_lookup: "Référence commande introuvable",
+  missing_payout_summary: "Résumé reversements en attente",
+  negative_solde: "Solde négatif marketplace",
+  prior_period_lm_refund: "Remboursements Leroy Merlin année précédente",
 };
 
 function getTypeLabel(type: string): string {
@@ -208,13 +213,9 @@ export default function AnomaliesPanel({ anomalies }: AnomaliesPanelProps) {
     [filteredAnomalies],
   );
 
-  // Severity counts (on filtered data)
+  // Severity counts — unique visual cards (matches rendered card count exactly)
   const severityCounts = useMemo(() => {
-    const counts: Record<string, number> = { error: 0, warning: 0, info: 0 };
-    for (const a of filteredAnomalies) {
-      counts[a.severity] = (counts[a.severity] ?? 0) + 1;
-    }
-    return counts;
+    return countVisualCardsBySeverity(filteredAnomalies);
   }, [filteredAnomalies]);
 
   const isFiltered =
@@ -352,8 +353,8 @@ export default function AnomaliesPanel({ anomalies }: AnomaliesPanelProps) {
       {/* Anomaly cards — severity-first ordering, then type grouping within each severity */}
       <div className="space-y-2">
         {(() => {
-          const GROUPED_TYPES = new Set(["missing_payout", "orphan_sale_summary", "orphan_sale", "direct_payment", "tva_mismatch"]);
-          const PRIOR_PERIOD_TYPES = new Set(["prior_period_settlement", "prior_period_refund", "prior_period_manomano_refund"]);
+          const GROUPED_TYPES = new Set(["missing_payout", "missing_payout_summary", "negative_solde", "orphan_sale_summary", "orphan_sale", "direct_payment", "tva_mismatch", "payment_delay"]);
+          const PRIOR_PERIOD_TYPES = new Set(["prior_period_settlement", "prior_period_refund", "prior_period_manomano_refund", "prior_period_lm_refund"]);
           const SEVERITY_ORDER = ["info", "warning", "error"] as const;
 
           return SEVERITY_ORDER.map((severity) => {
@@ -370,6 +371,22 @@ export default function AnomaliesPanel({ anomalies }: AnomaliesPanelProps) {
               const group = missingPayoutByCanal.get(a.canal) ?? [];
               group.push(a);
               missingPayoutByCanal.set(a.canal, group);
+            }
+
+            // Group payment_delay by canal
+            const paymentDelayByCanal = new Map<string, Anomaly[]>();
+            for (const a of grouped.filter((a) => a.type === "payment_delay")) {
+              const group = paymentDelayByCanal.get(a.canal) ?? [];
+              group.push(a);
+              paymentDelayByCanal.set(a.canal, group);
+            }
+
+            // Collect missing_payout_summary and negative_solde by canal (for group headers)
+            const summaryByCanal = new Map<string, Anomaly[]>();
+            for (const a of grouped.filter((a) => a.type === "missing_payout_summary" || a.type === "negative_solde")) {
+              const group = summaryByCanal.get(a.canal) ?? [];
+              group.push(a);
+              summaryByCanal.set(a.canal, group);
             }
 
             // Group orphan_sale_summary + orphan_sale by canal
@@ -423,17 +440,6 @@ export default function AnomaliesPanel({ anomalies }: AnomaliesPanelProps) {
                       <div className="mt-1 text-sm text-muted-foreground pl-1">
                         {anomaly.detail}
                       </div>
-                      {anomaly.actual_value && (
-                        <details className="group mt-2 pl-1">
-                          <summary className="cursor-pointer list-none text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
-                            <ChevronRight className="h-3 w-3 shrink-0 transition-transform group-open:rotate-90" />
-                            Voir les références
-                          </summary>
-                          <div className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap">
-                            {anomaly.actual_value}
-                          </div>
-                        </details>
-                      )}
                     </div>
                   );
                 })}
@@ -442,19 +448,59 @@ export default function AnomaliesPanel({ anomalies }: AnomaliesPanelProps) {
                 {Array.from(missingPayoutByCanal.entries()).map(([canal, group]) => {
                   const channelMeta = getChannelMeta(canal);
                   const meta = getSeverityMeta(group[0].severity);
+                  const canalSummaries = summaryByCanal.get(canal);
                   return (
                     <details key={`mp-${severity}-${canal}`} className={`group rounded-md border border-l-4 ${meta.borderClass} bg-card`}>
-                      <summary className="cursor-pointer list-none p-3 flex items-center gap-2 text-sm font-medium">
-                        <ChevronRight className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
-                        <Badge variant="outline" className={meta.badgeClass}>
-                          {meta.label}
-                        </Badge>
-                        <Badge variant="outline" className={channelMeta.badgeClass}>
-                          {channelMeta.label}
-                        </Badge>
-                        <span>
-                          {group.length} {group.length > 1 ? "reversements manquants" : "reversement manquant"}
-                        </span>
+                      <summary className="cursor-pointer list-none p-3 text-sm font-medium">
+                        <div className="flex items-center gap-2">
+                          <ChevronRight className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
+                          <Badge variant="outline" className={meta.badgeClass}>
+                            {meta.label}
+                          </Badge>
+                          <Badge variant="outline" className={channelMeta.badgeClass}>
+                            {channelMeta.label}
+                          </Badge>
+                          <span>
+                            {group.length} {group.length > 1 ? "reversements manquants" : "reversement manquant"}
+                          </span>
+                        </div>
+                        {canalSummaries && canalSummaries.map((s, i) => (
+                          <div key={i} className="text-xs font-normal text-muted-foreground mt-1 ml-6">
+                            {s.detail}
+                          </div>
+                        ))}
+                      </summary>
+                      <div className="px-3 pb-3 space-y-1">
+                        {group.map((anomaly, i) => (
+                          <div key={i} className="text-sm text-muted-foreground pl-1 py-1 border-t first:border-t-0">
+                            <span className="font-medium text-foreground">{anomaly.reference}</span>
+                            {" — "}{anomaly.detail}
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  );
+                })}
+
+                {/* Grouped payment_delay sections */}
+                {Array.from(paymentDelayByCanal.entries()).map(([canal, group]) => {
+                  const channelMeta = getChannelMeta(canal);
+                  const meta = getSeverityMeta(group[0].severity);
+                  return (
+                    <details key={`pd-${severity}-${canal}`} className={`group rounded-md border border-l-4 ${meta.borderClass} bg-card`}>
+                      <summary className="cursor-pointer list-none p-3 text-sm font-medium">
+                        <div className="flex items-center gap-2">
+                          <ChevronRight className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
+                          <Badge variant="outline" className={meta.badgeClass}>
+                            {meta.label}
+                          </Badge>
+                          <Badge variant="outline" className={channelMeta.badgeClass}>
+                            {channelMeta.label}
+                          </Badge>
+                          <span>
+                            {group.length} {group.length > 1 ? "retards de paiement" : "retard de paiement"}
+                          </span>
+                        </div>
                       </summary>
                       <div className="px-3 pb-3 space-y-1">
                         {group.map((anomaly, i) => (
@@ -581,17 +627,6 @@ export default function AnomaliesPanel({ anomalies }: AnomaliesPanelProps) {
                       <div className="mt-1 text-sm text-muted-foreground pl-1">
                         {anomaly.detail}
                       </div>
-                      {anomaly.actual_value && (
-                        <details className="group mt-2 pl-1">
-                          <summary className="cursor-pointer list-none text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
-                            <ChevronRight className="h-3 w-3 shrink-0 transition-transform group-open:rotate-90" />
-                            Voir les références
-                          </summary>
-                          <div className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap">
-                            {anomaly.actual_value}
-                          </div>
-                        </details>
-                      )}
                     </div>
                   );
                 })}

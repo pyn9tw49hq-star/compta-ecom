@@ -3,7 +3,7 @@
  * No React dependency — operates on plain data.
  */
 import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
+import autoTable, { type CellHookData } from "jspdf-autotable";
 import {
   PAGE_WIDTH,
   MARGIN,
@@ -170,8 +170,9 @@ function renderGroupTitle(
 }
 
 function renderAnomalyTable(doc: jsPDF, anomalies: Anomaly[], y: number): number {
-  const head = [["S\u00e9v\u00e9rit\u00e9", "Type", "Canal", "R\u00e9f\u00e9rence", "D\u00e9tail"]];
+  const head = [["", "S\u00e9v\u00e9rit\u00e9", "Type", "Canal", "R\u00e9f\u00e9rence", "D\u00e9tail"]];
   const body = anomalies.map((a) => [
+    "",
     getSeverityLabel(a.severity),
     normSpace(getTypeLabel(a.type)),
     channelLabel(a.canal),
@@ -187,14 +188,25 @@ function renderAnomalyTable(doc: jsPDF, anomalies: Anomaly[], y: number): number
     headStyles: HEAD_STYLE,
     bodyStyles: { ...BODY_STYLE, fontSize: 8 },
     columnStyles: {
-      0: { cellWidth: 22 },
-      1: { cellWidth: 35 },
-      2: { cellWidth: 25 },
-      3: { cellWidth: 28 },
-      4: { cellWidth: "auto" },
+      0: { cellWidth: 10 },
+      1: { cellWidth: 18 },
+      2: { cellWidth: 33 },
+      3: { cellWidth: 23 },
+      4: { cellWidth: 26 },
+      5: { cellWidth: "auto" },
     },
     showHead: "everyPage",
     styles: { overflow: "linebreak", cellPadding: 2 },
+    didDrawCell: (data: CellHookData) => {
+      if (data.column.index === 0 && data.section === "body") {
+        const size = 3.5;
+        const x = data.cell.x + (data.cell.width - size) / 2;
+        const y = data.cell.y + (data.cell.height - size) / 2;
+        doc.setDrawColor("#9CA3AF");
+        doc.setLineWidth(0.1);
+        doc.rect(x, y, size, size);
+      }
+    },
   });
 
   return (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;

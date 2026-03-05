@@ -348,16 +348,27 @@ class ShopifyParser(BaseParser):
             shipping = float(row["Shipping"])
             taxes = float(row["Taxes"])
             total = float(row["Total"])
-        except (ValueError, TypeError):
+        except (ValueError, TypeError) as exc:
+            raw_vals = {
+                "Subtotal": row.get("Subtotal"),
+                "Shipping": row.get("Shipping"),
+                "Taxes": row.get("Taxes"),
+                "Total": row.get("Total"),
+            }
+            raw_summary = ", ".join(f"{k}={v!r}" for k, v in raw_vals.items())
             anomalies.append(
                 Anomaly(
                     type="parse_warning",
                     severity="warning",
                     reference=reference,
                     channel="shopify",
-                    detail="Valeur numérique non parsable — ligne ignorée",
-                    expected_value=None,
-                    actual_value=None,
+                    detail=(
+                        f"Valeur numérique non parsable pour la commande {reference} — "
+                        f"colonnes brutes : {raw_summary} (erreur : {exc}). "
+                        f"Cette ligne a été ignorée du traitement"
+                    ),
+                    expected_value="valeurs numériques dans Subtotal/Shipping/Taxes/Total",
+                    actual_value=raw_summary,
                 )
             )
             return None, anomalies
@@ -682,15 +693,20 @@ class ShopifyParser(BaseParser):
         # --- Orphan sale summary (Issue #2) ---
         if orphan_sale_refs:
             refs_str = ", ".join(orphan_sale_refs)
+            count = len(orphan_sale_refs)
             anomalies.append(
                 Anomaly(
                     type="orphan_sale_summary",
                     severity="info",
                     reference="",
                     channel="shopify",
-                    detail=f"{len(orphan_sale_refs)} commandes sans encaissement trouvé — Références : {refs_str}",
-                    expected_value=None,
-                    actual_value=None,
+                    detail=(
+                        f"{count} commande{'s' if count > 1 else ''} Shopify sans encaissement trouvé "
+                        f"dans le fichier Transactions — ces commandes n'apparaissent pas encore dans les "
+                        f"versements. Références : {refs_str}"
+                    ),
+                    expected_value="encaissement dans le fichier Transactions",
+                    actual_value=refs_str,
                 )
             )
 
@@ -786,14 +802,21 @@ class ShopifyParser(BaseParser):
         # --- Prior period settlement summary (charges) ---
         if prior_period_settlement_refs:
             refs_str = ", ".join(sorted(prior_period_settlement_refs, key=lambda r: _extract_ref_number(r) or 0))
+            count = len(prior_period_settlement_refs)
             anomalies.append(
                 Anomaly(
                     type="prior_period_settlement",
                     severity="info",
                     reference="",
                     channel="shopify",
-                    detail=f"{len(prior_period_settlement_refs)} encaissement{'s' if len(prior_period_settlement_refs) > 1 else ''} concernent une période antérieure",
-                    expected_value=None,
+                    detail=(
+                        f"{count} encaissement{'s' if count > 1 else ''} Shopify "
+                        f"concern{'ent' if count > 1 else 'e'} une période antérieure "
+                        f"à celle des ventes exportées — "
+                        f"les commandes d'origine ne figurent pas dans le fichier Ventes. "
+                        f"Références : {refs_str}"
+                    ),
+                    expected_value="ventes correspondantes dans la période exportée",
                     actual_value=refs_str,
                 )
             )
@@ -801,14 +824,21 @@ class ShopifyParser(BaseParser):
         # --- Prior period refund summary (remboursements) ---
         if prior_period_refund_refs:
             refs_str = ", ".join(sorted(prior_period_refund_refs, key=lambda r: _extract_ref_number(r) or 0))
+            count = len(prior_period_refund_refs)
             anomalies.append(
                 Anomaly(
                     type="prior_period_refund",
                     severity="info",
                     reference="",
                     channel="shopify",
-                    detail=f"{len(prior_period_refund_refs)} remboursement{'s' if len(prior_period_refund_refs) > 1 else ''} concernent une période antérieure",
-                    expected_value=None,
+                    detail=(
+                        f"{count} remboursement{'s' if count > 1 else ''} Shopify "
+                        f"concern{'ent' if count > 1 else 'e'} une période antérieure "
+                        f"à celle des ventes exportées — "
+                        f"les commandes d'origine ne figurent pas dans le fichier Ventes. "
+                        f"Références : {refs_str}"
+                    ),
+                    expected_value="ventes correspondantes dans la période exportée",
                     actual_value=refs_str,
                 )
             )

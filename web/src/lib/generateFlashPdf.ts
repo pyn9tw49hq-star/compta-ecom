@@ -9,6 +9,7 @@ import { normSpace, fmt, fmtPct, fmtDate, channelLabel } from "./pdfStyles";
 import {
   ANOMALY_TYPE_LABELS,
 } from "@/components/AnomaliesPanel";
+import { countVisualCardsBySeverity } from "./anomalyCardKey";
 import type { Summary, Anomaly } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -724,10 +725,11 @@ function renderAnomaliesSlide(doc: jsPDF, data: FlashPdfData): void {
   renderPageHeader(doc, data);
   let y = renderSlideTitle(doc, "Anomalies D\u00e9tect\u00e9es");
 
-  // Count by severity
-  const errCount = anomalies.filter((a) => a.severity === "error").length;
-  const warnCount = anomalies.filter((a) => a.severity === "warning").length;
-  const infoCount = anomalies.filter((a) => a.severity === "info").length;
+  // Count by severity — unique visual cards
+  const sevCounts = countVisualCardsBySeverity(anomalies);
+  const errCount = sevCounts.error;
+  const warnCount = sevCounts.warning;
+  const infoCount = sevCounts.info;
 
   // Subtitle with counts
   doc.setFont("helvetica", "normal");

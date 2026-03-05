@@ -31,18 +31,25 @@ def _generate_aggregated_payout_entries(
         # Cross-period payout: no matched transactions in current dataset → info severity
         # True mixed PSP (transactions present but heterogeneous without breakdown) → warning
         is_cross_period = payout.matched_net_sum is None
+        payout_ref_display = payout.payout_reference or f"du {payout.payout_date.isoformat()}"
+        payout_amount = round(payout.total_amount, 2)
         anomaly = Anomaly(
             type="mixed_psp_payout",
             severity="info" if is_cross_period else "warning",
-            reference=payout.payout_reference or "",
+            reference=payout.payout_reference or f"PAYOUT-{payout.payout_date.isoformat()}",
             channel=payout.channel,
             detail=(
-                f"Versement {payout.payout_reference} sans aucune transaction correspondante — probable versement couvrant une période différente de celle exportée"
+                f"Versement {payout_ref_display} de {payout_amount}EUR "
+                f"(date : {payout.payout_date.isoformat()}) sans aucune transaction "
+                f"correspondante dans la période exportée — probable versement couvrant "
+                f"une période différente de celle des fichiers importés"
                 if is_cross_period
-                else f"Versement {payout.payout_reference} contient plusieurs moyens de paiement différents — l'écriture de reversement devra être saisie manuellement"
+                else f"Versement {payout_ref_display} de {payout_amount}EUR "
+                f"(date : {payout.payout_date.isoformat()}) contient plusieurs moyens "
+                f"de paiement différents — l'écriture de reversement devra être saisie manuellement"
             ),
-            expected_value=None,
-            actual_value=None,
+            expected_value="transactions correspondantes dans la période" if is_cross_period else "un seul moyen de paiement",
+            actual_value=f"{payout_amount}EUR le {payout.payout_date.isoformat()}",
         )
         return [], [anomaly]
 

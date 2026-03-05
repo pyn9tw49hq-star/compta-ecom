@@ -149,10 +149,10 @@ class TestAmountCoherence:
         )
         result = MatchingChecker._check_amount_coherence(tx, config)
         assert len(result) == 1
-        assert "commission (-3.5€)" in result[0].detail
-        assert "net versé (-115.5€)" in result[0].detail
-        assert "120.0€" in result[0].detail
-        assert "Écart de 1.0€" in result[0].detail
+        assert "commission (-3.5EUR)" in result[0].detail
+        assert "net versé (-115.5EUR)" in result[0].detail
+        assert "120.0EUR" in result[0].detail
+        assert "écart de 1.0EUR" in result[0].detail
 
     def test_ecart_superieur_tolerance(self) -> None:
         """Écart > tolérance → amount_mismatch."""
@@ -363,7 +363,8 @@ class TestRefundMatching:
         assert result[0].type == "orphan_refund"
         assert result[0].severity == "warning"
         assert result[0].reference == "#9999"
-        assert "#9999" in result[0].detail
+        # Reference is displayed by the frontend component, not duplicated in detail
+        assert "Remboursement" in result[0].detail
 
     def test_shopify_refund_skipped_in_refund_matching(self) -> None:
         """Shopify refund sans vente → skip (handled by parser)."""
@@ -555,10 +556,11 @@ class TestOrchestration:
         assert "orphan_refund" in types
 
         # Nombre exact: 1 amount_mismatch + 2 missing_payout (tx_no_payout + tx_orphan_refund)
-        # + 1 orphan_refund = 4
+        # + 1 orphan_refund + 2 missing_payout_summary (shopify + decathlon) = 6
         # tx_orphan_refund also has amount_mismatch? abs(-3.50 + -116.50) = 120.0 = amount_ttc → coherent
         # tx_no_payout: abs(3.50 + 116.50) = 120.0 → coherent, but missing payout
-        assert len(result) == 4
+        assert len(result) == 6
+        assert "missing_payout_summary" in types
 
     def test_multi_canal(self) -> None:
         """Transactions multi-canal → vérifier channel et reference corrects."""
@@ -917,3 +919,176 @@ class TestManoManoNegativeCommissionCoherence:
         result = MatchingChecker._check_amount_coherence(tx, config)
         assert len(result) == 1
         assert result[0].type == "amount_mismatch"
+
+
+# --- Tests #48: missing_payout_summary with Solde for LM/Decathlon ---
+
+
+class TestMissingPayoutSummaryWithSolde:
+    """Issue #48: Résumé groupé missing_payout avec concordance Solde."""
+
+    def test_missing_payout_summary_with_solde_match(self) -> None:
+        """LM avec Solde concordant → 'confirme par le fichier source'."""
+        config = _make_config()
+        txs = [
+            _make_tx(reference="001-26013L001", channel="leroy_merlin", payout_date=None, amount_ttc=300.0),
+            _make_tx(reference="001-26013L002", channel="leroy_merlin", payout_date=None, amount_ttc=240.57),
+        ]
+        channel_metadata = {"leroy_merlin": {"solde": 540.57}}
+        result = MatchingChecker.check(
+            txs, config, channel_metadata=channel_metadata, _today=datetime.date(2026, 3, 5),
+        )
+        summaries = [a for a in result if a.type == "missing_payout_summary"]
+        assert len(summaries) == 1
+        assert "confirme par le fichier source" in summaries[0].detail
+        assert summaries[0].channel == "leroy_merlin"
+        # actual_value now contains references of pending transactions, not the amount
+        assert "001-26013L001" in summaries[0].actual_value
+        assert "001-26013L002" in summaries[0].actual_value
+
+    def test_missing_payout_summary_with_solde_negative(self) -> None:
+        """Decathlon avec Solde negatif → ecart + anomalie negative_solde."""
+        config = _make_config()
+        txs = [
+            _make_tx(reference="fr001", channel="decathlon", payout_date=None, amount_ttc=50.0),
+        ]
+        channel_metadata = {"decathlon": {"solde": -808.70}}
+        result = MatchingChecker.check(
+            txs, config, channel_metadata=channel_metadata, _today=datetime.date(2026, 3, 5),
+        )
+        summaries = [a for a in result if a.type == "missing_payout_summary"]
+        assert len(summaries) == 1
+        assert "ecart" in summaries[0].detail
+
+        neg_solde = [a for a in result if a.type == "negative_solde"]
+        assert len(neg_solde) == 1
+        assert "Solde negatif" in neg_solde[0].detail
+        assert neg_solde[0].channel == "decathlon"
+
+    def test_missing_payout_summary_without_solde(self) -> None:
+        """Canal sans Solde → résumé sans mention Solde."""
+        config = _make_config()
+        txs = [
+            _make_tx(reference="001-26013L001", channel="leroy_merlin", payout_date=None, amount_ttc=100.0),
+        ]
+        result = MatchingChecker.check(
+            txs, config, channel_metadata=None, _today=datetime.date(2026, 3, 5),
+        )
+        summaries = [a for a in result if a.type == "missing_payout_summary"]
+        assert len(summaries) == 1
+        assert "confirme" not in summaries[0].detail
+        assert "ecart" not in summaries[0].detail
+        assert summaries[0].expected_value is None
+
+
+# --- Tests #50: payment_delay suppression with Solde ---
+
+
+class TestPaymentDelaySolde:
+    """Issue #50: Supprimer payment_delay quand le Solde est concordant ou negatif."""
+
+    def test_payment_delay_suppressed_when_solde_matches(self) -> None:
+        """Pas de payment_delay quand Solde == montant en attente."""
+        config = _make_config()
+        txs = [
+            _make_tx(
+                reference="001-26013L001", channel="leroy_merlin",
+                payout_date=None, amount_ttc=540.57,
+            ),
+        ]
+        # Override date to make it >20 days ago
+        from dataclasses import replace
+        txs = [replace(txs[0], date=datetime.date(2025, 12, 1))]
+        channel_metadata = {"leroy_merlin": {"solde": 540.57}}
+        result = MatchingChecker.check(
+            txs, config, channel_metadata=channel_metadata, _today=datetime.date(2026, 3, 5),
+        )
+        payment_delays = [a for a in result if a.type == "payment_delay"]
+        assert len(payment_delays) == 0
+
+    def test_payment_delay_suppressed_when_solde_negative(self) -> None:
+        """Pas de payment_delay quand Solde negatif."""
+        config = _make_config()
+        from dataclasses import replace
+        tx = _make_tx(
+            reference="fr001", channel="decathlon",
+            payout_date=None, amount_ttc=50.0,
+        )
+        tx = replace(tx, date=datetime.date(2025, 12, 1))
+        channel_metadata = {"decathlon": {"solde": -808.70}}
+        result = MatchingChecker.check(
+            [tx], config, channel_metadata=channel_metadata, _today=datetime.date(2026, 3, 5),
+        )
+        payment_delays = [a for a in result if a.type == "payment_delay"]
+        assert len(payment_delays) == 0
+
+    def test_payment_delay_emitted_when_no_solde(self) -> None:
+        """payment_delay emis quand pas de channel_metadata (comportement inchange)."""
+        config = _make_config()
+        from dataclasses import replace
+        tx = _make_tx(
+            reference="001-26013L001", channel="leroy_merlin",
+            payout_date=None, amount_ttc=540.57,
+        )
+        tx = replace(tx, date=datetime.date(2025, 12, 1))
+        result = MatchingChecker.check(
+            [tx], config, channel_metadata=None, _today=datetime.date(2026, 3, 5),
+        )
+        payment_delays = [a for a in result if a.type == "payment_delay"]
+        assert len(payment_delays) == 1
+        assert payment_delays[0].reference == "001-26013L001"
+
+
+# --- Tests #51: Leroy Merlin prior-period refund year-based ---
+
+
+class TestLmPriorPeriodRefund:
+    """Issue #51: Remboursements LM avec ref 001-25XXX → prior_period_lm_refund."""
+
+    def test_lm_prior_period_refund_year_based(self) -> None:
+        """Ref 001-25XXX en 2026 → prior_period_lm_refund info."""
+        config = _make_config()
+        txs = [
+            _make_tx(
+                reference="001-26013L001", channel="leroy_merlin",
+                tx_type="sale", payout_date=datetime.date(2026, 2, 1),
+            ),
+            _make_tx(
+                reference="001-25236L28064-A", channel="leroy_merlin",
+                tx_type="refund", payout_date=None,
+            ),
+        ]
+        result = MatchingChecker.check(txs, config, _today=datetime.date(2026, 3, 5))
+
+        lm_prior = [a for a in result if a.type == "prior_period_lm_refund"]
+        assert len(lm_prior) == 1
+        assert "001-25236L28064-A" in lm_prior[0].detail
+        assert "2025" in lm_prior[0].detail
+        assert lm_prior[0].severity == "info"
+        assert lm_prior[0].channel == "leroy_merlin"
+
+        orphans = [a for a in result if a.type == "orphan_refund"]
+        assert len(orphans) == 0
+
+    def test_lm_current_period_refund_orphan(self) -> None:
+        """Ref 001-26XXX sans vente correspondante → orphan_refund warning."""
+        config = _make_config()
+        txs = [
+            _make_tx(
+                reference="001-26013L001", channel="leroy_merlin",
+                tx_type="sale", payout_date=datetime.date(2026, 2, 1),
+            ),
+            _make_tx(
+                reference="001-26099L99999-A", channel="leroy_merlin",
+                tx_type="refund", payout_date=None,
+            ),
+        ]
+        result = MatchingChecker.check(txs, config, _today=datetime.date(2026, 3, 5))
+
+        lm_prior = [a for a in result if a.type == "prior_period_lm_refund"]
+        assert len(lm_prior) == 0
+
+        orphans = [a for a in result if a.type == "orphan_refund"]
+        assert len(orphans) == 1
+        assert orphans[0].reference == "001-26099L99999-A"
+        assert orphans[0].severity == "warning"
