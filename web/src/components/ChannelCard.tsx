@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useMemo } from "react";
-import { CheckCircle2, ChevronDown, ChevronRight, Circle, CircleAlert } from "lucide-react";
+import { CheckCircle2, ChevronDown, ChevronRight, Circle, CircleAlert, File as FileIcon, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   Collapsible,
@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/collapsible";
 import FileSlot from "@/components/FileSlot";
 import { useNewDesign } from "@/hooks/useNewDesign";
+import { formatSize } from "@/lib/utils";
 import type { ChannelMeta } from "@/lib/channels";
 import type { FileGroupConfig, FileSlotConfig, UploadedFile } from "@/lib/types";
 
@@ -120,12 +121,12 @@ const ChannelCard = memo(function ChannelCard({
     };
     const circleColor = channelColors[channelKey] ?? "#9ca3af";
 
-    // Build display list: all required slots (or grouped slots)
+    // Build display list: all slots (required + optional), or grouped slots
     const displaySlots = fileGroups
       ? fileGroups.flatMap((g) =>
           g.slots.map((slotKey) => expectedFiles.find((f) => f.key === slotKey)).filter(Boolean)
         ) as FileSlotConfig[]
-      : requiredSlots;
+      : [...requiredSlots, ...optionalSlots];
 
     return (
       <div className="rounded-xl p-5 border border-border bg-card">
@@ -135,15 +136,13 @@ const ChannelCard = memo(function ChannelCard({
             <Icon className="h-4 w-4 text-white" aria-hidden="true" />
           </div>
           <span className="font-semibold text-sm">{meta.label}</span>
-          {isComplete && isActive ? (
-            <Badge variant="outline" className="ml-auto bg-green-50 text-green-700 border-green-300 text-xs dark:bg-green-950 dark:text-green-200 dark:border-green-700">
-              Complet
-            </Badge>
-          ) : isActive ? (
-            <Badge variant="outline" className="ml-auto bg-gray-100 text-gray-600 border-gray-300 text-xs dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600">
-              Partiel
-            </Badge>
-          ) : null}
+          <span className={`ml-auto rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
+            isComplete && isActive
+              ? "bg-green-50 text-green-600 dark:bg-green-950/30 dark:text-green-400"
+              : "bg-orange-50 text-orange-500 dark:bg-orange-950/30 dark:text-orange-400"
+          }`}>
+            {isComplete && isActive ? "Complet" : `${uploadedRequiredCount} / ${requiredSlots.length}`}
+          </span>
         </div>
 
         {/* File slots list */}
@@ -151,15 +150,63 @@ const ChannelCard = memo(function ChannelCard({
           {displaySlots.map((slot) => {
             const match = slotMatches.get(slot.key);
             const isFilled = match !== null;
+
+            if (isFilled) {
+              // Slot rempli : fond vert, nom, taille, bouton X
+              return (
+                <div
+                  key={slot.key}
+                  className="flex items-center gap-2 rounded-lg px-3.5 py-2.5 bg-green-50 border border-green-200 dark:bg-green-950/30 dark:border-green-800"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" aria-hidden="true" />
+                  <span className="text-xs font-medium text-foreground truncate flex-1">
+                    {match!.file.file.name}
+                  </span>
+                  <span className="text-[9px] font-semibold text-green-600 dark:text-green-400 uppercase tracking-wider shrink-0">
+                    {formatSize(match!.file.file.size)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onRemoveFile(findGlobalIndex(match!.file))}
+                    className="flex items-center justify-center h-5 w-5 rounded-full bg-white dark:bg-slate-800 border border-border shrink-0 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+                    aria-label={`Retirer ${match!.file.file.name}`}
+                  >
+                    <X className="h-3 w-3 text-muted-foreground" />
+                  </button>
+                </div>
+              );
+            }
+
+            if (slot.required) {
+              // Slot vide requis : fond gris clair, icone file, tag REQUIS orange
+              return (
+                <div
+                  key={slot.key}
+                  className="flex items-center gap-2 rounded-lg px-3.5 py-2.5 bg-gray-50 border border-gray-200 dark:bg-gray-900/30 dark:border-gray-700"
+                >
+                  <FileIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
+                  <span className="text-xs text-muted-foreground truncate flex-1">
+                    {slot.patternHuman}
+                  </span>
+                  <span className="text-[9px] font-bold text-orange-500 uppercase tracking-wider shrink-0">
+                    REQUIS
+                  </span>
+                </div>
+              );
+            }
+
+            // Slot vide optionnel : fond plus clair, tag OPTIONNEL muted
             return (
-              <div key={slot.key} className="flex items-center gap-2 text-[13px]">
-                {isFilled ? (
-                  <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" aria-hidden="true" />
-                ) : (
-                  <Circle className="h-4 w-4 text-gray-300 shrink-0" aria-hidden="true" />
-                )}
-                <span className={isFilled ? "text-foreground" : "text-muted-foreground"}>
-                  {isFilled ? match!.file.file.name : slot.patternHuman}
+              <div
+                key={slot.key}
+                className="flex items-center gap-2 rounded-lg px-3.5 py-2.5 bg-gray-50/50 border border-gray-100 dark:bg-gray-900/20 dark:border-gray-800"
+              >
+                <FileIcon className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" aria-hidden="true" />
+                <span className="text-xs text-muted-foreground truncate flex-1">
+                  {slot.patternHuman}
+                </span>
+                <span className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider shrink-0">
+                  OPTIONNEL
                 </span>
               </div>
             );
