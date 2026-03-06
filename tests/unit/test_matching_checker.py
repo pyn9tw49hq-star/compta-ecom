@@ -945,6 +945,30 @@ class TestMissingPayoutSummaryWithSolde:
         assert "001-26013L001" in summaries[0].actual_value
         assert "001-26013L002" in summaries[0].actual_value
 
+    def test_missing_payout_summary_with_solde_pending_adjusted(self) -> None:
+        """LM avec opening balance: solde brut != pending, mais solde_pending == pending → confirme."""
+        config = _make_config()
+        txs = [
+            _make_tx(reference="001-26013L001", channel="leroy_merlin", payout_date=None, amount_ttc=300.0),
+            _make_tx(reference="001-26013L002", channel="leroy_merlin", payout_date=None, amount_ttc=240.57),
+        ]
+        # Raw solde is much larger (includes opening balance + paid residual)
+        # but solde_pending adjusts to match pending_net_total
+        channel_metadata = {
+            "leroy_merlin": {
+                "solde": 2884.30,
+                "pending_net_total": 540.57,
+                "solde_pending": 540.57,
+            }
+        }
+        result = MatchingChecker.check(
+            txs, config, channel_metadata=channel_metadata, _today=datetime.date(2026, 3, 5),
+        )
+        summaries = [a for a in result if a.type == "missing_payout_summary"]
+        assert len(summaries) == 1
+        assert "confirme par le fichier source" in summaries[0].detail
+        assert "ecart" not in summaries[0].detail
+
     def test_missing_payout_summary_with_solde_negative(self) -> None:
         """Decathlon avec Solde negatif → ecart + anomalie negative_solde."""
         config = _make_config()
@@ -999,6 +1023,31 @@ class TestPaymentDelaySolde:
         from dataclasses import replace
         txs = [replace(txs[0], date=datetime.date(2025, 12, 1))]
         channel_metadata = {"leroy_merlin": {"solde": 540.57}}
+        result = MatchingChecker.check(
+            txs, config, channel_metadata=channel_metadata, _today=datetime.date(2026, 3, 5),
+        )
+        payment_delays = [a for a in result if a.type == "payment_delay"]
+        assert len(payment_delays) == 0
+
+    def test_payment_delay_suppressed_with_solde_pending(self) -> None:
+        """Pas de payment_delay quand solde_pending (ajuste) == pending_net_total."""
+        config = _make_config()
+        txs = [
+            _make_tx(
+                reference="001-26013L001", channel="leroy_merlin",
+                payout_date=None, amount_ttc=540.57,
+            ),
+        ]
+        from dataclasses import replace
+        txs = [replace(txs[0], date=datetime.date(2025, 12, 1))]
+        # Raw solde is much larger, but solde_pending matches pending_net_total
+        channel_metadata = {
+            "leroy_merlin": {
+                "solde": 2884.30,
+                "pending_net_total": 540.57,
+                "solde_pending": 540.57,
+            }
+        }
         result = MatchingChecker.check(
             txs, config, channel_metadata=channel_metadata, _today=datetime.date(2026, 3, 5),
         )

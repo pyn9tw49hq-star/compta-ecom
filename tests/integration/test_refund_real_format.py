@@ -204,3 +204,19 @@ class TestRealFormatSaleEntries:
         entries = generate_sale_entries(real_format_sale, sample_config)
         for e in entries:
             assert e.entry_type == "sale"
+
+
+class TestSoldePendingComputation:
+    """Vérification du calcul solde_pending dans le ParseResult."""
+
+    def test_solde_pending_equals_pending_net_when_no_opening_balance(
+        self, real_format_parse_result,
+    ) -> None:
+        """Decathlon real format: opening_balance=0 → solde_pending == pending_net_total."""
+        cm = real_format_parse_result.channel_metadata
+        assert cm is not None, "channel_metadata should be set"
+        assert "solde" in cm, "solde should be present"
+        assert "pending_net_total" in cm, "pending_net_total should be present"
+        assert "solde_pending" in cm, "solde_pending should be present"
+        # With opening_balance=0, solde_pending == pending_net_total
+        assert abs(cm["solde_pending"] - cm["pending_net_total"]) < 0.02

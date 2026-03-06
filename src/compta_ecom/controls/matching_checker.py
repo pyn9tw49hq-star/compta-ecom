@@ -165,12 +165,15 @@ class MatchingChecker:
             ]
 
             solde = None
+            solde_compare = None
             if channel_metadata and chan in channel_metadata:
                 solde = channel_metadata[chan].get("solde")
+                # solde_pending adjusts for opening balance & paid residuals
+                sp = channel_metadata[chan].get("solde_pending")
+                solde_compare = float(sp) if sp is not None else (float(solde) if solde is not None else None)
 
-            if solde is not None:
-                solde_val = float(solde)
-                ecart = abs(pending_net - solde_val)
+            if solde_compare is not None:
+                ecart = abs(pending_net - solde_compare)
                 if ecart <= 1.0:
                     summary_parts.append("montant confirme par le fichier source")
                 else:
@@ -477,13 +480,17 @@ class MatchingChecker:
                             # Negative solde -> suppress payment_delay
                             suppressed_channels.add(chan)
                         else:
+                            # Use solde_pending (adjusted for opening balance)
+                            # if available, otherwise raw solde
+                            sp = channel_metadata[chan].get("solde_pending")
+                            compare_val = float(sp) if sp is not None else solde_val
                             pending_net = channel_metadata[chan].get("pending_net_total")
                             if pending_net is not None:
-                                if abs(float(pending_net) - solde_val) <= 1.0:
+                                if abs(float(pending_net) - compare_val) <= 1.0:
                                     suppressed_channels.add(chan)
                             else:
                                 unpaid_total = round(unpaid_sum_by_channel.get(chan, 0.0), 2)
-                                if abs(unpaid_total - solde_val) <= 1.0:
+                                if abs(unpaid_total - compare_val) <= 1.0:
                                     suppressed_channels.add(chan)
 
         anomalies: list[Anomaly] = []

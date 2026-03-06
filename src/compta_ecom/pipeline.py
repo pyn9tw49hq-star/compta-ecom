@@ -311,10 +311,15 @@ class PipelineOrchestrator:
         if channel_metadata:
             for c in channels:
                 if c in channel_metadata:
-                    solde = channel_metadata[c].get("solde")
                     pending_net = channel_metadata[c].get("pending_net_total")
-                    if solde is not None and pending_net is not None:
-                        if abs(float(pending_net) - float(solde)) <= 1.0:
+                    # Use solde_pending (adjusted for opening balance) if available
+                    sp = channel_metadata[c].get("solde_pending")
+                    solde_cmp = float(sp) if sp is not None else None
+                    if solde_cmp is None:
+                        solde = channel_metadata[c].get("solde")
+                        solde_cmp = float(solde) if solde is not None else None
+                    if solde_cmp is not None and pending_net is not None:
+                        if abs(float(pending_net) - solde_cmp) <= 1.0:
                             matched_nb[c] = sales_nb[c]
                             confirmed_channels.append(c)
 

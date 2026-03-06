@@ -609,6 +609,32 @@ class MiraklParser(BaseParser):
                 channel_metadata = {}
             channel_metadata["pending_net_total"] = pending_net_total
 
+        # 9c. Compute solde_pending: the portion of the progressive Solde that
+        # corresponds to pending rows only.  When the CSV doesn't cover the full
+        # account history, an opening balance and paid-cycle residuals inflate the
+        # raw Solde.  solde_pending adjusts for this so the comparison in
+        # matching_checker is fair.
+        if (
+            channel_metadata is not None
+            and "solde" in channel_metadata
+            and "Solde" in df.columns
+            and len(df) > 0
+        ):
+            first_solde = pd.to_numeric(
+                str(df["Solde"].iloc[0]).replace(",", "."), errors="coerce"
+            )
+            first_montant = df["Montant"].iloc[0]  # already numeric
+            if pd.notna(first_solde) and pd.notna(first_montant):
+                opening_balance = float(first_solde) - float(first_montant)
+                paid_mask = df["Date du cycle de paiement"].notna() & (
+                    df["Date du cycle de paiement"].astype(str).str.strip() != ""
+                )
+                paid_montant_sum = float(df.loc[paid_mask, "Montant"].sum())
+                solde_pending = round(
+                    float(channel_metadata["solde"]) - opening_balance - paid_montant_sum, 2
+                )
+                channel_metadata["solde_pending"] = solde_pending
+
         # 10. Build ParseResult
         return ParseResult(
             transactions=order_transactions + sub_transactions,
