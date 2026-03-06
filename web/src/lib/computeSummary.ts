@@ -21,6 +21,7 @@ export function computeSummary(
   transactions: Transaction[],
   entries: Entry[],
   countryMap: Record<string, string>,
+  confirmedChannels?: string[],
 ): Summary {
   // --- Transactions par canal (unique by ref+channel, skip special_type) ---
   const transactionsParCanal: Record<string, number> = {};
@@ -113,6 +114,15 @@ export function computeSummary(
   for (const c of Object.keys(aboHt)) {
     aboHt[c] = round2(aboHt[c]);
     aboTtc[c] = round2(aboTtc[c]);
+  }
+
+  // Force matched = sales for channels confirmed by solde
+  if (confirmedChannels) {
+    for (const c of confirmedChannels) {
+      if (c in salesNb) {
+        matchedNb[c] = salesNb[c];
+      }
+    }
   }
 
   // Round

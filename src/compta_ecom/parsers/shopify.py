@@ -178,7 +178,7 @@ class ShopifyParser(BaseParser):
 
             # 3.6 Refunds découverts dans payout details mais absents de Transactions Shopify
             detail_refunds, detail_refund_anomalies = self._build_refunds_from_payout_details(
-                payout_details_by_id, transactions, sales_data
+                payout_details_by_id, transactions, sales_data, config
             )
             transactions.extend(detail_refunds)
             anomalies.extend(detail_refund_anomalies)
@@ -395,6 +395,12 @@ class ShopifyParser(BaseParser):
 
         # Extraction taux TVA — scan Tax 1-5 Name, priorité au pays de livraison
         tva_rate = self._find_tva_rate_for_country(row, alpha2_code)
+
+        # Fallback: si Tax Name vide mais Taxes > 0, inférer le taux depuis le pays
+        if tva_rate == 0.0 and taxes > 0 and country_code != "000":
+            vat_entry = config.vat_table.get(country_code)
+            if vat_entry:
+                tva_rate = float(vat_entry["rate"])
 
         # Montants — dérivés depuis Total et Taxes pour garantir HT + TVA = TTC.
         # Shopify peut exporter en prix TTC (Total = Subtotal + Shipping, taxes
@@ -1131,6 +1137,7 @@ class ShopifyParser(BaseParser):
         payout_details_by_id: dict[str, list[PayoutDetail]],
         existing_transactions: list[NormalizedTransaction],
         sales_data: dict[str, dict[str, Any]],
+        config: AppConfig,
     ) -> tuple[list[NormalizedTransaction], list[Anomaly]]:
         """Crée des NormalizedTransaction refund pour les remboursements présents
         dans les payout details mais absents du fichier Transactions Shopify.
@@ -1167,8 +1174,13 @@ class ShopifyParser(BaseParser):
 
                 # Récupérer le taux TVA et pays depuis la vente d'origine si disponible
                 sale = sales_data.get(detail.order_reference)
-                tva_rate = sale["tva_rate"] if sale else 0.0
-                country_code = sale["country_code"] if sale else "000"
+                if sale:
+                    tva_rate = sale["tva_rate"]
+                    country_code = sale["country_code"]
+                else:
+                    # Fallback France pour éviter faux positif TVA (0% vs 20%)
+                    country_code = "250"
+                    tva_rate = float(config.vat_table["250"]["rate"])
 
                 amount_ttc = round(abs(detail.amount), 2)
                 if tva_rate > 0:

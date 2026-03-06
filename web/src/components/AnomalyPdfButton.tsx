@@ -374,14 +374,14 @@ export default function AnomalyPdfButton({ anomalies, dateRange }: AnomalyPdfBut
                   { key: "warnings" as const, label: "Avertissements", color: SEVERITY_COLORS.warnings },
                   { key: "infos" as const, label: "Infos", color: SEVERITY_COLORS.infos },
                 ] as const).map(({ key, label, color }) => (
-                  <label key={key} className="flex items-center gap-2 cursor-pointer">
+                  <div key={key} className="flex items-center gap-2 cursor-pointer" onClick={(e) => { if ((e.target as HTMLElement).closest('button')) return; toggleSeverity(key); }}>
                     <V2ColorCheckbox
                       checked={severityFilter[key]}
                       onCheckedChange={() => toggleSeverity(key)}
                       fillColor={color}
                     />
                     <span className="text-[12px] font-medium text-foreground">{label}</span>
-                  </label>
+                  </div>
                 ))}
               </div>
             </div>
@@ -438,7 +438,7 @@ export default function AnomalyPdfButton({ anomalies, dateRange }: AnomalyPdfBut
                       {isExpanded && (
                         <div className="flex flex-col gap-1 ml-8 mt-1">
                           {cat.types.map((t) => (
-                            <label key={t} className="flex items-center gap-2 cursor-pointer">
+                            <div key={t} className="flex items-center gap-2 cursor-pointer" onClick={(e) => { if ((e.target as HTMLElement).closest('button')) return; toggleType(t); }}>
                               <V2ColorCheckbox
                                 checked={!!typeFilter[t]}
                                 onCheckedChange={() => toggleType(t)}
@@ -447,7 +447,7 @@ export default function AnomalyPdfButton({ anomalies, dateRange }: AnomalyPdfBut
                               <span className="text-[10px] text-foreground">
                                 {ANOMALY_TYPE_LABELS[t] ?? t}
                               </span>
-                            </label>
+                            </div>
                           ))}
                         </div>
                       )}
@@ -470,7 +470,7 @@ export default function AnomalyPdfButton({ anomalies, dateRange }: AnomalyPdfBut
                   const color = CHANNEL_COLORS[canal] ?? "#6B7280";
                   const count = channelAnomalyCounts[canal] ?? 0;
                   return (
-                    <label key={canal} className="flex items-center gap-2 cursor-pointer">
+                    <div key={canal} className="flex items-center gap-2 cursor-pointer" onClick={(e) => { if ((e.target as HTMLElement).closest('button')) return; toggleCanal(canal); }}>
                       <V2ColorCheckbox
                         checked={canalFilter.has(canal)}
                         onCheckedChange={() => toggleCanal(canal)}
@@ -482,7 +482,7 @@ export default function AnomalyPdfButton({ anomalies, dateRange }: AnomalyPdfBut
                       <span className="text-[10px] text-muted-foreground">
                         ({count})
                       </span>
-                    </label>
+                    </div>
                   );
                 })}
               </div>
@@ -503,7 +503,7 @@ export default function AnomalyPdfButton({ anomalies, dateRange }: AnomalyPdfBut
                   { value: "canal", label: "Par canal" },
                   { value: "type", label: "Par type" },
                 ] as const).map(({ value, label }) => (
-                  <label key={value} className="flex items-center gap-2 cursor-pointer">
+                  <div key={value} className="flex items-center gap-2 cursor-pointer">
                     <RadioGroup.Item
                       value={value}
                       className={`h-3.5 w-3.5 rounded-full border bg-transparent ${groupBy === value ? "" : "border-slate-300 dark:border-slate-500"}`}
@@ -518,7 +518,7 @@ export default function AnomalyPdfButton({ anomalies, dateRange }: AnomalyPdfBut
                     >
                       {label}
                     </span>
-                  </label>
+                  </div>
                 ))}
               </RadioGroup.Root>
             </div>
@@ -690,24 +690,24 @@ export default function AnomalyPdfButton({ anomalies, dateRange }: AnomalyPdfBut
               onValueChange={(v) => setGroupBy(v as "severity" | "canal" | "type")}
               className="space-y-1"
             >
-              <label className="flex items-center gap-2 cursor-pointer text-sm">
+              <div className="flex items-center gap-2 cursor-pointer text-sm">
                 <RadioGroup.Item value="severity" className={RADIO_CLASS}>
                   <RadioGroup.Indicator className={RADIO_INDICATOR_CLASS} />
                 </RadioGroup.Item>
                 Par sévérité
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer text-sm">
+              </div>
+              <div className="flex items-center gap-2 cursor-pointer text-sm">
                 <RadioGroup.Item value="canal" className={RADIO_CLASS}>
                   <RadioGroup.Indicator className={RADIO_INDICATOR_CLASS} />
                 </RadioGroup.Item>
                 Par canal
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer text-sm">
+              </div>
+              <div className="flex items-center gap-2 cursor-pointer text-sm">
                 <RadioGroup.Item value="type" className={RADIO_CLASS}>
                   <RadioGroup.Indicator className={RADIO_INDICATOR_CLASS} />
                 </RadioGroup.Item>
                 Par type
-              </label>
+              </div>
             </RadioGroup.Root>
           </div>
 

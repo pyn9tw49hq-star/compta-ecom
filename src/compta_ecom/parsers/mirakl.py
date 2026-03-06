@@ -599,6 +599,16 @@ class MiraklParser(BaseParser):
                 if pd.notna(solde_val):
                     channel_metadata = {"solde": float(solde_val)}
 
+        # 9b. Compute pending_net_total: sum of Montant for all rows without payout date
+        # Uses the full DataFrame (df) — not just orders — because the solde includes
+        # commissions, subscriptions, etc.
+        pending_mask = df["Date du cycle de paiement"].isna()
+        pending_net_total = round(float(df.loc[pending_mask, "Montant"].sum()), 2)
+        if pending_net_total != 0.0:
+            if channel_metadata is None:
+                channel_metadata = {}
+            channel_metadata["pending_net_total"] = pending_net_total
+
         # 10. Build ParseResult
         return ParseResult(
             transactions=order_transactions + sub_transactions,

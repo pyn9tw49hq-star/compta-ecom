@@ -31,11 +31,11 @@ interface NavItem {
 }
 
 const NAV_VIEWS: NavItem[] = [
-  { key: "flash", label: "Flash e-commerce", icon: BarChart3, needsResult: true },
   { key: "upload", label: "Import fichiers", icon: Upload, needsResult: false },
   { key: "ecritures", label: "Écritures", icon: FileText, needsResult: true },
   { key: "anomalies", label: "Anomalies", icon: TriangleAlert, needsResult: true },
   { key: "resume", label: "Résumé", icon: PieChart, needsResult: true },
+  { key: "flash", label: "Flash e-commerce", icon: BarChart3, needsResult: true },
 ];
 
 const NAV_CONFIG: NavItem[] = [

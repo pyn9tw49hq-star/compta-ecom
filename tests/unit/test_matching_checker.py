@@ -555,11 +555,10 @@ class TestOrchestration:
         assert "missing_payout" in types
         assert "orphan_refund" in types
 
-        # Nombre exact: 1 amount_mismatch + 2 missing_payout (tx_no_payout + tx_orphan_refund)
-        # + 1 orphan_refund + 2 missing_payout_summary (shopify + decathlon) = 6
-        # tx_orphan_refund also has amount_mismatch? abs(-3.50 + -116.50) = 120.0 = amount_ttc → coherent
-        # tx_no_payout: abs(3.50 + 116.50) = 120.0 → coherent, but missing payout
-        assert len(result) == 6
+        # Nombre exact: 1 amount_mismatch + 1 missing_payout (tx_no_payout only,
+        # tx_orphan_refund is decathlon refund → skipped by missing_payout check)
+        # + 1 orphan_refund + 1 missing_payout_summary (shopify only) = 4
+        assert len(result) == 4
         assert "missing_payout_summary" in types
 
     def test_multi_canal(self) -> None:

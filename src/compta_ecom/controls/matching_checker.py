@@ -70,6 +70,11 @@ class MatchingChecker:
                             overdue_manomano_amounts.append(tx.amount_ttc)
                             continue
 
+            # Skip missing_payout for LM/Decathlon refunds — they are handled
+            # by _check_refund_matching (prior_period_lm_refund / orphan_refund)
+            if tx.type == "refund" and tx.channel in ("leroy_merlin", "decathlon"):
+                continue
+
             payout_anomalies = MatchingChecker._check_payout_coverage(tx)
             anomalies.extend(payout_anomalies)
 
@@ -145,9 +150,18 @@ class MatchingChecker:
             count = len(mp_txs)
             total_ttc = round(sum(tx.amount_ttc for tx in mp_txs), 2)
             ch_display = channel_display_name(chan)
+
+            # Use pending_net_total (net sum of ALL unpaid lines) if available,
+            # otherwise fall back to total_ttc (gross order amounts only)
+            pending_net = total_ttc
+            if channel_metadata and chan in channel_metadata:
+                pnt = channel_metadata[chan].get("pending_net_total")
+                if pnt is not None:
+                    pending_net = round(float(pnt), 2)
+
             summary_parts = [
                 f"{count} reversement{'s' if count > 1 else ''} manquant{'s' if count > 1 else ''} "
-                f"pour un total de {total_ttc}EUR"
+                f"pour un montant net en attente de {pending_net}EUR"
             ]
 
             solde = None
@@ -156,7 +170,7 @@ class MatchingChecker:
 
             if solde is not None:
                 solde_val = float(solde)
-                ecart = abs(total_ttc - solde_val)
+                ecart = abs(pending_net - solde_val)
                 if ecart <= 1.0:
                     summary_parts.append("montant confirme par le fichier source")
                 else:
@@ -463,9 +477,14 @@ class MatchingChecker:
                             # Negative solde -> suppress payment_delay
                             suppressed_channels.add(chan)
                         else:
-                            unpaid_total = round(unpaid_sum_by_channel.get(chan, 0.0), 2)
-                            if abs(unpaid_total - solde_val) <= 1.0:
-                                suppressed_channels.add(chan)
+                            pending_net = channel_metadata[chan].get("pending_net_total")
+                            if pending_net is not None:
+                                if abs(float(pending_net) - solde_val) <= 1.0:
+                                    suppressed_channels.add(chan)
+                            else:
+                                unpaid_total = round(unpaid_sum_by_channel.get(chan, 0.0), 2)
+                                if abs(unpaid_total - solde_val) <= 1.0:
+                                    suppressed_channels.add(chan)
 
         anomalies: list[Anomaly] = []
         for tx in transactions:

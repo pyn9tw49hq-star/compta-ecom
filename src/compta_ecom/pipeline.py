@@ -67,7 +67,7 @@ class PipelineOrchestrator:
                 "Vérifiez les fichiers CSV et la configuration."
             )
 
-        entries, all_anomalies = self._process_parse_results(all_parse_results, config)
+        entries, all_anomalies, _channel_metadata = self._process_parse_results(all_parse_results, config)
 
         export(entries, all_anomalies, output_path, config)
         print_summary(entries, all_anomalies, channel_errors)
@@ -132,11 +132,12 @@ class PipelineOrchestrator:
                     payouts=filtered_payouts,
                     anomalies=filtered_anomalies,
                     channel=pr.channel,
+                    channel_metadata=pr.channel_metadata,
                 ))
             all_parse_results = filtered_results
 
-        entries, all_anomalies = self._process_parse_results(all_parse_results, config)
-        summary = self._build_summary(entries, all_parse_results, config)
+        entries, all_anomalies, channel_metadata = self._process_parse_results(all_parse_results, config)
+        summary = self._build_summary(entries, all_parse_results, config, channel_metadata=channel_metadata)
         unique_txs = self._deduplicate_transactions(all_parse_results)
 
         return entries, all_anomalies, summary, unique_txs
@@ -145,7 +146,7 @@ class PipelineOrchestrator:
         self,
         all_parse_results: list[ParseResult],
         config: AppConfig,
-    ) -> tuple[list[AccountingEntry], list[Anomaly]]:
+    ) -> tuple[list[AccountingEntry], list[Anomaly], dict[str, dict]]:
         """Agrège les résultats de parsing, génère les écritures et exécute les contrôles."""
         all_transactions = [t for pr in all_parse_results for t in pr.transactions]
         all_payouts = [p for pr in all_parse_results for p in pr.payouts]
@@ -176,13 +177,15 @@ class PipelineOrchestrator:
         all_anomalies.extend(matching_anomalies)
         all_anomalies.extend(lettrage_anomalies)
 
-        return entries, all_anomalies
+        return entries, all_anomalies, channel_metadata
 
     def _build_summary(
         self,
         entries: list[AccountingEntry],
         all_parse_results: list[ParseResult],
         config: AppConfig,
+        *,
+        channel_metadata: dict[str, dict] | None = None,
     ) -> dict[str, object]:
         """Construit le résumé : transactions par canal, écritures par type, totaux, KPIs financiers."""
         # Transactions par canal (unique par reference + channel + type + special_type)
@@ -303,6 +306,18 @@ class PipelineOrchestrator:
             c: round(refund_nb[c] / sales_nb[c] * 100, 1) if sales_nb[c] > 0 else 0.0
             for c in channels
         }
+        # --- Confirmed channels: solde confirms pending_net_total (ecart <= 1EUR) ---
+        confirmed_channels: list[str] = []
+        if channel_metadata:
+            for c in channels:
+                if c in channel_metadata:
+                    solde = channel_metadata[c].get("solde")
+                    pending_net = channel_metadata[c].get("pending_net_total")
+                    if solde is not None and pending_net is not None:
+                        if abs(float(pending_net) - float(solde)) <= 1.0:
+                            matched_nb[c] = sales_nb[c]
+                            confirmed_channels.append(c)
+
         taux_rapprochement_par_canal = {
             c: round(matched_nb.get(c, 0) / sales_nb[c] * 100, 1) if sales_nb[c] > 0 else 0.0
             for c in channels
@@ -422,6 +437,7 @@ class PipelineOrchestrator:
             "repartition_geo_globale": repartition_geo_globale,
             "repartition_geo_par_canal": repartition_geo_par_canal,
             "tva_par_pays_par_canal": tva_par_pays_par_canal_out,
+            "confirmed_channels": confirmed_channels,
         }
 
     @staticmethod

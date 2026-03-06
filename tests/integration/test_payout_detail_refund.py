@@ -96,11 +96,14 @@ class TestPayoutDetailRefundAccountingEntries:
         detail_refund_tx: NormalizedTransaction,
         sample_config: AppConfig,
     ) -> None:
-        """Les écritures RG (settlement) sont générées pour le refund."""
+        """Les écritures settlement sont en RG, commission en AC."""
         entries = generate_settlement_entries(detail_refund_tx, sample_config)
         assert len(entries) > 0
         for e in entries:
-            assert e.journal == "RG"
+            if e.entry_type == "commission":
+                assert e.journal == "AC"
+            else:
+                assert e.journal == "RG"
 
     def test_settlement_intermed_account(
         self,
@@ -182,12 +185,12 @@ class TestPayoutDetailRefundAccountingEntries:
             e for e in entries
             if e.piece_number == "#PD002" and e.journal == "VE" and e.entry_type == "refund"
         ]
-        rg_entries = [
+        rg_ac_entries = [
             e for e in entries
-            if e.piece_number == "#PD002" and e.journal == "RG" and e.entry_type in ("settlement", "commission")
+            if e.piece_number == "#PD002" and e.journal in ("RG", "AC") and e.entry_type in ("settlement", "commission")
         ]
         assert len(ve_refund_entries) == 0, f"Expected no VE refund entries for payout_detail_refund, got {len(ve_refund_entries)}"
-        assert len(rg_entries) > 0, "Expected RG entries for payout_detail_refund"
+        assert len(rg_ac_entries) > 0, "Expected RG/AC entries for payout_detail_refund"
 
     def test_lettrage_intermed_balanced_in_full_pipeline(
         self,

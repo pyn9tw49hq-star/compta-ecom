@@ -176,18 +176,22 @@ export default function Home() {
   const filteredSummary = useMemo(() => {
     if (!result) return null;
     const countryMap = result.country_names ?? {};
-    return computeSummary(filteredTransactions, result.entries, countryMap);
+    const confirmed = result.summary?.confirmed_channels ?? [];
+    return computeSummary(filteredTransactions, result.entries, countryMap, confirmed);
   }, [result, filteredTransactions]);
 
   const filteredAnomalies = useMemo(() => {
     if (!result) return [];
+    const activeChannels = new Set(filteredTransactions.map(t => t.channel));
     return result.anomalies.filter((a) => {
-      // Structural anomalies (no reference or no canal) are always shown
-      if (!a.reference || !a.canal) return true;
-      // Otherwise, only show if the ref+canal is in the filtered set
-      return filteredRefSet.has(`${a.reference}|${a.canal}`);
+      // If the anomaly has a canal, verify it is among the active channels
+      if (a.canal && !activeChannels.has(a.canal)) return false;
+      // If the anomaly has a reference AND a canal, check in the filteredRefSet
+      if (a.reference && a.canal) return filteredRefSet.has(`${a.reference}|${a.canal}`);
+      // Structural anomalies (no reference) with valid canal: already filtered above
+      return true;
     });
-  }, [result, filteredRefSet]);
+  }, [result, filteredRefSet, filteredTransactions]);
 
   const uniqueAnomalyCount = useMemo(() => {
     return countVisualCards(filteredAnomalies);

@@ -41,6 +41,7 @@ export interface Summary {
   repartition_geo_globale: Record<string, { count: number; ca_ttc: number; ca_ht: number }>;
   repartition_geo_par_canal: Record<string, Record<string, { count: number; ca_ttc: number; ca_ht: number }>>;
   tva_par_pays_par_canal: Record<string, Record<string, { taux: number; montant: number }[]>>;
+  confirmed_channels?: string[];
 }
 
 export interface Transaction {

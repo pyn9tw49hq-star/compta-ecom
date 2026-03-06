@@ -93,15 +93,29 @@ class TestSettlementSaleNominal:
         _assert_balance(entries)
 
     def test_sale_klarna(self, sample_config: AppConfig) -> None:
-        """Klarna sans compte intermédiaire : flux classique 511/627/411."""
+        """Klarna sans compte intermédiaire : flux 4 lignes (511 D/RG + 627 D/AC + 411 C/RG + 411 C/AC)."""
         tx = _make_transaction(
             net_amount=95.0, commission_ttc=5.0, payment_method="klarna"
         )
         entries = generate_settlement_entries(tx, sample_config)
 
-        assert len(entries) == 3
+        assert len(entries) == 4
+        # 511 D (net) en RG
         assert entries[0].account == "51150011"
+        assert entries[0].debit == 95.0
+        assert entries[0].journal == "RG"
+        # 627 D (commission) en AC
         assert entries[1].account == "62700003"
+        assert entries[1].debit == 5.0
+        assert entries[1].journal == "AC"
+        # 411 C (net) en RG
+        assert entries[2].account == "411SHOPIFY"
+        assert entries[2].credit == 95.0
+        assert entries[2].journal == "RG"
+        # 411 C (commission) en AC
+        assert entries[3].account == "411SHOPIFY"
+        assert entries[3].credit == 5.0
+        assert entries[3].journal == "AC"
         _assert_balance(entries)
 
 
@@ -336,11 +350,14 @@ class TestSettlementMetadata:
             assert e.date == datetime.date(2024, 3, 1)
 
     def test_journal(self, sample_config: AppConfig) -> None:
-        """Journal = 'RG'."""
+        """Settlement entries in RG, commission entries in AC."""
         tx = _make_transaction()
         entries = generate_settlement_entries(tx, sample_config)
         for e in entries:
-            assert e.journal == "RG"
+            if e.entry_type == "commission":
+                assert e.journal == "AC"
+            else:
+                assert e.journal == "RG"
 
     def test_piece_number_and_lettrage(self, sample_config: AppConfig) -> None:
         """piece_number = reference ; lettrage 411=reference, 46710001=payout_reference, 627=vide."""

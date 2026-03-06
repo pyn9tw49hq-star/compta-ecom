@@ -31,9 +31,11 @@ def generate_settlement_entries(
     canal_display = channel_display_name(transaction.channel)
     is_refund = transaction.type == "refund"
     label_prefix = "Remb. PSP" if is_refund else "Règlement"
+    commission_prefix = "Avoir commission" if is_refund else "Commission"
     # Orphan settlements: transactions without matching sale — mark label for FEC traceability
     orphan_tag = "[Orphelin] " if transaction.special_type == "orphan_settlement" else ""
     label = f"{orphan_tag}{label_prefix} {transaction.reference} {canal_display}"
+    commission_label = f"{orphan_tag}{commission_prefix} {transaction.reference} {canal_display}"
 
     entries: list[AccountingEntry] = []
     intermed = psp_config.compte_intermediaire
@@ -73,13 +75,14 @@ def generate_settlement_entries(
             )
 
         # Paire 2 : 627 D/C (commission) ↔ 46710001 C/D (commission) — omise si commission == 0
+        # Journal AC (achats) pour les commissions PSP
         if commission != 0.0:
             entries.append(
                 AccountingEntry(
                     date=transaction.date,
-                    journal=config.journal_reglement,
+                    journal=config.journal_achats,
                     account=commission_account,
-                    label=label,
+                    label=commission_label,
                     debit=commission if commission > 0 else 0.0,
                     credit=abs(commission) if commission < 0 else 0.0,
                     piece_number=transaction.reference,
@@ -91,9 +94,9 @@ def generate_settlement_entries(
             entries.append(
                 AccountingEntry(
                     date=transaction.date,
-                    journal=config.journal_reglement,
+                    journal=config.journal_achats,
                     account=intermed,
-                    label=label,
+                    label=commission_label,
                     debit=abs(commission) if commission < 0 else 0.0,
                     credit=commission if commission > 0 else 0.0,
                     piece_number=transaction.reference,
@@ -122,13 +125,14 @@ def generate_settlement_entries(
             )
 
         # Ligne Commission 627 — omise si commission == 0
+        # Journal AC (achats) pour les commissions PSP
         if commission != 0.0:
             entries.append(
                 AccountingEntry(
                     date=transaction.date,
-                    journal=config.journal_reglement,
+                    journal=config.journal_achats,
                     account=commission_account,
-                    label=label,
+                    label=commission_label,
                     debit=commission if commission > 0 else 0.0,
                     credit=abs(commission) if commission < 0 else 0.0,
                     piece_number=transaction.reference,
@@ -138,20 +142,37 @@ def generate_settlement_entries(
                 )
             )
 
-        # Ligne 411 Client — omise si total_411 == 0
-        if total_411 != 0.0:
+        # Ligne(s) 411 Client — split par journal pour équilibre RG / AC
+        # 411 C (net) en journal RG — omise si net == 0
+        if net != 0.0:
             entries.append(
                 AccountingEntry(
                     date=transaction.date,
                     journal=config.journal_reglement,
                     account=client_account,
                     label=label,
-                    debit=abs(total_411) if total_411 < 0 else 0.0,
-                    credit=total_411 if total_411 > 0 else 0.0,
+                    debit=abs(net) if net < 0 else 0.0,
+                    credit=net if net > 0 else 0.0,
                     piece_number=transaction.reference,
                     lettrage=transaction.reference,
                     channel=transaction.channel,
                     entry_type="settlement",
+                )
+            )
+        # 411 C (commission) en journal AC — omise si commission == 0
+        if commission != 0.0:
+            entries.append(
+                AccountingEntry(
+                    date=transaction.date,
+                    journal=config.journal_achats,
+                    account=client_account,
+                    label=commission_label,
+                    debit=abs(commission) if commission < 0 else 0.0,
+                    credit=commission if commission > 0 else 0.0,
+                    piece_number=transaction.reference,
+                    lettrage=transaction.reference,
+                    channel=transaction.channel,
+                    entry_type="commission",
                 )
             )
 
